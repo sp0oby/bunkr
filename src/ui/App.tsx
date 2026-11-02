@@ -692,13 +692,22 @@ function Cinematic({ game }: { game: Game }) {
   );
 }
 
+/** Midnight minus the countdown, as a clock face: 74s left reads 11:58:46. */
+function doomsdayTime(secondsLeft: number): string {
+  const t = 12 * 3600 - Math.max(0, Math.ceil(secondsLeft));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 /** Cable-news chyron along the bottom of the screen during the countdown. */
 function NewsTicker({ game }: { game: Game }) {
   const doubled = [...PREP_NEWS, ...PREP_NEWS];
   return (
     <div class="chyron">
       <div class="chyron-tag"><span class="dot" />BREAKING</div>
-      <div class="chyron-clock">DOOMSDAY<b>11:59:{String(Math.max(0, Math.ceil(game.prepLeft))).padStart(2, '0')}</b></div>
+      <div class="chyron-clock">DOOMSDAY<b>{doomsdayTime(game.prepLeft)}</b></div>
       <div class="chyron-track">
         <div class="chyron-scroll">
           {doubled.map((n, i) => (
