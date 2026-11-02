@@ -1,0 +1,826 @@
+import { Rng } from './rng';
+import {
+  ARCHS, BAGS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  NAMES, POP_CAP, PREP_SECONDS, ROOMS, RUN_DAYS, STARTER_ARCHS,
+  type HatchTrigger,
+} from './content';
+import { CARDS, type CardDef } from './events';
+import { HOTSPOTS } from './hotspots';
+import type {
+  ArchId, BagId, Dweller, Ending, HatchMood, LogEntry, LogKind, Phase, Raid, ResKey, Room, RoomType, StatKey, Stats,
+} from './types';
+
+export const STEP = 0.1;
+export const COPE_COST = 6;
+
+export interface PendingCard {
+  def: CardDef;
+  dwellerId: number | null;
+  result: string | null;
+}
+
+export class Game {
+  readonly seed: number;
+  rng: Rng;
+
+  phase: Phase = 'prep';
+  time = 0; // total sim seconds
+  phaseTime = 0; // seconds into the current phase
+  day = 0;
+
+  res: Record<ResKey, number> = { ramen: 230, water: 60, power: 60, copium: 20 };
+  rates: Record<ResKey, number> = { ramen: 0, water: 0, power: 0, copium: 0 };
+  vibe = 0;
+  vibeVel = 0;
+  rads = 5;
+
+  rooms: Room[] = [];
+  dwellers: Dweller[] = [];
+  bags: BagId[] = [];
+  floorsDug = 1;
+
+  recruitProg = 0;
+  researchProg = 0;
+  recruitsBought = 0;
+  roomsBuilt = 0;
+
+  raid: Raid | null = null;
+  raidMod = 1;
+  wifiUntil = 0;
+  hatchUnpluggedUntil = 0;
+  mreUsed = false;
+
+  hotspotCd = new Map<string, number>();
+
+  card: PendingCard | null = null;
+  nextCardAt = 0;
+  seenCards = new Set<string>();
+
+  hatchMood: HatchMood = 'smug';
+  hatchLine = '';
+  log: LogEntry[] = [];
+  stats: Stats = { raidsWon: 0, raidsLost: 0, deaths: 0, quits: 0, recruits: 0, expeditions: 0, cardsPlayed: 0, peakRamen: 0 };
+  ending: Ending | null = null;
+
+  /** Bumped whenever something UI-visible changes. */
+  version = 0;
+  /** One-shot signals for the renderer (flash, shake, etc). */
+  fx: string[] = [];
+  /** Output produced per room since the renderer last drained it (for popups). */
+  roomOut = new Map<number, number>();
+
+  private nextId = 1;
+  private logId = 1;
+  private warned = new Set<string>();
+
+  constructor(seed = (Math.random() * 2 ** 31) | 0) {
+    this.seed = seed;
+    this.rng = new Rng(seed);
+    const archs = [...STARTER_ARCHS];
+    for (let i = 0; i < 3; i++) {
+      const a = archs.splice(this.rng.int(0, archs.length - 1), 1)[0];
+      this.addDweller(a, undefined, true);
+    }
+    this.say('start');
+    this.post('The bombs drop when the T-MINUS clock hits zero. Build your bunker before then. Prices go up as panic sets in.', 'info');
+  }
+
+  // ======================================================================
+  // Queries
+  // ======================================================================
+
+  get alive(): Dweller[] {
+    return this.dwellers.filter((d) => d.status === 'active' || d.status === 'expedition');
+  }
+
+  get present(): Dweller[] {
+    return this.dwellers.filter((d) => d.status === 'active');
+  }
+
+  get underground(): boolean {
+    return this.phase === 'underground';
+  }
+
+  get panicMult(): number {
+    if (this.phase !== 'prep') return 1.25;
+    // Cheap early, brutal late.
+    return 1 + 1.5 * (this.phaseTime / PREP_SECONDS) ** 2;
+  }
+
+  get prepLeft(): number {
+    return Math.max(0, PREP_SECONDS - this.phaseTime);
+  }
+
+  get dayProgress(): number {
+    return this.underground ? (this.phaseTime % DAY_SECONDS) / DAY_SECONDS : 0;
+  }
+
+  caps(): Record<ResKey, number> {
+    const c = { ...BASE_CAPS };
+    for (const r of this.rooms) {
+      if (r.type === 'storage') {
+        c.ramen += 150 * r.width;
+        c.water += 100 * r.width;
+        c.copium += 20 * r.width;
+      }
+    }
+    return c;
+  }
+
+  vibeZone(): 'over' | 'balanced' | 'back' | 'cooked' | 'manic' {
+    if (this.vibe <= -75) return 'cooked';
+    if (this.vibe < -35) return 'over';
+    if (this.vibe >= 75) return 'manic';
+    if (this.vibe > 35) return 'back';
+    return 'balanced';
+  }
+
+  vibeMult(): number {
+    switch (this.vibeZone()) {
+      case 'balanced': return 1.2;
+      case 'back': return 1.1;
+      case 'manic': return 0.9;
+      case 'over': return 0.75;
+      case 'cooked': return 0.5;
+    }
+  }
+
+  roomAt(floor: number, col: number): Room | undefined {
+    return this.rooms.find((r) => r.floor === floor && col >= r.col && col < r.col + r.width);
+  }
+
+  roomById(id: number | null): Room | undefined {
+    return id == null ? undefined : this.rooms.find((r) => r.id === id);
+  }
+
+  workersIn(room: Room): Dweller[] {
+    return this.dwellers.filter((d) => d.status === 'active' && d.roomId === room.id);
+  }
+
+  capacity(room: Room): number {
+    return ROOMS[room.type].stat ? 2 * room.width : 0;
+  }
+
+  stat(d: Dweller, k: StatKey): number {
+    let v = d[k];
+    if (k === 'hands' && this.bags.includes('laserpointer')) v += 1;
+    if (k === 'brain' && this.bags.includes('fewunderstand') && d.brain < 4) v += 2;
+    return Math.min(12, v);
+  }
+
+  buildCost(type: RoomType): number {
+    return Math.round(ROOMS[type].cost * (1 + 0.08 * this.roomsBuilt) * this.panicMult);
+  }
+
+  digCost(): number {
+    return Math.round(35 * this.floorsDug * this.panicMult);
+  }
+
+  recruitCost(): number {
+    return Math.round(22 * (1 + 0.35 * this.recruitsBought) * this.panicMult);
+  }
+
+  canBuildAt(floor: number, col: number): boolean {
+    if (floor >= this.floorsDug || col < 0 || col >= COLS) return false;
+    if (this.roomAt(floor, col)) return false;
+    return col === 0 || !!this.roomAt(floor, col - 1) || !!this.roomAt(floor, col + 1);
+  }
+
+  // ======================================================================
+  // Player actions
+  // ======================================================================
+
+  build(type: RoomType, floor: number, col: number): boolean {
+    if (this.phase === 'ended' || this.phase === 'drop') return false;
+    const cost = this.buildCost(type);
+    if (!this.canBuildAt(floor, col) || this.res.ramen < cost) return false;
+    this.res.ramen -= cost;
+    this.roomsBuilt++;
+    let room: Room = { id: this.nextId++, type, floor, col, width: 1 };
+    this.rooms.push(room);
+    // Merge with same-type neighbours up to width 3.
+    for (const dir of [-1, 1]) {
+      const n = this.roomAt(floor, dir < 0 ? room.col - 1 : room.col + room.width);
+      if (n && n.type === type && n.width + room.width <= 3) {
+        const keep = dir < 0 ? n : room;
+        const drop = dir < 0 ? room : n;
+        keep.col = Math.min(n.col, room.col);
+        keep.width = n.width + room.width;
+        for (const d of this.dwellers) if (d.roomId === drop.id) d.roomId = keep.id;
+        this.rooms = this.rooms.filter((r) => r !== drop);
+        room = keep;
+        if (keep.width > 1) this.post(`${ROOMS[type].name} merged (x${keep.width}). Bigger room, better output.`, 'good');
+      }
+    }
+    this.post(`Built ${ROOMS[type].name} for ${cost} ramen.`, 'info');
+    this.touch();
+    return true;
+  }
+
+  digFloor(): boolean {
+    const cost = this.digCost();
+    if (this.floorsDug >= MAX_FLOORS || this.res.ramen < cost || this.phase === 'ended' || this.phase === 'drop') return false;
+    this.res.ramen -= cost;
+    this.floorsDug++;
+    this.post(`Dug floor ${this.floorsDug}. The shovel was paid in ramen.`, 'info');
+    this.touch();
+    return true;
+  }
+
+  recruit(): boolean {
+    const cost = this.recruitCost();
+    if (this.phase !== 'prep' || this.res.ramen < cost || this.alive.length >= POP_CAP) return false;
+    this.res.ramen -= cost;
+    this.recruitsBought++;
+    const d = this.addDweller(this.rng.pick(STARTER_ARCHS));
+    this.post(`Shilled the group chat. ${d.name} (${ARCHS[d.arch].name}) is in.`, 'good');
+    this.touch();
+    return true;
+  }
+
+  assign(dwellerId: number, roomId: number | null): boolean {
+    const d = this.dwellers.find((x) => x.id === dwellerId);
+    if (!d || d.status !== 'active') return false;
+    if (roomId != null) {
+      const room = this.roomById(roomId);
+      if (!room || this.workersIn(room).filter((w) => w.id !== d.id).length >= this.capacity(room)) return false;
+    }
+    d.roomId = roomId;
+    this.touch();
+    return true;
+  }
+
+  cope(): boolean {
+    const cost = COPE_COST;
+    if (this.res.copium < cost || this.phase === 'ended') return false;
+    this.res.copium -= cost;
+    this.vibeVel *= 0.3;
+    this.vibe *= 0.6;
+    this.say('cope');
+    this.touch();
+    return true;
+  }
+
+  sendExpedition(dwellerId: number, locId: string): boolean {
+    const d = this.dwellers.find((x) => x.id === dwellerId);
+    const loc = LOCATIONS.find((l) => l.id === locId);
+    if (!d || !loc || d.status !== 'active' || !this.underground) return false;
+    const dur = loc.dur * (this.bags.includes('lambokeys') ? 0.7 : 1);
+    d.status = 'expedition';
+    d.roomId = null;
+    d.exp = { locId, returnAt: this.time + dur };
+    this.stats.expeditions++;
+    this.post(`${d.name} climbed out the porta-potty toward ${loc.name}.`, 'info');
+    this.touch();
+    return true;
+  }
+
+  payRespects(dwellerId: number): void {
+    const d = this.dwellers.find((x) => x.id === dwellerId);
+    if (!d || d.status !== 'dead' || d.fPaid) return;
+    d.fPaid = true;
+    this.vibe += 4;
+    this.post(`F. Respects paid to ${d.name}.`, 'info');
+    this.touch();
+  }
+
+  skipPrep(): void {
+    if (this.phase === 'prep') this.phaseTime = PREP_SECONDS;
+  }
+
+  chooseCard(optionIndex: number): void {
+    const c = this.card;
+    if (!c || c.result != null) return;
+    const opt = c.def.options[optionIndex];
+    if (!opt) return;
+    const who = this.dwellers.find((d) => d.id === c.dwellerId) ?? null;
+    c.result = opt.effect(this, who);
+    this.stats.cardsPlayed++;
+    this.touch();
+  }
+
+  /** Click a gag object in a room. Each object has its own cooldown. */
+  pokeHotspot(roomId: number, index: number): string | null {
+    const room = this.roomById(roomId);
+    const spot = room && HOTSPOTS[room.type][index];
+    if (!room || !spot || this.phase === 'ended') return null;
+    const key = `${roomId}:${index}`;
+    const ready = this.hotspotCd.get(key) ?? 0;
+    if (this.time < ready) return `${spot.label}: recharging. Like your portfolio. (${Math.ceil(ready - this.time)}s)`;
+    this.hotspotCd.set(key, this.time + 20);
+    const text = spot.poke(this, room, this.workersIn(room));
+    this.touch();
+    return text;
+  }
+
+  hotspotReady(roomId: number, index: number): boolean {
+    return this.time >= (this.hotspotCd.get(`${roomId}:${index}`) ?? 0);
+  }
+
+  dismissCard(): void {
+    if (this.card?.result != null) {
+      this.card = null;
+      this.touch();
+    }
+  }
+
+  // ======================================================================
+  // Helpers used by event cards
+  // ======================================================================
+
+  addRes(k: ResKey, n: number): number {
+    const before = this.res[k];
+    this.res[k] = Math.max(0, Math.min(this.caps()[k], this.res[k] + n));
+    return Math.round(this.res[k] - before);
+  }
+
+  kick(vibe: number, vel = 0): void {
+    this.vibe = Math.max(-100, Math.min(100, this.vibe + vibe));
+    this.vibeVel += vel;
+  }
+
+  addRads(n: number): void {
+    this.rads = Math.max(0, Math.min(100, this.rads + n));
+  }
+
+  hurt(d: Dweller, amount: number, cause: string): void {
+    if (d.status === 'dead' || d.status === 'gone') return;
+    if (d.arch === 'midcurve' && this.day < 4) amount = Math.min(amount, d.hp - 1);
+    d.hp -= amount;
+    if (d.hp <= 0) this.kill(d, cause);
+  }
+
+  kill(d: Dweller, cause: string): void {
+    if (this.bags.includes('hwnecklace')) {
+      this.bags.splice(this.bags.indexOf('hwnecklace'), 1);
+      d.hp = 35;
+      this.post(`${d.name} should have died (${cause}) but the Hardware Wallet Necklace took the hit. It's gone now.`, 'good');
+      return;
+    }
+    d.hp = 0;
+    d.status = 'dead';
+    d.roomId = null;
+    d.exp = null;
+    d.deathDay = this.day;
+    this.stats.deaths++;
+    this.kick(-18);
+    this.fx.push('death');
+    this.post(`${d.name} got liquidated (${cause}). Press F.`, 'bad');
+    this.say('death');
+  }
+
+  addDweller(arch: ArchId, name?: string, silent = false): Dweller {
+    const base = ARCHS[arch].stats;
+    const used = new Set(this.dwellers.map((d) => d.name));
+    const free = NAMES.filter((n) => !used.has(n));
+    const roll = (v: number) => Math.max(1, Math.min(10, v + this.rng.int(-1, 1)));
+    const d: Dweller = {
+      id: this.nextId++,
+      name: name ?? (free.length ? this.rng.pick(free) : `Anon #${this.nextId}`),
+      arch,
+      grind: arch === 'midcurve' ? 5 : roll(base.grind),
+      brain: arch === 'midcurve' ? 5 : roll(base.brain),
+      vibes: arch === 'midcurve' ? 5 : roll(base.vibes),
+      hands: arch === 'midcurve' ? 5 : roll(base.hands),
+      hp: 100,
+      roomId: null,
+      status: 'active',
+      exp: null,
+    };
+    this.dwellers.push(d);
+    if (!silent) this.stats.recruits++;
+    if (arch === 'larry') this.giveBag();
+    this.touch();
+    return d;
+  }
+
+  giveBag(id?: BagId): BagId | null {
+    const pool = (Object.keys(BAGS) as BagId[]).filter((b) => !this.bags.includes(b));
+    const bag = id ?? (pool.length ? this.rng.pick(pool) : null);
+    if (!bag || this.bags.includes(bag)) return null;
+    this.bags.push(bag);
+    if (bag === 'ledger') {
+      this.addRes('ramen', 200);
+      this.kick(-10);
+    }
+    this.post(`New Bag: ${BAGS[bag].name}. ${BAGS[bag].desc}`, 'good');
+    if (this.bags.length > BAG_SOFT_CAP) this.post('Bagholder: you are carrying too many bags. Output -10%.', 'bad');
+    this.say('bag');
+    this.fx.push('bag');
+    return bag;
+  }
+
+  randomPresent(filter?: (d: Dweller) => boolean): Dweller | null {
+    const list = this.present.filter((d) => !filter || filter(d));
+    return list.length ? this.rng.pick(list) : null;
+  }
+
+  post(text: string, kind: LogKind = 'info'): void {
+    this.log.push({ id: this.logId++, t: this.time, day: this.day, text, kind });
+    if (this.log.length > 80) this.log.shift();
+    this.touch();
+  }
+
+  say(trigger: HatchTrigger): void {
+    if (this.time < this.hatchUnpluggedUntil) return;
+    const [mood, line] = this.rng.pick(HATCH_LINES[trigger]);
+    this.hatchMood = mood;
+    this.hatchLine = line;
+    this.touch();
+  }
+
+  touch(): void {
+    this.version++;
+  }
+
+  // ======================================================================
+  // Simulation
+  // ======================================================================
+
+  /** Advance by exactly one fixed step. Paused while a card is open. */
+  step(): void {
+    if (this.phase === 'ended' || this.card) return;
+    const dt = STEP;
+    this.time += dt;
+    this.phaseTime += dt;
+
+    if (this.phase === 'prep') {
+      this.produce(dt);
+      this.pendulum(dt);
+      if (this.phaseTime >= PREP_SECONDS) this.startDrop();
+    } else if (this.phase === 'drop') {
+      if (this.phaseTime >= DROP_SECONDS) this.startUnderground();
+    } else {
+      const prevDay = this.day;
+      this.day = 1 + Math.floor(this.phaseTime / DAY_SECONDS);
+      if (this.day !== prevDay) this.onNewDay();
+      if (this.day > RUN_DAYS) {
+        this.finish(true);
+        return;
+      }
+      this.produce(dt);
+      this.consume(dt);
+      this.pendulum(dt);
+      this.health(dt);
+      this.expeditions();
+      this.raidStep(dt);
+      this.cardsStep();
+    }
+
+    for (const k of ['ramen', 'water', 'power', 'copium'] as ResKey[]) {
+      this.res[k] = Math.max(0, Math.min(this.caps()[k], this.res[k]));
+    }
+    this.stats.peakRamen = Math.max(this.stats.peakRamen, this.res.ramen);
+    this.warnings();
+
+    if (this.alive.length === 0 && this.phase === 'underground') this.finish(false);
+  }
+
+  private startDrop(): void {
+    this.phase = 'drop';
+    this.phaseTime = 0;
+    this.fx.push('drop');
+    this.post('THE BOMBS HAVE DROPPED. Anyone above ground is now exit liquidity.', 'bad');
+    this.touch();
+  }
+
+  private startUnderground(): void {
+    this.phase = 'underground';
+    this.phaseTime = 0;
+    this.day = 1;
+    this.rads = 25;
+    this.nextCardAt = 9;
+    this.say('drop');
+    this.post('Day 1 underground. Keep ramen, water and power above zero. Keep the vibes in the middle.', 'info');
+    this.touch();
+  }
+
+  private onNewDay(): void {
+    if (this.day > RUN_DAYS) return;
+    if (this.day > 1) this.say('dayStart');
+    this.post(`— DAY ${this.day} —`, 'info');
+    if (this.day === 10 || this.day === 20) this.startRaid(this.day === 10 ? 1 : 2);
+    if (this.day === 24 && !this.dwellers.some((d) => d.arch === 'larry')) {
+      this.queueCard('larry');
+    }
+    // The Reformed Rug Puller occasionally relapses.
+    for (const d of this.present) {
+      if (d.arch === 'rugpuller' && this.rng.chance(0.12)) {
+        const n = Math.round(this.res.ramen * 0.12);
+        if (n > 0) {
+          this.res.ramen -= n;
+          this.post(`${d.name} "migrated liquidity" overnight. ${n} ramen is gone. Halo still on.`, 'bad');
+        }
+      }
+    }
+    this.touch();
+  }
+
+  /** Global output multiplier from vibes, bagholding and wifi distraction. */
+  outputMult(): number {
+    return this.vibeMult() * (this.bags.length > BAG_SOFT_CAP ? 0.9 : 1) * (this.time < this.wifiUntil ? 0.5 : 1);
+  }
+
+  /** How hard a room is working right now (0 = idle / unpowered). */
+  roomEff(room: Room, vm = this.outputMult(), powered = this.res.power > 0): number {
+    const def = ROOMS[room.type];
+    if (!def.stat || (room.type !== 'reactor' && !powered)) return 0;
+    const workers = this.workersIn(room);
+    if (!workers.length) return 0;
+    const hasReply = workers.some((w) => w.arch === 'replyguy');
+    let factor = 0;
+    for (const w of workers) {
+      let f = 1 + 0.12 * this.stat(w, def.stat);
+      if (w.arch === 'pete') f *= 1.5;
+      if (w.arch === 'maxi' && room.type !== 'reactor') f *= 0.7;
+      if (w.arch === 'gigabrain' && room.type === 'memelab') f *= 3;
+      if (hasReply && w.arch !== 'replyguy') f *= 1.15;
+      factor += f;
+    }
+    return (room.width === 3 ? 1.15 : room.width === 2 ? 1.05 : 1) * factor * vm;
+  }
+
+  /** Human-readable output line for a room, per in-game day. */
+  roomOutput(room: Room): string {
+    const e = this.roomEff(room) * DAY_SECONDS;
+    if (room.type === 'storage') return `+${150 * room.width} ramen & +${100 * room.width} water storage`;
+    if (e <= 0) return this.res.power <= 0 && room.type !== 'reactor' ? 'NO POWER' : 'Nobody working';
+    switch (room.type) {
+      case 'reactor': return `+${(0.11 * e).toFixed(0)} ⚡ per day`;
+      case 'kitchen': return `+${(0.14 * e).toFixed(0)} 🍜 per day`;
+      case 'pool': return `+${(0.14 * e).toFixed(0)} 💧 per day, scrubbing rads`;
+      case 'copium': return `+${(0.07 * e).toFixed(0)} 💊 per day`;
+      case 'shill': return `new degen every ~${Math.ceil(100 / (0.55 * e))} days`;
+      case 'memelab': return `new Bag every ~${Math.ceil(100 / (0.45 * e * (this.bags.includes('whitepaper') ? 2 : 1)))} days`;
+      case 'grass': return 'calming the vibe swings';
+      case 'rugdetector': return `+${Math.round(30 * this.workersIn(room).reduce((s, w) => s + 1 + 0.12 * this.stat(w, 'hands'), 0))}% raid defense`;
+      default: return '';
+    }
+  }
+
+  private produce(dt: number): void {
+    const rates: Record<ResKey, number> = { ramen: 0, water: 0, power: 0, copium: 0 };
+    const vm = this.outputMult();
+    const powered = this.res.power > 0;
+    for (const room of this.rooms) {
+      if (room.type !== 'reactor' && room.type !== 'storage') rates.power -= 0.035 * room.width;
+      const eff = this.roomEff(room, vm, powered);
+      if (eff <= 0) continue;
+      const out = (n: number) => this.roomOut.set(room.id, (this.roomOut.get(room.id) ?? 0) + n * dt);
+      switch (room.type) {
+        case 'reactor': rates.power += 0.11 * eff; out(0.11 * eff); break;
+        case 'kitchen': rates.ramen += 0.14 * eff; out(0.14 * eff); break;
+        case 'pool':
+          rates.water += 0.14 * eff;
+          out(0.14 * eff);
+          if (this.underground) this.addRads(-0.006 * eff * dt);
+          break;
+        case 'copium': rates.copium += 0.07 * eff; out(0.07 * eff); break;
+        case 'shill':
+          if (this.underground && this.alive.length < POP_CAP) {
+            this.recruitProg += 0.55 * eff * dt;
+            if (this.recruitProg >= 100) {
+              this.recruitProg = 0;
+              const d = this.addDweller(this.rng.pick(STARTER_ARCHS));
+              this.post(`${d.name} (${ARCHS[d.arch].name}) heard the Shill Tower and crawled in.`, 'good');
+              this.say('recruit');
+            }
+          }
+          break;
+        case 'memelab':
+          this.researchProg += 0.45 * eff * dt * (this.bags.includes('whitepaper') ? 2 : 1);
+          if (this.researchProg >= 100) {
+            this.researchProg = 0;
+            if (!this.giveBag()) this.addRes('copium', 20);
+          }
+          break;
+        case 'grass':
+          this.vibeVel *= 1 - Math.min(0.5, 0.025 * eff) * dt;
+          break;
+        default:
+          break;
+      }
+    }
+    for (const d of this.present) if (d.arch === 'gigabrain') rates.copium -= 0.02;
+    for (const k of Object.keys(rates) as ResKey[]) this.res[k] += rates[k] * dt;
+    this.rates = rates;
+  }
+
+  private consume(dt: number): void {
+    let eat = 0;
+    for (const d of this.present) eat += d.arch === 'intern' ? 0.025 : 0.05;
+    this.res.ramen -= eat * dt;
+    this.res.water -= 0.05 * this.present.length * dt;
+    this.rates.ramen -= eat;
+    this.rates.water -= 0.05 * this.present.length;
+    if (this.res.ramen <= 0 && this.bags.includes('mrenft') && !this.mreUsed) {
+      this.mreUsed = true;
+      this.res.ramen = 60;
+      this.post('Ate the Expired MRE NFT. +60 ramen. Tasted like a rug.', 'good');
+    }
+    this.addRads(0.012 * dt);
+  }
+
+  private pendulum(dt: number): void {
+    let pressure = 0;
+    if (this.underground) {
+      if (this.res.ramen <= 0) pressure -= 1.2;
+      if (this.res.water <= 0) pressure -= 1.2;
+      if (this.res.power <= 0) pressure -= 0.7;
+      if (this.rads > 60) pressure -= 0.5;
+      if (this.raid) pressure -= 0.6;
+    }
+    // Spring pulls toward the middle, but degens amplify momentum (negative damping),
+    // so the swing grows unless you dampen it with copium or grass.
+    this.vibeVel += (-0.011 * this.vibe + pressure + this.rng.range(-1.6, 1.6)) * dt;
+    this.vibeVel *= 1 + 0.006 * dt;
+    this.vibe += this.vibeVel * dt;
+    if (this.vibe > 100 || this.vibe < -100) {
+      this.vibe = Math.max(-100, Math.min(100, this.vibe));
+      this.vibeVel *= -0.3;
+    }
+    if (!this.underground) return;
+    const zone = this.vibeZone();
+    // Somebody has to stay behind to post the farewell threads.
+    if (zone === 'cooked' && this.present.length > 2 && this.rng.chance(0.008 * dt * 10)) {
+      const d = this.randomPresent((x) => x.arch !== 'maxi') ;
+      const quitter = this.present.find((x) => x.arch === 'pete') ?? d;
+      if (quitter) {
+        quitter.status = 'gone';
+        quitter.roomId = null;
+        this.stats.quits++;
+        this.post(`${quitter.name} rage-quit the bunker and posted a farewell thread.`, 'bad');
+        this.say('quit');
+      }
+    }
+    if (zone === 'manic' && this.rng.chance(0.007 * dt * 10)) {
+      const d = this.randomPresent();
+      if (d) {
+        if (this.rng.chance(0.25)) {
+          const n = this.addRes('ramen', this.rng.int(40, 90));
+          this.post(`${d.name} YOLO'd onto the surface and somehow came back with ${n} ramen.`, 'good');
+        } else {
+          this.kill(d, 'went outside to buy the dip');
+          this.say('yolo');
+        }
+      }
+    }
+  }
+
+  private health(dt: number): void {
+    const starving = this.res.ramen <= 0;
+    const thirsty = this.res.water <= 0;
+    for (const d of this.present) {
+      let dmg = 0;
+      if (starving) dmg += 0.7;
+      if (thirsty) dmg += 0.7;
+      if (this.rads > 50) dmg += (this.rads - 50) * 0.012;
+      if (dmg > 0) this.hurt(d, dmg * dt, starving ? 'starvation' : thirsty ? 'dehydration' : 'radiation');
+      else d.hp = Math.min(100, d.hp + 0.4 * dt);
+    }
+  }
+
+  private expeditions(): void {
+    for (const d of this.dwellers) {
+      if (d.status !== 'expedition' || !d.exp || this.time < d.exp.returnAt) continue;
+      const loc = LOCATIONS.find((l) => l.id === d.exp!.locId)!;
+      d.exp = null;
+      d.status = 'active';
+      const deathChance = Math.max(0.02, loc.risk * (1 + this.rads / 100) - 0.015 * this.stat(d, 'hands'));
+      if (this.rng.chance(deathChance)) {
+        this.kill(d, `lost at ${loc.name}`);
+        this.post(`${d.name}'s last message from ${loc.name}: "wagmi".`, 'bad');
+        continue;
+      }
+      d.hp -= this.rng.int(loc.rads[0], loc.rads[1]);
+      if (d.hp <= 0) d.hp = 5;
+      let mult = 1;
+      if (d.arch === 'farmer') mult *= 2;
+      if (d.arch === 'rugpuller') mult *= 1.5;
+      if (d.arch === 'farmer' && this.rng.chance(0.15)) {
+        this.hurt(d, 40, 'an airdrop that was actually a landmine');
+        this.post(`${d.name} claimed an airdrop. It was a landmine. -40 HP.`, 'bad');
+      }
+      const got: string[] = [];
+      for (const [k, range] of Object.entries(loc.loot) as [ResKey, [number, number]][]) {
+        const n = this.addRes(k, Math.round(this.rng.int(range[0], range[1]) * mult));
+        if (n > 0) got.push(`${n} ${k}`);
+      }
+      this.post(`${d.name} is back from ${loc.name} with ${got.join(', ') || 'nothing but trauma'}.`, 'good');
+      if (this.rng.chance(loc.bagChance)) this.giveBag();
+    }
+  }
+
+  private startRaid(level: number): void {
+    const hp = (level === 1 ? 130 : 280) * this.raidMod;
+    this.raid = { name: level === 1 ? 'The Liquidators' : 'The Liquidators (10x Leverage)', hp, maxHp: hp, power: level === 1 ? 6 : 10, t: 0, hitTimer: 0, stolen: 0 };
+    this.raidMod = 1;
+    this.say('raid');
+    this.fx.push('raid');
+    this.post(`BOSS: ${this.raid.name} are coming through the porta-potty. Defense = everyone's Grind + Hands. Rug Detectors help.`, 'bad');
+  }
+
+  private raidStep(dt: number): void {
+    const raid = this.raid;
+    if (!raid) return;
+    raid.t += dt;
+    const fighters = this.present.filter((d) => d.arch !== 'pete');
+    let rug = 0;
+    for (const r of this.rooms) {
+      if (r.type === 'rugdetector') rug += this.workersIn(r).reduce((s, w) => s + 1 + 0.12 * this.stat(w, 'hands'), 0);
+    }
+    const dmg = fighters.reduce((s, d) => s + 1 + 0.15 * this.stat(d, 'grind') + 0.1 * this.stat(d, 'hands'), 0) * (1 + 0.3 * rug);
+    raid.hp -= dmg * 1.1 * dt;
+    raid.hitTimer += dt;
+    if (raid.hitTimer >= 1 && fighters.length) {
+      raid.hitTimer = 0;
+      const victim = this.rng.pick(fighters);
+      this.hurt(victim, raid.power * this.rng.range(0.6, 1.3), `stabbed by ${raid.name}`);
+      this.fx.push('hit');
+    }
+    if (!this.bags.includes('safu')) {
+      const steal = Math.min(this.res.ramen, 1.6 * dt);
+      this.res.ramen -= steal;
+      raid.stolen += steal;
+    }
+    if (raid.hp <= 0) {
+      const n = this.addRes('ramen', 60 + raid.stolen);
+      this.kick(30);
+      this.stats.raidsWon++;
+      this.post(`${raid.name} got liquidated. Looted ${n} ramen off their bodies.`, 'good');
+      this.say('raidwon');
+      if (this.rng.chance(0.5)) this.giveBag();
+      this.raid = null;
+    } else if (raid.t >= 30) {
+      this.kick(-25);
+      this.stats.raidsLost++;
+      this.post(`${raid.name} left with ${Math.round(raid.stolen)} ramen. They were not even mad.`, 'bad');
+      this.say('raidlost');
+      this.raid = null;
+    }
+    this.touch();
+  }
+
+  private cardsStep(): void {
+    if (this.raid || this.time < this.nextCardAt) return;
+    this.nextCardAt = this.time + this.rng.range(DAY_SECONDS * 0.55, DAY_SECONDS * 1.1);
+    const candidates = CARDS.filter((c) => !c.special && (!c.needs || c.needs(this)) && !(c.once && this.seenCards.has(c.id)));
+    const def = this.rng.weighted(candidates, (c) => (this.seenCards.has(c.id) ? 0.25 : 1) * (c.weight ?? 1));
+    if (def) this.openCard(def);
+  }
+
+  queueCard(id: string): void {
+    const def = CARDS.find((c) => c.id === id);
+    if (def) this.openCard(def);
+  }
+
+  private openCard(def: CardDef): void {
+    const who = def.pickDweller ? def.pickDweller(this) : this.randomPresent();
+    this.seenCards.add(def.id);
+    this.card = { def, dwellerId: who?.id ?? null, result: null };
+    this.fx.push('card');
+    this.touch();
+  }
+
+  private warnings(): void {
+    const check = (key: string, cond: boolean, trigger: HatchTrigger) => {
+      if (cond && !this.warned.has(key)) {
+        this.warned.add(key);
+        this.say(trigger);
+      } else if (!cond) this.warned.delete(key);
+    };
+    if (!this.underground) return;
+    check('power', this.res.power <= 0, 'nopower');
+    check('ramen', this.res.ramen <= 0, 'starving');
+    check('water', this.res.water <= 0, 'thirsty');
+    const z = this.vibeZone();
+    check('over', z === 'cooked', 'over');
+    check('back', z === 'manic', 'back');
+  }
+
+  private finish(survived: boolean): void {
+    this.phase = 'ended';
+    const alive = this.alive.length;
+    const breakdown: [string, number][] = [
+      ['Survivors x 250', alive * 250],
+      ['Ramen', Math.round(this.res.ramen)],
+      ['Water', Math.round(this.res.water)],
+      ['Copium x 2', Math.round(this.res.copium * 2)],
+      ['Bags x 150', this.bags.length * 150],
+      ['Days survived x 40', Math.min(this.day, RUN_DAYS) * 40],
+      ['Raids won x 300', this.stats.raidsWon * 300],
+    ];
+    const score = breakdown.reduce((s, [, n]) => s + n, 0);
+    let title = 'LIQUIDATED';
+    let blurb = `Everyone died by day ${this.day}. The bunker is now a very sad NFT.`;
+    if (survived) {
+      if (alive >= 8) { title = 'BUNKER DAO'; blurb = 'You surfaced with a whole community. Governance proposal #1: never go back down there.'; }
+      else if (this.res.ramen >= 400) { title = 'RAMEN BARON'; blurb = 'You surfaced holding the world\'s largest ramen reserve. You are the Fed now.'; }
+      else if (alive <= 2) { title = 'LAST DEGENS STANDING'; blurb = 'Two survivors. Zero friends. Infinite trauma. Still bullish.'; }
+      else { title = 'TOUCHED GRASS'; blurb = 'You climbed out of the porta-potty and touched grass. It was radioactive grass. Still counts.'; }
+    }
+    this.ending = { title, blurb, score, breakdown };
+    this.fx.push('end');
+    this.touch();
+  }
+}
