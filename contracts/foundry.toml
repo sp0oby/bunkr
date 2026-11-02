@@ -1,0 +1,21 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.26"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 500
+remappings = [
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+  "forge-std/=lib/forge-std/src/",
+]
+# The deploy script writes contract addresses where the game can import them.
+fs_permissions = [{ access = "read-write", path = "../src/chain/deployments" }]
+
+[rpc_endpoints]
+local = "http://127.0.0.1:8545"
+robinhood_testnet = "https://rpc.testnet.chain.robinhood.com"
+
+[etherscan]
+robinhood_testnet = { key = "blockscout", url = "https://explorer.testnet.chain.robinhood.com/api", chain = 46630 }

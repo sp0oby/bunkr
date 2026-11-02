@@ -8,6 +8,8 @@ import { Title } from './ui/Title';
 import { PhoneGate, isPhone, phoneOverride } from './ui/PhoneGate';
 import { audio } from './audio/audio';
 import { dailySeed, loadMeta, recordRun, runConfig } from './meta';
+import { tokenGate } from './chain/config';
+import { clearPass, readPass, restore } from './chain/wallet';
 import './style.css';
 
 const params = new URLSearchParams(location.search);
@@ -29,6 +31,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 const playing = params.has('play') || params.has('daily') || params.has('seed');
+void restore();
 function boot(): void {
   if (!playing) render(<Title meta={meta} />, document.getElementById('ui')!);
   else startRun();
@@ -43,7 +46,19 @@ function startRun(): void {
   const defcon = Math.max(meta.unlocked, Math.min(5, Number.isFinite(wanted) ? wanted : 5)) as Defcon;
   const seedParam = params.get('seed');
   const seed = daily ? dailySeed() : seedParam ? Number(seedParam) : undefined;
-  const game = new Game(seed, runConfig(meta, defcon, daily));
+  // With the token layer on, a run needs a pass from spending a Ration Ticket. No pass: Tent Mode.
+  const pass = tokenGate ? readPass(daily) : null;
+  const chainCfg = !tokenGate ? {} : pass
+    ? { deedTier: pass.tier, loadout: pass.loadout, rocket: pass.tier >= 3 || undefined }
+    : { tent: true };
+  const cfg = { ...runConfig(meta, defcon, daily), ...chainCfg };
+  if (cfg.rocket === undefined) delete cfg.rocket;
+  if (daily && !pass && tokenGate) {
+    location.search = '';
+    return;
+  }
+  const game = new Game(seed, cfg);
+  if (pass?.tier === 4) document.body.classList.add('silo');
   const ui: UiState = { selected: null, buildAt: null, speed: 1, drawer: null, roomView: null, inspectBag: null, rewards: null };
 
   function assign(dwellerId: number, roomId: number): boolean {
@@ -111,6 +126,7 @@ function startRun(): void {
     // Bank the run exactly once when it ends.
     if (game.ending && !ui.rewards) {
       ui.rewards = recordRun(meta, game.ending);
+      clearPass();
       game.touch();
     }
     view.frame(dt);

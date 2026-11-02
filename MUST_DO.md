@@ -2,9 +2,14 @@
 
 Things that have to happen before launch. Not optional.
 
-## 1. $BUNKR token layer (Robinhood Chain testnet first) — NEXT
-- Wallet connect, Bunker Deed tiers, Ration Tickets, Forged Bags, chart-as-weather
-- Game contracts on testnet with a mock $BUNKR; outside audit before mainnet
+## 1. $BUNKR token layer (Robinhood Chain testnet first) — IN PROGRESS
+- [x] Contracts: MockBUNKR, BunkrTickets (Deeds, Ration Tickets, Daily Doom pot), BunkrForge (forged Bags) + tests
+- [x] Wallet connect, Deed panel, ticket per run, Tent Mode, forged-Bag loadout, forge from the end screen
+- [ ] Deploy to Robinhood Chain testnet (needs a funded deployer key: `npm run deploy:testnet`)
+- [ ] Results server: signs run results, settles Daily Doom pots, rolls Bag shatters on liquidation, Daily leaderboard
+- [ ] Chart-as-weather (needs a live price, so after the Urufu launch)
+- [ ] The Wasteland season mode
+- [ ] Outside audit before mainnet
 
 ## 2. Real mobile version
 Today the title screen works on phones, but in-game is broken. Phones currently get a "play it on PC" screen instead.

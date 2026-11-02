@@ -123,6 +123,8 @@ export interface Ending {
   survived: boolean;
   defcon: number;
   daily: boolean;
+  /** Tent Mode demo ran out: the player has no Bunker Deed. */
+  tent?: boolean;
 }
 
 export interface Stats {
@@ -169,4 +171,10 @@ export interface RunConfig {
   startBag: boolean;
   legendLuck: boolean;
   rocket: boolean;
+  /** No Bunker Deed: the free demo, cut off after TENT_DAYS underground. */
+  tent: boolean;
+  /** Bunker Deed tier from the $BUNKR balance: 0 none, 1 Shed, 2 Basement, 3 Bunker, 4 Silo. */
+  deedTier: number;
+  /** Forged Bags (on-chain) brought into this run. */
+  loadout: BagId[];
 }

@@ -1,6 +1,6 @@
 import { Rng } from './rng';
 import {
-  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, TENT_DAYS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
   LOOK_PRESENTATION, NAMES, POP_CAP, archTitle, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
@@ -85,6 +85,7 @@ export class Game {
   hatchLine = '';
   /** Voice clip id for the current line (null for ad-hoc lines with no recording). */
   hatchVoice: string | null = null;
+  private hatchQueue: HatchTrigger[] = [];
   private hatchLast = new Map<HatchTrigger, number>();
   private hatchLastAny = -Infinity;
   private hatchSpoken = new Set<string>();
@@ -106,7 +107,10 @@ export class Game {
   constructor(seed = (Math.random() * 2 ** 31) | 0, config: Partial<RunConfig> = {}) {
     this.seed = seed;
     this.rng = new Rng(seed);
-    this.config = { defcon: 5, daily: false, startRamen: 0, extraDegen: false, startBag: false, legendLuck: false, rocket: false, ...config };
+    this.config = {
+      defcon: 5, daily: false, startRamen: 0, extraDegen: false, startBag: false, legendLuck: false, rocket: false,
+      tent: false, deedTier: 0, loadout: [], ...config,
+    };
     this.prepSeconds = this.config.defcon <= 2 ? 55 : PREP_SECONDS;
     this.res.ramen += this.config.startRamen;
     // Starting crew: different non-legendary degens.
@@ -116,6 +120,11 @@ export class Game {
       this.addDweller(a, undefined, true);
     }
     if (this.config.startBag) this.giveBag();
+    for (const b of this.config.loadout) {
+      if (this.bags.includes(b)) continue;
+      this.bags.push(b);
+      this.post(`Forged Bag on board: ${BAGS[b].name}. ${BAGS[b].desc}`, 'good');
+    }
     this.say('start');
     this.post('The bombs drop when the T-MINUS clock hits zero. Build your bunker before then. Prices go up as panic sets in.', 'info');
   }
@@ -510,6 +519,11 @@ export class Game {
     return d;
   }
 
+  /** Bags you can carry before Bagholder kicks in. A Basement Deed or better adds a slot. */
+  get bagCap(): number {
+    return BAG_SOFT_CAP + (this.config.deedTier >= 2 ? 1 : 0);
+  }
+
   giveBag(id?: BagId): BagId | null {
     const pool = (Object.keys(BAGS) as BagId[]).filter((b) => !this.bags.includes(b));
     const bag = id ?? (pool.length ? this.rng.pick(pool) : null);
@@ -517,7 +531,7 @@ export class Game {
     this.bags.push(bag);
     this.newBag = bag;
     this.post(`New Bag: ${BAGS[bag].name}. ${BAGS[bag].desc}`, 'good');
-    if (this.bags.length > BAG_SOFT_CAP) this.post('Bagholder: you are carrying too many bags. Output -10%.', 'bad');
+    if (this.bags.length > this.bagCap) this.post('Bagholder: you are carrying too many bags. Output -10%.', 'bad');
     this.say('bag');
     this.fx.push('bag');
     return bag;
@@ -648,6 +662,10 @@ export class Game {
         this.finish(true);
         return;
       }
+      if (this.config.tent && this.day > TENT_DAYS) {
+        this.finish(false, true);
+        return;
+      }
       this.produce(dt);
       this.consume(dt);
       this.pendulum(dt);
@@ -655,6 +673,7 @@ export class Game {
       this.expeditions();
       this.raidStep(dt);
       this.cardsStep();
+      if (this.hatchQueue.length && this.time - this.hatchLastAny >= HATCH_GAP) this.say(this.hatchQueue.shift()!);
     }
 
     for (const k of ['ramen', 'water', 'power', 'copium'] as ResKey[]) {
@@ -682,12 +701,16 @@ export class Game {
     this.nextCardAt = 9;
     this.fx.push('landed');
     this.say('drop');
+    if (this.config.deedTier >= 4) this.queueSay('silo');
+    else if (this.config.loadout.length) this.queueSay('forged');
+    if (this.config.tent) this.post(`Tent Mode: no Bunker Deed, so this tent lasts ${TENT_DAYS} days. Hold $BUNKR to get a real bunker.`, 'bad');
     this.post('Day 1 underground. Keep ramen, water and power above zero. Keep the vibes in the middle.', 'info');
     this.touch();
   }
 
   private onNewDay(): void {
     if (this.day > RUN_DAYS) return;
+    if (this.config.tent && this.day === TENT_DAYS) this.queueSay('tentWarn');
     if (this.day > 1) {
       this.say('dayStart');
       this.fx.push('day');
@@ -733,7 +756,7 @@ export class Game {
 
   /** Global output multiplier from vibes, bagholding and wifi distraction. */
   outputMult(): number {
-    return this.vibeMult() * (this.bags.length > BAG_SOFT_CAP ? 0.9 : 1) * (this.time < this.wifiUntil ? 0.5 : 1);
+    return this.vibeMult() * (this.bags.length > this.bagCap ? 0.9 : 1) * (this.time < this.wifiUntil ? 0.5 : 1);
   }
 
   /** How hard a room is working right now (0 = idle / unpowered). */
@@ -1111,7 +1134,12 @@ export class Game {
     check('back', z === 'manic', 'back');
   }
 
-  private finish(survived: boolean): void {
+  /** HATCH says this as soon as the current line has had its moment. */
+  private queueSay(trigger: HatchTrigger): void {
+    this.hatchQueue.push(trigger);
+  }
+
+  private finish(survived: boolean, tent = false): void {
     this.phase = 'ended';
     const alive = this.alive.length;
     const breakdown: [string, number][] = [
@@ -1132,6 +1160,14 @@ export class Game {
     const score = Math.round(base * mult);
     let title = 'LIQUIDATED';
     let blurb = `Everyone died by day ${this.day}. The bunker is now a very sad NFT.`;
+    if (tent) {
+      title = 'TENT COLLAPSED';
+      blurb = 'Three days in a tent during nuclear winter. Respectable. Hold $BUNKR for a Bunker Deed and play the full 30 days.';
+      this.hatchQueue = [];
+      this.hatchLast.delete('tent');
+      this.hatchLastAny = -Infinity;
+      this.say('tent');
+    }
     if (survived) {
       if (this.stats.launched) { title = 'MOON MISSION'; blurb = 'You strapped a porta-potty to a water heater and left the planet. Literally to the moon. Few understand.'; }
       else if (alive >= 8) { title = 'BUNKER DAO'; blurb = 'You surfaced with a whole community. Governance proposal #1: never go back down there.'; }
@@ -1140,7 +1176,7 @@ export class Game {
       else if (alive <= 2) { title = 'LAST DEGENS STANDING'; blurb = 'Two survivors. Zero friends. Infinite trauma. Still bullish.'; }
       else { title = 'TOUCHED GRASS'; blurb = 'You climbed out of the porta-potty and touched grass. It was radioactive grass. Still counts.'; }
     }
-    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily };
+    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily, tent };
     this.fx.push('end');
     this.touch();
   }

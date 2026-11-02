@@ -4,15 +4,22 @@ import type { Defcon } from '../sim/types';
 import { VAULT, buyVault, dailyPlayed, todayKey, vaultLevel, type Meta } from '../meta';
 import { audio } from '../audio/audio';
 import { Icon } from './icons';
-
-const go = (q: string) => {
-  location.search = q;
-};
+import { DeedChip, DeedModal, enterAndGo, hasDeed } from './Deed';
+import { tokenGate } from '../chain/config';
+import { useWallet } from '../chain/wallet';
 
 /** The front door: pick a DEFCON, play Daily Doom, or spend Ramen Futures in the Vault. */
 export function Title({ meta }: { meta: Meta }) {
   const [defcon, setDefcon] = useState<Defcon>(meta.unlocked);
   const [vaultOpen, setVaultOpen] = useState(false);
+  const [deedOpen, setDeedOpen] = useState(false);
+  const w = useWallet();
+  const deed = hasDeed(w);
+  const tent = tokenGate && !deed;
+  const outOfRuns = deed && w.tickets === 0 && !w.freeAvailable;
+  const enter = async (query: string, daily: boolean) => {
+    if (!(await enterAndGo(query, daily))) setDeedOpen(true);
+  };
   const [, bump] = useState(0);
   const playedToday = dailyPlayed(meta);
   const levels = [5, 4, 3, 2, 1] as Defcon[];
@@ -52,12 +59,21 @@ export function Title({ meta }: { meta: Meta }) {
             <span class="tp-mult">score ×{DEFCONS[defcon].score}{meta.best[`defcon${defcon}`] ? ` · best ${meta.best[`defcon${defcon}`].toLocaleString()}` : ''}</span>
           </div>
         </div>
-        <button class="btn btn-green tp-play" onClick={() => go(`?play=1&defcon=${defcon}`)}>ENTER THE BUNKER</button>
+        <button class="btn btn-green tp-play" disabled={!!w.busy} onClick={() => void enter(`?play=1&defcon=${defcon}`, false)}>
+          {w.busy === 'Spending a Ration Ticket' ? 'SPENDING TICKET…' : 'ENTER THE BUNKER'}
+          {tokenGate && <small>{tent ? 'tent mode · 3 days' : outOfRuns ? 'out of tickets' : w.freeAvailable ? 'free run today' : `1 ticket · ${w.tickets} left`}</small>}
+        </button>
         <div class="tb-side">
-          <button class="btn btn-amber" disabled={playedToday} onClick={() => go('?daily=1')} title="Same seed for everyone today. One attempt. DEFCON 3. No Vault perks.">
+          <button
+            class="btn btn-amber"
+            disabled={playedToday || !!w.busy}
+            onClick={() => (tent ? setDeedOpen(true) : void enter('?daily=1', true))}
+            title="Same seed for everyone today. One attempt. DEFCON 3. No Vault perks."
+          >
             DAILY DOOM
-            <small>{playedToday ? `done · ${meta.daily!.score.toLocaleString()}` : todayKey()}</small>
+            <small>{playedToday ? `done · ${meta.daily!.score.toLocaleString()}` : tent ? 'needs a deed' : todayKey()}</small>
           </button>
+          <DeedChip onOpen={() => setDeedOpen(true)} />
           <button class="btn btn-pink" onClick={() => setVaultOpen(true)}>
             VAULT
             <small>{meta.rf} RF</small>
@@ -67,6 +83,7 @@ export function Title({ meta }: { meta: Meta }) {
       </div>
       <div class="title-foot">Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 100 score</div>
 
+      {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
       {vaultOpen && (
         <div class="modal-bg" onClick={() => setVaultOpen(false)}>
           <div class="modal vault" onClick={(e) => e.stopPropagation()}>

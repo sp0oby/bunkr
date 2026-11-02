@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import gsap from 'gsap';
-import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS, archTitle, spriteFile } from '../sim/content';
+import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS, TENT_DAYS, archTitle, spriteFile } from '../sim/content';
 import { AUDIT_FORM_SECONDS, type Game } from '../sim/game';
 import type { RunRewards } from '../meta';
 import { HOTSPOTS, WORKER_QUIPS } from '../sim/hotspots';
@@ -8,6 +8,7 @@ import type { BagId, Dweller, ResKey, Room } from '../sim/types';
 import type { BunkerView } from '../render/view';
 import { audio } from '../audio/audio';
 import { Icon, Rich, type IconName } from './icons';
+import { DeedModal, ForgePanel, enterAndGo } from './Deed';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
 
@@ -133,7 +134,7 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
           <>
             <span class="t-icon t-day">D</span>
             <span class="t-main">
-              <span class="t-val">DAY {Math.min(game.day, RUN_DAYS)}<small>/{RUN_DAYS}</small></span>
+              <span class="t-val">DAY {Math.min(game.day, RUN_DAYS)}<small>/{game.config.tent ? `${TENT_DAYS} TENT` : RUN_DAYS}</small></span>
               <span class="daybar"><span style={{ width: `${game.dayProgress * 100}%` }} /></span>
             </span>
           </>
@@ -310,7 +311,7 @@ function Roster({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: S
 function Bags({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
   return (
     <>
-      <div class="drawer-title">BAGS {game.bags.length}/5{game.bags.length > 5 ? ' — BAGHOLDER' : ''}</div>
+      <div class="drawer-title">BAGS {game.bags.length}/{game.bagCap}{game.bags.length > game.bagCap ? ' — BAGHOLDER' : ''}</div>
       {game.bags.length === 0 && <div class="drawer-hint">No bags yet. Find them on expeditions, in the Meme Lab, or off dead raiders.</div>}
       <div class="bag-grid">
         {game.bags.map((b) => (
@@ -791,10 +792,12 @@ function Card({ game }: { game: Game }) {
 function End({ game, ui }: { game: Game; ui: UiState }) {
   const e = game.ending!;
   const r = ui.rewards;
-  const again = () => {
+  const [deedOpen, setDeedOpen] = useState(false);
+  const again = async () => {
     const q = new URLSearchParams(location.search);
     q.delete('seed');
-    location.search = e.daily ? '' : q.toString();
+    if (e.daily) location.search = '';
+    else if (!(await enterAndGo(q.toString(), false))) setDeedOpen(true);
   };
   return (
     <div class="modal-bg">
@@ -817,14 +820,22 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
             ))}
           </tbody>
         </table>
+        {e.tent && (
+          <div class="end-tent">
+            <b>Your tent lasted {TENT_DAYS} days.</b> A Bunker Deed unlocks the full 30-day run, the whale, the audit and the Moon Mission.
+            <button class="btn btn-green" onClick={() => setDeedOpen(true)}>GET A DEED</button>
+          </div>
+        )}
+        {!e.daily && <ForgePanel bags={game.bags} />}
         <div class="end-stats">
           Deaths {game.stats.deaths} · Quits {game.stats.quits} · Raids {game.stats.raidsWon}W/{game.stats.raidsLost}L · Cards {game.stats.cardsPlayed} · Seed {game.seed}
         </div>
         <div class="end-row">
           <button class="btn btn-dark" onClick={() => (location.search = '')}>TITLE</button>
-          {!e.daily && <button class="btn btn-green" onClick={again}>RUN IT BACK</button>}
+          {!e.daily && <button class="btn btn-green" onClick={() => void again()}>RUN IT BACK</button>}
         </div>
       </div>
+      {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
     </div>
   );
 }
