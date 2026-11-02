@@ -36,7 +36,7 @@ export const CARDS: CardDef[] = [
         label: 'Let him in',
         hint: '+1 degen, ??? ',
         effect: (g) => {
-          const d = g.addDweller('midcurve', 'Future Steve');
+          const d = g.addDweller('midcurve', 'Future Steve', false, 0);
           if (g.rng.chance(0.4)) {
             g.addRads(12);
             return `${d.name} is in. He also brought future radiation. +12 rads.`;
@@ -83,13 +83,13 @@ export const CARDS: CardDef[] = [
   {
     id: 'gigacalc',
     title: 'GIGABRAIN HAS FINISHED HIS CALCULATIONS',
-    body: (_g, who) => `${nm(who)} calculated the odds that the bunker survives. He won't say. He's laughing.`,
+    body: (_g, who) => `${nm(who)} calculated the odds that the bunker survives. ${nm(who)} won't say. ${nm(who)} is laughing.`,
     needs: (g) => hasArch(g, 'gigabrain'),
     pickDweller: archOf('gigabrain'),
     options: [
-      { label: 'Ask', effect: (g) => { if (g.rng.chance(0.5)) { g.kick(35, 5); return '"100%," he says. Then: "jk." Too late. Everyone heard 100%.'; } g.kick(-35, -5); return '"Well," he says, and then just walks away.'; } },
+      { label: 'Ask', effect: (g, who) => { if (g.rng.chance(0.5)) { g.kick(35, 5); return `"100%," says ${nm(who)}. Then: "jk." Too late. Everyone heard 100%.`; } g.kick(-35, -5); return `"Well," says ${nm(who)}, and then just walks away.`; } },
       { label: 'Don\'t ask', effect: (_g, who) => { if (who) who.brain = Math.min(10, who.brain + 1); return `${nm(who)} respects that. (+1 Brain)`; } },
-      { label: 'Give him more copium', hint: '-10 copium', effect: (g) => { g.addRes('copium', -10); g.researchProg += 45; return 'He disappears into the Meme Lab muttering about "a new primitive." Research +45.'; } },
+      { label: 'Hand over more copium', hint: '-10 copium', effect: (g, who) => { g.addRes('copium', -10); g.researchProg += 45; return `${nm(who)} disappears into the Meme Lab muttering about "a new primitive." Research +45.`; } },
     ],
   },
   {
@@ -98,7 +98,7 @@ export const CARDS: CardDef[] = [
     body: () => 'He asks if you\'ve heard the good news. You say no. He asks if you\'ve heard about restaking.',
     options: [
       { label: 'Hear him out', effect: (g) => { g.addRes('ramen', -30); const n = g.addRes('power', 45); return `You restaked 30 ramen into "his reactor." Somehow got ${n} power back. Don't ask questions.`; } },
-      { label: 'Restake the mutant', hint: '+1 degen (glowing)', effect: (g) => { const d = g.addDweller('replyguy', 'Glowing Greg'); g.addRads(6); return `${d.name} joins the bunker. He glows. He replies to everything.`; } },
+      { label: 'Restake the mutant', hint: '+1 degen (glowing)', effect: (g) => { const d = g.addDweller('replyguy', 'Glowing Greg', false, 0); g.addRads(6); return `${d.name} joins the bunker. He glows. He replies to everything.`; } },
       { label: 'Close the door', effect: () => 'He keeps talking through the door for three hours.' },
     ],
   },
@@ -251,7 +251,7 @@ export const CARDS: CardDef[] = [
     body: () => 'He heard you were winning. He wants in. He\'s holding a lot of bags.',
     special: true,
     options: [
-      { label: 'Let him in', hint: '+1 degen, +1 Bag', effect: (g) => { const d = g.addDweller('larry', 'Larry'); return `${d.name} (${ARCHS.larry.name}) is in. He immediately asks "is it too late to get in?"`; } },
+      { label: 'Let him in', hint: '+1 degen, +1 Bag', effect: (g) => { const d = g.addDweller('larry', 'Larry', false, 0); return `${d.name} (${ARCHS.larry.name}) is in. He immediately asks "is it too late to get in?"`; } },
       { label: 'Not today, Larry', effect: (g) => { g.kick(-6); return 'Larry will be back. Larry is always back.'; } },
     ],
   },

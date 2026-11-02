@@ -1,7 +1,7 @@
 import { Rng } from './rng';
 import {
   ARCHS, BAGS, BAG_FIDGETS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
-  NAMES, POP_CAP, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
+  LOOK_PRESENTATION, NAMES, POP_CAP, archTitle, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
 import { CARDS, type CardDef } from './events';
@@ -258,7 +258,7 @@ export class Game {
     this.res.ramen -= cost;
     this.recruitsBought++;
     const d = this.addDweller(this.rollArch());
-    this.post(`Shilled the group chat. ${d.name} (${ARCHS[d.arch].name}) is in.`, 'good');
+    this.post(`Shilled the group chat. ${d.name} (${archTitle(d.arch, d.look)}) is in.`, 'good');
     this.fx.push('recruit');
     this.touch();
     return true;
@@ -411,15 +411,19 @@ export class Game {
     return this.rng.weighted(STARTER_ARCHS, (a) => RARITY_WEIGHT[ARCHS[a].rarity]) ?? 'midcurve';
   }
 
-  addDweller(arch: ArchId, name?: string, silent = false): Dweller {
+  addDweller(arch: ArchId, name?: string, silent = false, forceLook?: number): Dweller {
     const base = ARCHS[arch].stats;
     // Pick the art variant least used by this archetype so lookalikes are rare.
     const looks = ARCHS[arch].looks;
     const lookCount = (l: number) => this.dwellers.filter((x) => x.arch === arch && x.look === l && x.status !== 'gone').length;
     let look = this.rng.int(0, looks - 1);
     for (let l = 0; l < looks; l++) if (lookCount(l) < lookCount(look)) look = l;
+    if (forceLook != null) look = forceLook;
+    // Names match how the sprite presents; neutral names fit anyone (but not robots).
+    const pres = LOOK_PRESENTATION[arch][look] ?? 'x';
     const used = new Set(this.dwellers.map((d) => d.name));
-    const free = NAMES.filter((n) => !used.has(n));
+    const pool = pres === 'x' ? NAMES.x : [...NAMES[pres], ...NAMES.any];
+    const free = pool.filter((n) => !used.has(n));
     const roll = (v: number) => Math.max(1, Math.min(10, v + this.rng.int(-1, 1)));
     const d: Dweller = {
       id: this.nextId++,
@@ -713,7 +717,7 @@ export class Game {
             if (this.recruitProg >= 100) {
               this.recruitProg = 0;
               const d = this.addDweller(this.rollArch());
-              this.post(`${d.name} (${ARCHS[d.arch].name}) heard the Shill Tower and crawled in.`, 'good');
+              this.post(`${d.name} (${archTitle(d.arch, d.look)}) heard the Shill Tower and crawled in.`, 'good');
               this.say('recruit');
               this.fx.push('recruit');
             }

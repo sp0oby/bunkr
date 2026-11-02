@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import gsap from 'gsap';
-import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS, spriteFile } from '../sim/content';
+import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS, archTitle, spriteFile } from '../sim/content';
 import { COPE_COST, type Game } from '../sim/game';
 import { HOTSPOTS, WORKER_QUIPS } from '../sim/hotspots';
 import type { BagId, Dweller, ResKey, Room } from '../sim/types';
@@ -332,7 +332,7 @@ function LegendReveal({ game, set }: { game: Game; set: Set }) {
         <div class="br-kicker">LEGENDARY DEGEN HAS ARRIVED</div>
         <img class="br-item legend-sprite" src={spriteUrl(d)} alt="" draggable={false} />
         <div class="br-name">{d.name}</div>
-        <div class="legend-arch">{a.name}</div>
+        <div class="legend-arch">{archTitle(d.arch, d.look)}</div>
         <div class="br-desc"><span class="up">✚ {a.perk}</span><br /><span class="down">✖ {a.curse}</span></div>
         <div class="br-row"><button class="btn btn-amber" onClick={close}>WELCOME TO THE BUNKER</button></div>
       </div>
@@ -444,7 +444,7 @@ function DwellerCard({ game, d, ui, set }: { game: Game; d: Dweller; ui: UiState
         <div class="dc-head">
           <b>{d.name}</b>
           <span class={`rarity r-${a.rarity}`}>{a.rarity.toUpperCase()}</span>
-          <span>{a.name} · {room ? ROOMS[room.type].name : 'unemployed'}</span>
+          <span>{archTitle(d.arch, d.look)} · {room ? ROOMS[room.type].name : 'unemployed'}</span>
           <button class="x" onClick={() => set(() => (ui.selected = null))}>✕</button>
         </div>
         <div class="dc-stats">

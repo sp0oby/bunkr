@@ -79,11 +79,30 @@ export const spriteFile = (arch: ArchId, look: number) => (look ? `${arch}-b` : 
 export const STARTER_ARCHS: ArchId[] = (Object.keys(ARCHS) as ArchId[]).filter((a) => a !== 'larry');
 export const RARITY_WEIGHT: Record<Rarity, number> = { common: 10, rare: 4, legendary: 1 };
 
-export const NAMES = [
-  'Kevin', 'Dave', 'Chad', 'Brenda', 'Tyler', 'Jenna', 'Big Mike', 'Doug', 'Trish', 'Nate', 'Priya', 'Marcus',
-  'Steph', 'Lenny', 'Bo', 'Rhonda', 'Kyle', 'Moe', 'Tess', 'Wren', 'Hank', 'Dina', 'Zed', 'kevin.eth',
-  'Sir Pumpsalot', 'Deb', 'Ozzie', 'Juno', 'Gus', 'Fern', 'Rico', 'Mags',
-];
+/** How each sprite look presents, so names and titles match the art. 'x' = robot. */
+export type Presentation = 'm' | 'f' | 'x';
+export const LOOK_PRESENTATION: Record<ArchId, Presentation[]> = {
+  maxi: ['m', 'f'], pete: ['m', 'f'], farmer: ['f', 'm'], midcurve: ['m', 'f'], gigabrain: ['m', 'f'],
+  rugpuller: ['m', 'f'], replyguy: ['m', 'f'], intern: ['f', 'm'], larry: ['m'], mevbot: ['x', 'x'],
+  nftartist: ['m', 'f'], influencer: ['f', 'm'], memedev: ['m', 'f'], yieldfarmer: ['m', 'f'],
+  coldcarl: ['m', 'f'], vc: ['m', 'f'], rekt: ['m', 'f'], grandpa: ['m', 'f'],
+};
+
+/** Archetype titles that change with the look (everything else uses ARCHS[...].name). */
+const TITLE_BY_LOOK: Partial<Record<ArchId, Partial<Record<Presentation, string>>>> = {
+  replyguy: { f: 'Reply Gal' },
+  rekt: { f: 'Rekt Gal' },
+  grandpa: { f: 'Genesis Grandma' },
+};
+export const archTitle = (arch: ArchId, look: number): string =>
+  TITLE_BY_LOOK[arch]?.[LOOK_PRESENTATION[arch][look] ?? 'x'] ?? ARCHS[arch].name;
+
+export const NAMES: Record<Presentation | 'any', string[]> = {
+  m: ['Kevin', 'Dave', 'Chad', 'Tyler', 'Big Mike', 'Doug', 'Nate', 'Marcus', 'Lenny', 'Kyle', 'Moe', 'Hank', 'Gus', 'Rico', 'Ozzie', 'Brad', 'Todd', 'Vince', 'Dmitri', 'Sir Pumpsalot', 'kevin.eth'],
+  f: ['Brenda', 'Jenna', 'Trish', 'Priya', 'Steph', 'Rhonda', 'Tess', 'Dina', 'Deb', 'Fern', 'Mags', 'Maya', 'Carla', 'Lexi', 'Nina', 'Becca', 'Madam Moonshot'],
+  any: ['Bo', 'Wren', 'Sam', 'Alex', 'Jordan', 'Riley', 'Quinn', 'Rowan', 'Charlie', 'Sky', 'Zed'],
+  x: ['BOT-9000', 'Sandwich.exe', 'Frontrunner3', '0xDEAD', 'Gas Goblin', 'MEVster'],
+};
 
 // ---------- Bags (relics) ----------
 export type Rarity = 'common' | 'rare' | 'legendary';
