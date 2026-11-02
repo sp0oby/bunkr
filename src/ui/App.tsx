@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import gsap from 'gsap';
 import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS, archTitle, spriteFile } from '../sim/content';
-import { COPE_COST, type Game } from '../sim/game';
+import { AUDIT_FORM_SECONDS, type Game } from '../sim/game';
+import type { RunRewards } from '../meta';
 import { HOTSPOTS, WORKER_QUIPS } from '../sim/hotspots';
 import type { BagId, Dweller, ResKey, Room } from '../sim/types';
 import type { BunkerView } from '../render/view';
 import { audio } from '../audio/audio';
+import { Icon, Rich, type IconName } from './icons';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
 
@@ -18,15 +20,17 @@ export interface UiState {
   roomView: number | null;
   /** Bag open in the inspect view. */
   inspectBag: BagId | null;
+  /** What the finished run earned (set once the run is banked). */
+  rewards: RunRewards | null;
 }
 
 type Set = (fn: () => void) => void;
 
-const RES: { k: ResKey; icon: string; name: string }[] = [
-  { k: 'ramen', icon: '🍜', name: 'Ramen — food AND money' },
-  { k: 'water', icon: '💧', name: 'Water' },
-  { k: 'power', icon: '⚡', name: 'Hopium — power' },
-  { k: 'copium', icon: '💊', name: 'Copium — spend it to calm the vibes' },
+const RES: { k: ResKey; name: string }[] = [
+  { k: 'ramen', name: 'Ramen — food AND money' },
+  { k: 'water', name: 'Water' },
+  { k: 'power', name: 'Hopium — power' },
+  { k: 'copium', name: 'Copium — spend it to calm the vibes' },
 ];
 const CARD_COLORS = ['btn-green', 'btn-pink', 'btn-red'];
 const spriteUrl = (d: Dweller) => `/art/sprites/${spriteFile(d.arch, d.look)}.webp`;
@@ -71,9 +75,10 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
       {game.newLegend != null && !game.card && <LegendReveal game={game} set={set} />}
       {game.newBag && game.newLegend == null && !game.card && !ui.inspectBag && <BagReveal game={game} ui={ui} set={set} />}
       {ui.inspectBag && <BagInspect key={ui.inspectBag} game={game} id={ui.inspectBag} ui={ui} set={set} />}
+      {game.audit && <AuditModal game={game} />}
       {game.card && <Card game={game} />}
       {game.phase === 'drop' && <Cinematic game={game} />}
-      {game.ending && <End game={game} />}
+      {game.ending && <End game={game} ui={ui} />}
     </div>
   );
 }
@@ -84,12 +89,12 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
     <div class="topbar">
       <div class="brand">BUNKR</div>
       <div class="res-row">
-        {RES.map(({ k, icon, name }) => {
+        {RES.map(({ k, name }) => {
           const r = game.rates[k];
           const v = game.res[k];
           return (
             <div class={`ticker ${v <= 0.5 ? 'empty' : v < caps[k] * 0.15 ? 'low' : ''}`} key={k} title={name}>
-              <span class={`t-icon t-${k}`}>{icon}</span>
+              <span class={`t-icon t-${k}`}><Icon name={k as IconName} size={26} /></span>
               <span class="t-main">
                 <span class="t-val">{Math.floor(v)}<small>/{caps[k]}</small></span>
                 <span class={`t-rate ${r >= 0 ? 'up' : 'down'}`}>{r >= 0 ? '+' : '−'}{Math.abs(r * 24).toFixed(0)}/day</span>
@@ -99,7 +104,7 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
           );
         })}
         <div class={`ticker ${game.rads > 50 ? 'empty' : ''}`} title="Radiation. Above 50 it hurts everyone. Liquidity Pools scrub it.">
-          <span class="t-icon t-rads">☢</span>
+          <span class="t-icon t-rads"><Icon name="rads" size={26} /></span>
           <span class="t-main">
             <span class="t-val">{Math.round(game.rads)}</span>
             <span class={`t-rate ${game.rads > 50 ? 'down' : 'up'}`}>{game.rads > 50 ? 'HURTING' : 'rads'}</span>
@@ -110,7 +115,7 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
       <div class={`clock ${game.phase === 'prep' ? 'counting' : ''}`}>
         {game.phase === 'prep' && (
           <>
-            <span class="t-icon t-bomb">☢</span>
+            <span class="t-icon t-bomb"><Icon name="rads" size={26} /></span>
             <span class="t-main">
               <span class="t-val tminus">{Math.ceil(game.prepLeft)}<small>s</small></span>
               <span class="t-rate down" title="Everything costs more as the panic builds">prices {game.panicMult.toFixed(2)}×</span>
@@ -120,13 +125,13 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
         )}
         {game.phase === 'drop' && (
           <>
-            <span class="t-icon t-bomb">☢</span>
+            <span class="t-icon t-bomb"><Icon name="rads" size={26} /></span>
             <span class="t-main"><span class="t-val tminus">NOW</span></span>
           </>
         )}
         {(game.phase === 'underground' || game.phase === 'ended') && (
           <>
-            <span class="t-icon t-day">📅</span>
+            <span class="t-icon t-day">D</span>
             <span class="t-main">
               <span class="t-val">DAY {Math.min(game.day, RUN_DAYS)}<small>/{RUN_DAYS}</small></span>
               <span class="daybar"><span style={{ width: `${game.dayProgress * 100}%` }} /></span>
@@ -136,11 +141,11 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
       </div>
       <div class="speed">
         <button class={audio.muted ? '' : 'on-soft'} onClick={() => set(() => audio.toggleMute())} title="Sound on/off (M)">
-          {audio.muted ? '🔇' : '🔊'}
+          <Icon name={audio.muted ? 'mute' : 'sound'} size={24} />
         </button>
         {[0, 1, 2, 4].map((s) => (
           <button key={s} class={ui.speed === s ? 'on' : ''} onClick={() => set(() => (ui.speed = s))} title={s === 0 ? 'Pause (Space)' : `${s}x speed`}>
-            {s === 0 ? '❚❚' : `${s}×`}
+            {s === 0 ? <span class="pause-bars"><i /><i /></span> : `${s}×`}
           </button>
         ))}
       </div>
@@ -162,8 +167,8 @@ function VibeBar({ game }: { game: Game }) {
         </div>
       </div>
       <span class="v-end back">WE'RE<br />SO BACK</span>
-      <button class="btn btn-pink cope" disabled={game.res.copium < COPE_COST} onClick={() => game.cope()} title={`Spend ${COPE_COST} copium to calm the swing`}>
-        💊 COPE
+      <button class="btn btn-pink cope" disabled={game.res.copium < game.copeCost()} onClick={() => game.cope()} title={`Spend ${game.copeCost()} copium to calm the swing`}>
+        <Icon name="copium" size={20} /> COPE
       </button>
     </div>
   );
@@ -174,7 +179,7 @@ function Toasts({ game }: { game: Game }) {
   return (
     <div class="toasts">
       {items.map((l) => (
-        <div class={`toast toast-${l.kind}`} key={l.id}>{l.text}</div>
+        <div class={`toast toast-${l.kind}`} key={l.id}><Rich text={l.text} /></div>
       ))}
     </div>
   );
@@ -219,7 +224,7 @@ function Hatch({ game }: { game: Game }) {
       {open && line && (
         <div class="hatch-bubble">
           <div class="hatch-name">HATCH<span>bunker OS v6.9</span></div>
-          <p>{shown}<span class="caret">▌</span></p>
+          <p><Rich text={shown} /><span class="caret">▌</span></p>
         </div>
       )}
     </div>
@@ -241,24 +246,24 @@ function Dock({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: Set
       <div class="dock-row">
         {game.phase === 'prep' && (
           <button class="dock-btn recruit" disabled={game.res.ramen < game.recruitCost()} onClick={() => game.recruit()} title="Shill the group chat: +1 degen">
-            <span class="dock-ico">📱</span>
+            <span class="dock-ico"><Icon name="shill" size={34} /></span>
             <span>SHILL</span>
-            <b class="badge cost">{game.recruitCost()}🍜</b>
+            <b class="badge cost">{game.recruitCost()}<Icon name="ramen" size={13} class="inline" /></b>
           </button>
         )}
         <button class={`dock-btn ${ui.drawer === 'degens' ? 'on' : ''}`} onClick={() => toggle('degens')}>
-          <span class="dock-ico">👥</span>
+          <span class="dock-ico"><Icon name="degens" size={34} /></span>
           <span>DEGENS</span>
           <b class="badge">{game.alive.length}</b>
           {idle > 0 && <b class="badge warn">{idle} idle</b>}
         </button>
         <button class={`dock-btn ${ui.drawer === 'bags' ? 'on' : ''}`} onClick={() => toggle('bags')}>
-          <span class="dock-ico">🎒</span>
+          <span class="dock-ico"><Icon name="bag" size={34} /></span>
           <span>BAGS</span>
           <b class="badge">{game.bags.length}</b>
         </button>
         <button class={`dock-btn ${ui.drawer === 'log' ? 'on' : ''}`} onClick={() => toggle('log')}>
-          <span class="dock-ico">📜</span>
+          <span class="dock-ico"><Icon name="log" size={34} /></span>
           <span>LOG</span>
         </button>
       </div>
@@ -274,7 +279,7 @@ function Roster({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: S
       <div class="drawer-hint">Drag a degen into a room to put them to work.</div>
       {list.map((d) => {
         const room = game.roomById(d.roomId);
-        const where = d.status === 'dead' ? `liquidated day ${d.deathDay}` : d.status === 'expedition' ? '🧭 on the surface' : room ? ROOMS[room.type].short : 'IDLE';
+        const where = d.status === 'dead' ? `liquidated day ${d.deathDay}` : d.status === 'expedition' ? 'on the surface' : room ? ROOMS[room.type].short : 'IDLE';
         return (
           <div
             key={d.id}
@@ -333,7 +338,7 @@ function LegendReveal({ game, set }: { game: Game; set: Set }) {
         <img class="br-item legend-sprite" src={spriteUrl(d)} alt="" draggable={false} />
         <div class="br-name">{d.name}</div>
         <div class="legend-arch">{archTitle(d.arch, d.look)}</div>
-        <div class="br-desc"><span class="up">✚ {a.perk}</span><br /><span class="down">✖ {a.curse}</span></div>
+        <div class="br-desc"><span class="up"><b>PERK</b> {a.perk}</span><br /><span class="down"><b>CURSE</b> {a.curse}</span></div>
         <div class="br-row"><button class="btn btn-amber" onClick={close}>WELCOME TO THE BUNKER</button></div>
       </div>
     </div>
@@ -400,7 +405,7 @@ function BagInspect({ game, id, ui, set }: { game: Game; id: BagId; ui: UiState;
           <div class="bi-name">{def.name}</div>
           <div class="bi-desc">{def.desc}</div>
           <div class="bi-flavor">“{def.flavor}”</div>
-          {result && <div class="bi-result">{result}</div>}
+          {result && <div class="bi-result"><Rich text={result} /></div>}
           {held ? (
             <button
               class={`btn ${def.action.consume ? 'btn-green' : 'btn-amber'} bi-act`}
@@ -428,7 +433,7 @@ function Log({ game }: { game: Game }) {
     <>
       <div class="drawer-title">LOG</div>
       {game.log.slice(-30).reverse().map((l) => (
-        <div class={`log-line log-${l.kind}`} key={l.id}>{l.text}</div>
+        <div class={`log-line log-${l.kind}`} key={l.id}><Rich text={l.text} /></div>
       ))}
     </>
   );
@@ -449,11 +454,11 @@ function DwellerCard({ game, d, ui, set }: { game: Game; d: Dweller; ui: UiState
         </div>
         <div class="dc-stats">
           {(['grind', 'brain', 'vibes', 'hands'] as const).map((k) => (
-            <div key={k}><span>{k === 'hands' ? (game.stat(d, k) <= 2 ? '📄 HANDS' : '💎 HANDS') : k.toUpperCase()}</span><b>{game.stat(d, k)}</b></div>
+            <div key={k}><span>{k === 'hands' ? (game.stat(d, k) <= 2 ? 'PAPER HANDS' : 'HANDS') : k.toUpperCase()}</span><b>{game.stat(d, k)}</b></div>
           ))}
           <div><span>HP</span><b class={d.hp < 40 ? 'down' : ''}>{Math.round(d.hp)}</b></div>
         </div>
-        <div class="dc-traits"><span class="up">✚ {a.perk}</span><span class="down">✖ {a.curse}</span></div>
+        <div class="dc-traits"><span class="up"><b>PERK</b> {a.perk}</span><span class="down"><b>CURSE</b> {a.curse}</span></div>
         <div class="dc-hint">Drag them into a room · Reactor & Kitchen use GRIND · Pool & Lab use BRAIN · Copium, Grass & Shill use VIBES · Rug Detector uses HANDS</div>
       </div>
       {game.underground && (
@@ -550,7 +555,7 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
             <div class="rp-title">{def.name}{room.width > 1 && <span class="rp-size">×{room.width}</span>}</div>
             <div class="rp-sub">{def.desc}</div>
           </div>
-          <div class={`rp-output ${powered ? '' : 'off'}`}>{game.roomOutput(room)}</div>
+          <div class={`rp-output ${powered ? '' : 'off'}`}><Rich text={game.roomOutput(room)} size={18} /></div>
           <button class="x big" onClick={close} title="Close (Esc)">✕</button>
         </div>
 
@@ -564,10 +569,10 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
               onClick={() => {
                 audio.play(game.hotspotReady(room.id, i) ? 'boop' : 'denied');
                 const text = game.pokeHotspot(room.id, i);
-                if (text) react(h.x, h.y, text, h.icon);
+                if (text) react(h.x, h.y, text, '');
               }}
             >
-              <span class="hs-icon">{h.icon}</span>
+              <span class="hs-mark" />
               <span class="hs-label">{h.label}</span>
             </button>
           ))}
@@ -578,7 +583,7 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
                 key={w.id}
                 class="rp-worker"
                 style={{ left: `${s.x}%` }}
-                onClick={() => react(s.x / 100, 0.42, `${w.name}: "${WORKER_QUIPS[Math.floor(Math.random() * WORKER_QUIPS.length)]}"`, '💬')}
+                onClick={() => react(s.x / 100, 0.42, `${w.name}: "${WORKER_QUIPS[Math.floor(Math.random() * WORKER_QUIPS.length)]}"`, '')}
               >
                 <span class="rp-name">{w.name}</span>
                 <img src={spriteUrl(w)} style={{ transform: `scaleX(${s.flip ? -1 : 1})` }} draggable={false} alt={w.name} />
@@ -595,13 +600,21 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
                 key={r.id}
                 style={{ left: `${Math.min(76, Math.max(24, r.x * 100))}%`, top: `${top}%` }}
               >
-                <span class="burst">{r.icon}</span>
-                {r.text}
+                <Rich text={r.text} />
               </div>
             );
           })}
         </div>
 
+        {room.type === 'rocket' && (
+          <div class="rocket-bar">
+            <span>ROCKET {Math.floor(game.rocketProg)}%</span>
+            <div class="rocket-track"><span style={{ width: `${game.rocketProg}%` }} /></div>
+            <button class="btn btn-red" disabled={game.rocketProg < 100 || !game.underground || !!game.raid} onClick={() => { set(() => (ui.roomView = null)); game.launch(); }}>
+              {game.rocketProg >= 100 ? 'LAUNCH · ends the run' : 'NOT READY'}
+            </button>
+          </div>
+        )}
         {cap > 0 && (
           <div class="rp-slots">
             <span class="rp-slots-title">CREW {workers.length}/{cap}{def.stat && <small> · uses {def.stat.toUpperCase()}</small>}</span>
@@ -674,9 +687,18 @@ function Cinematic({ game }: { game: Game }) {
       <div class="cine-flash" />
       <div class="cine-white" />
       <div class="cine-title">THE BOMBS HAVE DROPPED</div>
-      <button class="btn btn-dark skip-cine" onClick={() => game.skipDrop()}>SKIP ⏭</button>
+      <button class="btn btn-dark skip-cine" onClick={() => game.skipDrop()}>SKIP</button>
     </div>
   );
+}
+
+/** Midnight minus the countdown, as a clock face: 74s left reads 11:58:46. */
+function doomsdayTime(secondsLeft: number): string {
+  const t = 12 * 3600 - Math.max(0, Math.ceil(secondsLeft));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 /** Cable-news chyron along the bottom of the screen during the countdown. */
@@ -685,7 +707,7 @@ function NewsTicker({ game }: { game: Game }) {
   return (
     <div class="chyron">
       <div class="chyron-tag"><span class="dot" />BREAKING</div>
-      <div class="chyron-clock">DOOMSDAY<b>11:59:{String(Math.max(0, Math.ceil(game.prepLeft))).padStart(2, '0')}</b></div>
+      <div class="chyron-clock">DOOMSDAY<b>{doomsdayTime(game.prepLeft)}</b></div>
       <div class="chyron-track">
         <div class="chyron-scroll">
           {doubled.map((n, i) => (
@@ -701,7 +723,7 @@ function RaidBar({ game }: { game: Game }) {
   const r = game.raid!;
   return (
     <div class="raid panel">
-      <b>⚔ {r.name}</b>
+      <b>{r.name}</b>
       <div class="raid-track"><span style={{ width: `${(r.hp / r.maxHp) * 100}%` }} /></div>
       <small>{Math.ceil(30 - r.t)}s left · they stole {Math.round(r.stolen)} 🍜</small>
     </div>
@@ -715,7 +737,7 @@ function BuildMenu({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
       <div class="modal build" onClick={(e) => e.stopPropagation()}>
         <div class="modal-title">BUILD · FLOOR {at.floor + 1}</div>
         <div class="build-grid">
-          {ROOM_ORDER.map((t) => {
+          {ROOM_ORDER.filter((t) => game.canBuildType(t)).map((t) => {
             const def = ROOMS[t];
             const cost = game.buildCost(t);
             return (
@@ -724,7 +746,7 @@ function BuildMenu({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
                 <span class="build-body">
                   <b>{def.name}</b>
                   <small>{def.desc}</small>
-                  <span>{cost} 🍜</span>
+                  <span>{cost} <Icon name="ramen" size={16} class="inline" /></span>
                 </span>
               </button>
             );
@@ -745,19 +767,19 @@ function Card({ game }: { game: Game }) {
         {who && <span class="card-face" style={{ backgroundImage: sprite(who) }} />}
         <div class="card-day">DAY {game.day} · INCOMING</div>
         <div class="card-title">{c.def.title}</div>
-        <p class="card-body">{c.def.body(game, who)}</p>
+        <p class="card-body"><Rich text={c.def.body(game, who)} /></p>
         {c.result == null ? (
           <div class="card-opts">
             {c.def.options.map((o, i) => (
               <button class={`btn ${CARD_COLORS[i % CARD_COLORS.length]}`} key={i} onClick={() => game.chooseCard(i)}>
-                {o.label}
-                {o.hint && <small>{o.hint}</small>}
+                <Rich text={o.label} />
+                {o.hint && <small><Rich text={o.hint} /></small>}
               </button>
             ))}
           </div>
         ) : (
           <>
-            <p class="card-result">{c.result}</p>
+            <p class="card-result"><Rich text={c.result} /></p>
             <button class="btn btn-green card-ok" onClick={() => game.dismissCard()}>OK</button>
           </>
         )}
@@ -766,15 +788,28 @@ function Card({ game }: { game: Game }) {
   );
 }
 
-function End({ game }: { game: Game }) {
+function End({ game, ui }: { game: Game; ui: UiState }) {
   const e = game.ending!;
+  const r = ui.rewards;
+  const again = () => {
+    const q = new URLSearchParams(location.search);
+    q.delete('seed');
+    location.search = e.daily ? '' : q.toString();
+  };
   return (
     <div class="modal-bg">
       <div class="modal end">
-        <div class="end-kicker">NET WORTH AFTER APOCALYPSE</div>
+        <div class="end-kicker">{e.daily ? 'DAILY DOOM · ' : ''}DEFCON {e.defcon} · NET WORTH AFTER APOCALYPSE</div>
         <div class="end-title">{e.title}</div>
         <p>{e.blurb}</p>
         <div class="end-score">{e.score.toLocaleString()}</div>
+        {r && (
+          <div class="end-rewards">
+            <span class="rf">+{r.rf} RF</span>
+            {r.newBest && <span class="best">NEW BEST</span>}
+            {r.unlockedDefcon && <span class="unlock">DEFCON {r.unlockedDefcon} UNLOCKED</span>}
+          </div>
+        )}
         <table>
           <tbody>
             {e.breakdown.map(([k, v]) => (
@@ -785,7 +820,49 @@ function End({ game }: { game: Game }) {
         <div class="end-stats">
           Deaths {game.stats.deaths} · Quits {game.stats.quits} · Raids {game.stats.raidsWon}W/{game.stats.raidsLost}L · Cards {game.stats.cardsPlayed} · Seed {game.seed}
         </div>
-        <button class="btn btn-green card-ok" onClick={() => location.reload()}>RUN IT BACK</button>
+        <div class="end-row">
+          <button class="btn btn-dark" onClick={() => (location.search = '')}>TITLE</button>
+          {!e.daily && <button class="btn btn-green" onClick={again}>RUN IT BACK</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Day 20 boss: stamp the real paperwork, reject the fraud, before the timer runs out. */
+function AuditModal({ game }: { game: Game }) {
+  const a = game.audit!;
+  const form = a.forms[Math.min(a.idx, a.forms.length - 1)];
+  return (
+    <div class="modal-bg">
+      <div class="modal audit">
+        <img class="audit-agent" src="/art/sprites/secagent.webp" alt="" draggable={false} />
+        <div class="card-day">DAY {game.day} · BOSS</div>
+        <div class="card-title">THE S.E.C. AUDIT</div>
+        <div class="audit-sub">Surface Enforcement Corps. Approve the real paperwork. Reject the fraud. Fast.</div>
+        <div class="audit-progress">
+          {a.forms.map((_, i) => (
+            <span key={i} class={i < a.log.length ? (a.log[i] ? 'ok' : 'bad') : i === a.idx ? 'now' : ''} />
+          ))}
+        </div>
+        {!a.done ? (
+          <>
+            <div class="audit-form" key={a.idx}>
+              <div class="af-title">FORM {a.idx + 1}/6 · {form.title.toUpperCase()}</div>
+              <div class="af-claim">{form.claim}</div>
+              <div class="af-timer"><span style={{ width: `${(a.timer / AUDIT_FORM_SECONDS) * 100}%` }} /></div>
+            </div>
+            <div class="audit-btns">
+              <button class="btn btn-green" onClick={() => game.answerAudit(true)}>APPROVE <small>A</small></button>
+              <button class="btn btn-red" onClick={() => game.answerAudit(false)}>REJECT <small>D</small></button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p class="card-result"><Rich text={a.verdict ?? ''} /></p>
+            <button class="btn btn-green card-ok" onClick={() => game.dismissAudit()}>BACK TO THE BUNKER</button>
+          </>
+        )}
       </div>
     </div>
   );

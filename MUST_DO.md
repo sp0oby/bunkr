@@ -1,0 +1,25 @@
+# BUNKR — Must-Do List
+
+Things that have to happen before launch. Not optional.
+
+## 1. $BUNKR token layer (Robinhood Chain testnet first) — NEXT
+- Wallet connect, Bunker Deed tiers, Ration Tickets, Forged Bags, chart-as-weather
+- Game contracts on testnet with a mock $BUNKR; outside audit before mainnet
+
+## 2. Real mobile version
+Today the title screen works on phones, but in-game is broken. Phones currently get a "play it on PC" screen instead.
+- [ ] Top bar resource pills stack down the middle and cover the bunker → compact, icon-only HUD
+- [ ] Fitting all 6 room columns on a narrow screen makes rooms tiny → play in **landscape**, with a "rotate your phone" screen in portrait
+- [ ] Pinch-zoom and swipe-pan on touch screens only (desktop keeps the fixed camera)
+- [ ] Things that rely on mouse hover (gag labels in rooms) need tap equivalents
+- [ ] Tap-to-assign tuned for fingers (bigger hit areas, no tiny targets)
+- [ ] Remove the "play on PC" gate once this ships
+
+Slot: after the token layer, before the tutorial — most crypto players will open the link on their phones.
+
+## 3. First-run tutorial
+- HATCH walks a new player through: build a reactor, drag a degen in, keep the vibes in the middle, survive day 1
+
+## Done recently
+- One-minute in-game days (was 24s) so runs have room for wallet transactions; boss fights stay full speed
+- Phones get HATCH's "this bunker is PC-only" screen (with an "i like pain" override)

@@ -10,7 +10,8 @@ export type RoomType =
   | 'shill'
   | 'memelab'
   | 'storage'
-  | 'grass';
+  | 'grass'
+  | 'rocket';
 
 export type ArchId =
   | 'maxi'
@@ -40,7 +41,19 @@ export type BagId =
   | 'laserpointer'
   | 'safu'
   | 'fewunderstand'
-  | 'mrenft';
+  | 'mrenft'
+  | 'pickaxe'
+  | 'diamondgloves'
+  | 'inhaler'
+  | 'bearspray'
+  | 'bullhorn'
+  | 'tradewatch'
+  | 'ramenprinter'
+  | 'seedtattoo'
+  | 'hazmat'
+  | 'moonmap'
+  | 'tuningfork'
+  | 'airdropcrate';
 
 // Index into the HATCH expression sprite sheet (4x2 grid, row-major).
 export type HatchMood = 'neutral' | 'smug' | 'laugh' | 'panic' | 'angry' | 'cry' | 'dead' | 'sleep';
@@ -92,6 +105,7 @@ export interface LogEntry {
 }
 
 export interface Raid {
+  kind: 'liquidators' | 'whale';
   name: string;
   hp: number;
   maxHp: number;
@@ -106,6 +120,9 @@ export interface Ending {
   blurb: string;
   score: number;
   breakdown: [string, number][];
+  survived: boolean;
+  defcon: number;
+  daily: boolean;
 }
 
 export interface Stats {
@@ -117,4 +134,39 @@ export interface Stats {
   expeditions: number;
   cardsPlayed: number;
   peakRamen: number;
+  auditsPassed: number;
+  whaleSlain: boolean;
+  launched: boolean;
+}
+
+/** One document in the S.E.C. audit minigame. */
+export interface AuditForm {
+  title: string;
+  claim: string;
+  /** True if the form is legit and should be approved. */
+  legit: boolean;
+}
+
+export interface Audit {
+  forms: AuditForm[];
+  idx: number;
+  correct: number;
+  /** Seconds left on the current form. */
+  timer: number;
+  log: boolean[];
+  done: boolean;
+  verdict: string | null;
+}
+
+export type Defcon = 1 | 2 | 3 | 4 | 5;
+
+/** Settings for a single run, decided on the title screen. */
+export interface RunConfig {
+  defcon: Defcon;
+  daily: boolean;
+  startRamen: number;
+  extraDegen: boolean;
+  startBag: boolean;
+  legendLuck: boolean;
+  rocket: boolean;
 }
