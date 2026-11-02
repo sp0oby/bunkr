@@ -199,7 +199,7 @@ export const CARDS: CardDef[] = [
     body: () => 'Found in the vents. There\'s a sticky note on it that just says "sorry."',
     once: true,
     options: [
-      { label: 'Plug it in', effect: (g) => { g.giveBag('ledger'); return 'It has funds. It also has a ghost. +200 ramen, -vibes.'; } },
+      { label: 'Plug it in', effect: (g) => { g.giveBag('ledger'); return 'It has funds. It also has a ghost. Plug it in from your Bags when you need ramen.'; } },
       { label: 'Bury it', effect: (g) => { g.kick(6); return 'A small funeral for a stranger\'s portfolio.'; } },
       { label: 'Sell it to a degen', effect: (g, who) => { const n = g.addRes('ramen', 45); return `${nm(who)} paid ${n} ramen for it. They can't open it. Nobody can.`; } },
     ],
@@ -211,7 +211,7 @@ export const CARDS: CardDef[] = [
     options: [
       { label: 'Pay in ramen', hint: '-25 ramen', effect: (g) => { g.addRes('ramen', -25); g.kick(8); g.hatchMood = 'laugh'; return 'HATCH: "I can\'t eat this." HATCH is happy anyway.'; } },
       { label: 'Pay in exposure', effect: (g) => { g.addRes('power', -30); g.hatchMood = 'angry'; return 'HATCH is furious. HATCH drained 30 power out of spite.'; } },
-      { label: 'Unplug HATCH', effect: (g) => { g.hatchUnpluggedUntil = g.time + 24; g.hatchMood = 'dead'; g.hatchLine = '...'; g.kick(-15); return 'HATCH is off for a day. The silence is deafening.'; } },
+      { label: 'Unplug HATCH', effect: (g) => { g.hatchUnpluggedUntil = g.time + 24; g.hatchMood = 'dead'; g.hatchLine = '...'; g.hatchVoice = null; g.kick(-15); return 'HATCH is off for a day. The silence is deafening.'; } },
     ],
   },
   {

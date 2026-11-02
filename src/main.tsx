@@ -3,24 +3,35 @@ import { Game, STEP } from './sim/game';
 import { ROOMS } from './sim/content';
 import { BunkerView } from './render/view';
 import { App, type UiState } from './ui/App';
+import { audio } from './audio/audio';
 import './style.css';
 
 const seedParam = new URLSearchParams(location.search).get('seed');
 const game = new Game(seedParam ? Number(seedParam) : undefined);
-const ui: UiState = { selected: null, buildAt: null, speed: 1, drawer: null, roomView: null };
+const ui: UiState = { selected: null, buildAt: null, speed: 1, drawer: null, roomView: null, inspectBag: null };
 
 function assign(dwellerId: number, roomId: number): boolean {
   const room = game.roomById(roomId)!;
   if (!ROOMS[room.type].stat) {
     game.post(`${ROOMS[room.type].name} doesn't take workers.`, 'info');
+    audio.play('denied');
     return false;
   }
   if (!game.assign(dwellerId, roomId)) {
     game.post(`${ROOMS[room.type].name} is full.`, 'info');
+    audio.play('denied');
     return false;
   }
   return true;
 }
+
+// Audio needs a user gesture before it can start.
+for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => audio.unlock(), { capture: true });
+// Every HUD button gets a click.
+document.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest('button');
+  if (b && !b.disabled && !b.classList.contains('hotspot')) audio.play('click');
+}, { capture: true });
 
 const view = new BunkerView(document.getElementById('world')!, game, {
   selected: () => ui.selected,
@@ -67,6 +78,7 @@ function loop(now: number) {
     steps++;
   }
   view.frame(dt);
+  audio.setMusic(game.phase === 'prep' ? 'prep' : game.phase === 'underground' ? (game.raid ? 'raid' : 'bunker') : 'off');
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -76,11 +88,15 @@ window.addEventListener('keydown', (e) => {
     ui.speed = ui.speed === 0 ? 1 : 0;
     game.touch();
     e.preventDefault();
+  } else if (e.key === 'm' || e.key === 'M') {
+    audio.toggleMute();
+    game.touch();
   } else if (e.key === 'Escape') {
     ui.selected = null;
     ui.buildAt = null;
     ui.drawer = null;
     ui.roomView = null;
+    ui.inspectBag = null;
     game.touch();
   }
 });

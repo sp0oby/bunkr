@@ -303,6 +303,73 @@ img { -webkit-user-drag: none; }
 @keyframes waddle { from { transform: rotate(-2deg); } to { transform: rotate(2deg) translateY(-2%); } }
 @keyframes burst { from { transform: translateY(-50%) scale(2.4) rotate(-20deg); opacity: 0; } }
 
+/* ---------- Bags ---------- */
+.r-common { --rar: #b9b2d6; }
+.r-rare { --rar: #3ff0ff; }
+.r-legendary { --rar: #ffbe3d; }
+.bag-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.bag-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 7px; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rar) 30%, transparent), var(--panel-2) 70%); border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 3px 0 var(--ink), inset 0 0 0 2px color-mix(in srgb, var(--rar) 60%, transparent); transition: transform 0.1s; }
+.bag-tile:hover { transform: translateY(-3px) rotate(-2deg); }
+.bag-tile img { width: 72px; height: 72px; filter: drop-shadow(0 4px 0 #0008); }
+.bag-tile span { font: 11px/1.1 var(--display); text-align: center; letter-spacing: 0.02em; }
+
+.bag-reveal-bg { background: #0b0b10b8; }
+.bag-reveal { position: relative; width: 420px; padding: 26px 24px 20px; text-align: center; background: var(--panel); border: 4px solid var(--ink); border-radius: 26px; box-shadow: 0 8px 0 var(--ink), 0 0 60px color-mix(in srgb, var(--rar) 55%, transparent); overflow: hidden; animation: pop 0.45s cubic-bezier(.2,1.6,.4,1); }
+.rays { position: absolute; left: 50%; top: 42%; width: 900px; height: 900px; margin: -450px 0 0 -450px; background: repeating-conic-gradient(color-mix(in srgb, var(--rar) 28%, transparent) 0 10deg, transparent 10deg 20deg); animation: spin 12s linear infinite; pointer-events: none; }
+.bag-reveal > *:not(.rays) { position: relative; }
+.br-kicker { font: 14px var(--display); letter-spacing: 0.14em; color: var(--rar); }
+.br-item { width: 200px; height: 200px; margin: 6px auto 2px; display: block; filter: drop-shadow(0 8px 0 #000a); animation: itemDrop 0.7s cubic-bezier(.2,1.6,.4,1) both, floaty 2.4s 0.7s ease-in-out infinite; }
+.br-name { font: 28px var(--display); line-height: 1.05; }
+.br-desc { color: var(--dim); font-size: 14px; margin: 6px 0 14px; }
+.br-row { display: flex; gap: 10px; justify-content: center; }
+
+.bag-inspect { position: relative; width: min(760px, 92vw); display: flex; gap: 20px; align-items: center; padding: 22px; }
+.bi-x { position: absolute; top: 12px; right: 12px; z-index: 2; }
+.bi-stage { position: relative; flex: none; width: 300px; height: 300px; display: grid; place-items: center; border-radius: 22px; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--rar) 35%, transparent), #00000040 70%); border: 3px solid var(--ink); cursor: grab; }
+.bi-glow { position: absolute; inset: 20%; border-radius: 50%; background: color-mix(in srgb, var(--rar) 40%, transparent); filter: blur(30px); animation: pulseScale 2.4s infinite; }
+.bi-item { position: relative; width: 250px; height: 250px; filter: drop-shadow(0 12px 0 #000a); transition: transform 0.12s ease-out; }
+.bi-item.jiggle { animation: jiggle 0.5s; }
+.bi-item.gone { opacity: 0.2; filter: grayscale(1); }
+.bi-body { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rarity { align-self: flex-start; font: 12px var(--display); letter-spacing: 0.12em; background: var(--rar); color: var(--ink); border: 2px solid var(--ink); border-radius: 8px; padding: 1px 9px; }
+.bi-name { font: 30px/1.02 var(--display); }
+.bi-desc { font-size: 15px; color: var(--green); }
+.bi-flavor { font-size: 14px; color: var(--dim); font-style: italic; }
+.bi-result { font: 800 15px/1.35 var(--body); background: #fff8ec; color: var(--ink); border: 3px solid var(--ink); border-radius: 14px; padding: 9px 12px; animation: bubbleIn 0.3s cubic-bezier(.2,1.6,.4,1); }
+.bi-act { margin-top: 4px; font-size: 18px; align-self: flex-start; }
+.bi-act small { font: 800 12px var(--body); text-shadow: none; opacity: 0.85; }
+
+.bag-reveal.legend { width: 460px; }
+.legend-sprite { width: auto; height: 260px; }
+.legend-arch { font: 16px var(--display); color: var(--amber); letter-spacing: 0.06em; }
+.face.r-rare { box-shadow: 0 0 0 2px var(--rar); }
+.face.r-legendary { box-shadow: 0 0 0 2px var(--rar), 0 0 12px var(--rar); }
+.dc-head .rarity { align-self: center; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes itemDrop { from { transform: translateY(-120px) scale(0.3) rotate(-30deg); opacity: 0; } }
+@keyframes floaty { 50% { transform: translateY(-8px) rotate(3deg); } }
+@keyframes jiggle { 20% { rotate: -12deg; scale: 1.1; } 45% { rotate: 9deg; } 70% { rotate: -5deg; } 100% { rotate: 0deg; scale: 1; } }
+
+/* ---------- Drop cinematic ---------- */
+.cinematic { position: fixed; inset: 0; z-index: 50; background: #000; overflow: hidden; pointer-events: auto; }
+.cine-shake { position: absolute; inset: -40px; }
+/* Both paintings are pre-mirrored to match the in-game street (porta-potty on the left). */
+.cine-img { position: absolute; inset: 0; background-size: cover; background-position: center 60%; transform-origin: 50% 40%; will-change: transform; }
+.cine-blast { opacity: 0; }
+.cine-sky { position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, #fff3 0%, #000a 70%); opacity: 0; }
+.cine-ring, .cine-ring2 { position: absolute; left: 50%; top: 32%; width: 40vw; height: 40vw; margin: -20vw 0 0 -20vw; border-radius: 50%; border: 18px solid #fff8dc; box-shadow: 0 0 60px 20px #ffcc66, inset 0 0 60px 10px #ffcc66; opacity: 0; mix-blend-mode: screen; }
+.cine-ring2 { border-width: 8px; border-color: #ffb347; }
+.cine-debris { position: absolute; left: 50%; top: 34%; }
+.shard { position: absolute; width: 22px; height: 14px; background: #1b1410; border: 3px solid var(--ink); clip-path: polygon(0 30%, 60% 0, 100% 55%, 40% 100%); opacity: 0; }
+.shard.s1 { width: 30px; height: 20px; background: #6a4a2c; }
+.shard.s2 { width: 14px; height: 14px; background: #ff9a2e; border-radius: 50%; clip-path: none; box-shadow: 0 0 14px #ffb347; }
+.shard.s3 { width: 40px; height: 12px; background: #4a4f58; }
+.cine-flash { position: absolute; inset: 0; background: #fffdf0; opacity: 0; pointer-events: none; }
+.cine-white { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.cinematic .cine-title { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; font: 86px var(--display); color: var(--amber); -webkit-text-stroke: 3px var(--ink); text-shadow: 0 8px 0 var(--ink); opacity: 0; }
+.cinematic .skip-cine { position: absolute; right: 24px; bottom: 24px; z-index: 2; }
+
 /* Laptop widths: tighten the top bar so it stays on one line */
 @media (max-width: 1560px) {
   .ticker { min-width: 0; padding-right: 10px; }

@@ -1,7 +1,7 @@
 import { Rng } from './rng';
 import {
-  ARCHS, BAGS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
-  NAMES, POP_CAP, PREP_SECONDS, ROOMS, RUN_DAYS, STARTER_ARCHS,
+  ARCHS, BAGS, BAG_FIDGETS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  NAMES, POP_CAP, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
 import { CARDS, type CardDef } from './events';
@@ -11,6 +11,15 @@ import type {
 } from './types';
 
 export const STEP = 0.1;
+/** Minimum sim-seconds between any two HATCH lines (urgent ones skip this). */
+const HATCH_GAP = 14;
+/** Per-topic cooldowns in sim-seconds (a day is 24s). */
+const HATCH_COOLDOWN: Partial<Record<HatchTrigger, number>> = {
+  start: 0, drop: 0, raid: 0, raidwon: 30, raidlost: 30,
+  death: 40, quit: 60, yolo: 60, bag: 90, recruit: 120, cope: 120,
+  dayStart: 72, nopower: 60, starving: 60, thirsty: 60, over: 90, back: 90, balanced: 120, idle: 150,
+};
+const HATCH_URGENT = new Set<HatchTrigger>(['start', 'drop', 'raid', 'death']);
 export const COPE_COST = 6;
 
 export interface PendingCard {
@@ -49,6 +58,10 @@ export class Game {
   wifiUntil = 0;
   hatchUnpluggedUntil = 0;
   mreUsed = false;
+  /** Most recently acquired Bag, for the "NEW BAG" reveal. Cleared by the UI. */
+  newBag: BagId | null = null;
+  /** Degen id of a legendary who just arrived, for the reveal. Cleared by the UI. */
+  newLegend: number | null = null;
 
   hotspotCd = new Map<string, number>();
 
@@ -58,6 +71,11 @@ export class Game {
 
   hatchMood: HatchMood = 'smug';
   hatchLine = '';
+  /** Voice clip id for the current line (null for ad-hoc lines with no recording). */
+  hatchVoice: string | null = null;
+  private hatchLast = new Map<HatchTrigger, number>();
+  private hatchLastAny = -Infinity;
+  private hatchSpoken = new Set<string>();
   log: LogEntry[] = [];
   stats: Stats = { raidsWon: 0, raidsLost: 0, deaths: 0, quits: 0, recruits: 0, expeditions: 0, cardsPlayed: 0, peakRamen: 0 };
   ending: Ending | null = null;
@@ -76,7 +94,8 @@ export class Game {
   constructor(seed = (Math.random() * 2 ** 31) | 0) {
     this.seed = seed;
     this.rng = new Rng(seed);
-    const archs = [...STARTER_ARCHS];
+    // Starting crew: three different non-legendary degens.
+    const archs = STARTER_ARCHS.filter((a) => ARCHS[a].rarity !== 'legendary');
     for (let i = 0; i < 3; i++) {
       const a = archs.splice(this.rng.int(0, archs.length - 1), 1)[0];
       this.addDweller(a, undefined, true);
@@ -123,6 +142,10 @@ export class Game {
         c.water += 100 * r.width;
         c.copium += 20 * r.width;
       }
+    }
+    if (this.present.some((d) => d.arch === 'coldcarl')) {
+      c.ramen += 60;
+      c.water += 40;
     }
     return c;
   }
@@ -213,6 +236,7 @@ export class Game {
       }
     }
     this.post(`Built ${ROOMS[type].name} for ${cost} ramen.`, 'info');
+    this.fx.push('build');
     this.touch();
     return true;
   }
@@ -223,6 +247,7 @@ export class Game {
     this.res.ramen -= cost;
     this.floorsDug++;
     this.post(`Dug floor ${this.floorsDug}. The shovel was paid in ramen.`, 'info');
+    this.fx.push('dig');
     this.touch();
     return true;
   }
@@ -232,8 +257,9 @@ export class Game {
     if (this.phase !== 'prep' || this.res.ramen < cost || this.alive.length >= POP_CAP) return false;
     this.res.ramen -= cost;
     this.recruitsBought++;
-    const d = this.addDweller(this.rng.pick(STARTER_ARCHS));
+    const d = this.addDweller(this.rollArch());
     this.post(`Shilled the group chat. ${d.name} (${ARCHS[d.arch].name}) is in.`, 'good');
+    this.fx.push('recruit');
     this.touch();
     return true;
   }
@@ -246,6 +272,7 @@ export class Game {
       if (!room || this.workersIn(room).filter((w) => w.id !== d.id).length >= this.capacity(room)) return false;
     }
     d.roomId = roomId;
+    if (roomId != null) this.fx.push('assign');
     this.touch();
     return true;
   }
@@ -257,6 +284,7 @@ export class Game {
     this.vibeVel *= 0.3;
     this.vibe *= 0.6;
     this.say('cope');
+    this.fx.push('cope');
     this.touch();
     return true;
   }
@@ -265,6 +293,10 @@ export class Game {
     const d = this.dwellers.find((x) => x.id === dwellerId);
     const loc = LOCATIONS.find((l) => l.id === locId);
     if (!d || !loc || d.status !== 'active' || !this.underground) return false;
+    if (d.arch === 'coldcarl') {
+      this.post(`${d.name} refuses to go outside. "The outside is where the hackers live."`, 'info');
+      return false;
+    }
     const dur = loc.dur * (this.bags.includes('lambokeys') ? 0.7 : 1);
     d.status = 'expedition';
     d.roomId = null;
@@ -286,6 +318,11 @@ export class Game {
 
   skipPrep(): void {
     if (this.phase === 'prep') this.phaseTime = PREP_SECONDS;
+  }
+
+  /** Called when the drop cinematic finishes (or is skipped). */
+  skipDrop(): void {
+    if (this.phase === 'drop') this.phaseTime = DROP_SECONDS;
   }
 
   chooseCard(optionIndex: number): void {
@@ -369,8 +406,18 @@ export class Game {
     this.say('death');
   }
 
+  /** Random recruit, weighted by rarity. */
+  rollArch(): ArchId {
+    return this.rng.weighted(STARTER_ARCHS, (a) => RARITY_WEIGHT[ARCHS[a].rarity]) ?? 'midcurve';
+  }
+
   addDweller(arch: ArchId, name?: string, silent = false): Dweller {
     const base = ARCHS[arch].stats;
+    // Pick the art variant least used by this archetype so lookalikes are rare.
+    const looks = ARCHS[arch].looks;
+    const lookCount = (l: number) => this.dwellers.filter((x) => x.arch === arch && x.look === l && x.status !== 'gone').length;
+    let look = this.rng.int(0, looks - 1);
+    for (let l = 0; l < looks; l++) if (lookCount(l) < lookCount(look)) look = l;
     const used = new Set(this.dwellers.map((d) => d.name));
     const free = NAMES.filter((n) => !used.has(n));
     const roll = (v: number) => Math.max(1, Math.min(10, v + this.rng.int(-1, 1)));
@@ -378,6 +425,7 @@ export class Game {
       id: this.nextId++,
       name: name ?? (free.length ? this.rng.pick(free) : `Anon #${this.nextId}`),
       arch,
+      look,
       grind: arch === 'midcurve' ? 5 : roll(base.grind),
       brain: arch === 'midcurve' ? 5 : roll(base.brain),
       vibes: arch === 'midcurve' ? 5 : roll(base.vibes),
@@ -390,6 +438,10 @@ export class Game {
     this.dwellers.push(d);
     if (!silent) this.stats.recruits++;
     if (arch === 'larry') this.giveBag();
+    if (!silent && ARCHS[arch].rarity === 'legendary') {
+      this.newLegend = d.id;
+      this.fx.push('legend');
+    }
     this.touch();
     return d;
   }
@@ -399,15 +451,49 @@ export class Game {
     const bag = id ?? (pool.length ? this.rng.pick(pool) : null);
     if (!bag || this.bags.includes(bag)) return null;
     this.bags.push(bag);
-    if (bag === 'ledger') {
-      this.addRes('ramen', 200);
-      this.kick(-10);
-    }
+    this.newBag = bag;
     this.post(`New Bag: ${BAGS[bag].name}. ${BAGS[bag].desc}`, 'good');
     if (this.bags.length > BAG_SOFT_CAP) this.post('Bagholder: you are carrying too many bags. Output -10%.', 'bad');
     this.say('bag');
     this.fx.push('bag');
     return bag;
+  }
+
+  /** The inspect view's action button for a Bag. */
+  useBag(id: BagId): string | null {
+    if (!this.bags.includes(id) || this.phase === 'ended') return null;
+    const drop = () => this.bags.splice(this.bags.indexOf(id), 1);
+    const room = this.caps().ramen - this.res.ramen;
+    if ((id === 'ledger' && room < 60) || (id === 'mrenft' && room < 20)) {
+      return 'Your ramen storage is too full to take it. Spend some ramen or build Cold Storage first.';
+    }
+    let text: string;
+    switch (id) {
+      case 'ledger':
+        drop();
+        this.kick(-10);
+        text = `It boots. It has funds. It also has a ghost. +${this.addRes('ramen', 200)} 🍜. Morale −10.`;
+        break;
+      case 'mrenft':
+        drop();
+        this.mreUsed = true;
+        text = `You ate the NFT. +${this.addRes('ramen', 60)} 🍜. It tasted like a rug pull.`;
+        break;
+      case 'laserpointer': {
+        const key = 'bag:laserpointer';
+        if (this.time < (this.hotspotCd.get(key) ?? 0)) return 'The laser needs to cool down. Like the market.';
+        this.hotspotCd.set(key, this.time + 15);
+        const d = this.randomPresent();
+        if (!d) return 'You point it at the wall. The wall is unimpressed.';
+        this.kick(3);
+        text = `You point it at ${d.name}. ${d.name} chases the dot for a full minute. Morale +3.`;
+        break;
+      }
+      default:
+        text = this.rng.pick(BAG_FIDGETS[id] ?? ['Nothing happens. It\'s a bag.']);
+    }
+    this.touch();
+    return text;
   }
 
   randomPresent(filter?: (d: Dweller) => boolean): Dweller | null {
@@ -421,11 +507,26 @@ export class Game {
     this.touch();
   }
 
+  /** HATCH comments on something — but not too often, and never the same thing on repeat. */
   say(trigger: HatchTrigger): void {
     if (this.time < this.hatchUnpluggedUntil) return;
-    const [mood, line] = this.rng.pick(HATCH_LINES[trigger]);
+    const urgent = HATCH_URGENT.has(trigger);
+    const last = this.hatchLast.get(trigger) ?? -Infinity;
+    if (this.time - last < (HATCH_COOLDOWN[trigger] ?? 45)) return;
+    if (!urgent && this.time - this.hatchLastAny < HATCH_GAP) return;
+    this.hatchLast.set(trigger, this.time);
+    this.hatchLastAny = this.time;
+    const lines = HATCH_LINES[trigger];
+    // Prefer a line HATCH hasn't said yet this run.
+    const fresh = lines.map((_, i) => i).filter((i) => !this.hatchSpoken.has(`${trigger}-${i}`));
+    const i = fresh.length ? this.rng.pick(fresh) : this.rng.int(0, lines.length - 1);
+    const key = `${trigger}-${i}`;
+    const [mood, line] = lines[i];
     this.hatchMood = mood;
     this.hatchLine = line;
+    // Voice each line only the first time; repeats are text-only.
+    this.hatchVoice = this.hatchSpoken.has(key) ? null : key;
+    this.hatchSpoken.add(key);
     this.touch();
   }
 
@@ -490,6 +591,7 @@ export class Game {
     this.day = 1;
     this.rads = 25;
     this.nextCardAt = 9;
+    this.fx.push('landed');
     this.say('drop');
     this.post('Day 1 underground. Keep ramen, water and power above zero. Keep the vibes in the middle.', 'info');
     this.touch();
@@ -497,7 +599,10 @@ export class Game {
 
   private onNewDay(): void {
     if (this.day > RUN_DAYS) return;
-    if (this.day > 1) this.say('dayStart');
+    if (this.day > 1) {
+      this.say('dayStart');
+      this.fx.push('day');
+    }
     this.post(`— DAY ${this.day} —`, 'info');
     if (this.day === 10 || this.day === 20) this.startRaid(this.day === 10 ? 1 : 2);
     if (this.day === 24 && !this.dwellers.some((d) => d.arch === 'larry')) {
@@ -505,6 +610,17 @@ export class Game {
     }
     // The Reformed Rug Puller occasionally relapses.
     for (const d of this.present) {
+      if (d.arch === 'memedev' && this.rng.chance(0.12)) {
+        const coin = this.rng.pick(['$BUNKR2', '$RAMEN', '$POTTY', '$GLOW', '$HATCHCOIN', '$FALLOUT']);
+        if (this.rng.chance(0.5)) {
+          const n = this.addRes('ramen', this.rng.int(30, 70));
+          this.post(`${d.name} launched ${coin} overnight. It pumped. +${n} ramen.`, 'good');
+        } else {
+          const n = Math.min(Math.round(this.res.ramen), this.rng.int(15, 35));
+          this.res.ramen -= n;
+          this.post(`${d.name} launched ${coin} overnight. It rugged itself. −${n} ramen.`, 'bad');
+        }
+      }
       if (d.arch === 'rugpuller' && this.rng.chance(0.12)) {
         const n = Math.round(this.res.ramen * 0.12);
         if (n > 0) {
@@ -528,13 +644,28 @@ export class Game {
     const workers = this.workersIn(room);
     if (!workers.length) return 0;
     const hasReply = workers.some((w) => w.arch === 'replyguy');
+    const hasVc = workers.some((w) => w.arch === 'vc');
+    const t = room.type;
+    const miserable = this.vibe < -35;
     let factor = 0;
     for (const w of workers) {
       let f = 1 + 0.12 * this.stat(w, def.stat);
-      if (w.arch === 'pete') f *= 1.5;
-      if (w.arch === 'maxi' && room.type !== 'reactor') f *= 0.7;
-      if (w.arch === 'gigabrain' && room.type === 'memelab') f *= 3;
+      switch (w.arch) {
+        case 'pete': f *= 1.5; break;
+        case 'maxi': if (t !== 'reactor') f *= 0.7; break;
+        case 'gigabrain': if (t === 'memelab') f *= 3; break;
+        case 'mevbot': f *= 1.25; break;
+        case 'nftartist': f *= t === 'memelab' || t === 'copium' ? 1.5 : 0.8; break;
+        case 'influencer': if (t === 'shill') f *= 2.5; else if (t === 'kitchen' || t === 'reactor') f *= 0.5; break;
+        case 'memedev': if (t === 'memelab') f *= 1.4; break;
+        case 'yieldfarmer': if (t === 'kitchen' || t === 'pool' || t === 'grass') f *= 1.3; break;
+        case 'vc': f *= 0.3; break;
+        case 'rekt': if (miserable) f *= 1.6; break;
+        case 'grandpa': if (t === 'reactor' || t === 'pool') f *= 1.4; break;
+        default: break;
+      }
       if (hasReply && w.arch !== 'replyguy') f *= 1.15;
+      if (hasVc && w.arch !== 'vc') f *= 1.4;
       factor += f;
     }
     return (room.width === 3 ? 1.15 : room.width === 2 ? 1.05 : 1) * factor * vm;
@@ -581,9 +712,10 @@ export class Game {
             this.recruitProg += 0.55 * eff * dt;
             if (this.recruitProg >= 100) {
               this.recruitProg = 0;
-              const d = this.addDweller(this.rng.pick(STARTER_ARCHS));
+              const d = this.addDweller(this.rollArch());
               this.post(`${d.name} (${ARCHS[d.arch].name}) heard the Shill Tower and crawled in.`, 'good');
               this.say('recruit');
+              this.fx.push('recruit');
             }
           }
           break;
@@ -601,22 +733,23 @@ export class Game {
           break;
       }
     }
-    for (const d of this.present) if (d.arch === 'gigabrain') rates.copium -= 0.02;
+    for (const d of this.present) if (d.arch === 'gigabrain' || d.arch === 'nftartist') rates.copium -= d.arch === 'gigabrain' ? 0.02 : 0.015;
     for (const k of Object.keys(rates) as ResKey[]) this.res[k] += rates[k] * dt;
     this.rates = rates;
   }
 
   private consume(dt: number): void {
     let eat = 0;
-    for (const d of this.present) eat += d.arch === 'intern' ? 0.025 : 0.05;
+    for (const d of this.present) eat += d.arch === 'intern' ? 0.025 : d.arch === 'mevbot' ? 0.1 : 0.05;
     this.res.ramen -= eat * dt;
     this.res.water -= 0.05 * this.present.length * dt;
     this.rates.ramen -= eat;
     this.rates.water -= 0.05 * this.present.length;
     if (this.res.ramen <= 0 && this.bags.includes('mrenft') && !this.mreUsed) {
       this.mreUsed = true;
+      this.bags.splice(this.bags.indexOf('mrenft'), 1);
       this.res.ramen = 60;
-      this.post('Ate the Expired MRE NFT. +60 ramen. Tasted like a rug.', 'good');
+      this.post('Starving degens ate the Expired MRE NFT. +60 ramen. Tasted like a rug.', 'good');
     }
     this.addRads(0.012 * dt);
   }
@@ -643,7 +776,7 @@ export class Game {
     const zone = this.vibeZone();
     // Somebody has to stay behind to post the farewell threads.
     if (zone === 'cooked' && this.present.length > 2 && this.rng.chance(0.008 * dt * 10)) {
-      const d = this.randomPresent((x) => x.arch !== 'maxi') ;
+      const d = this.randomPresent((x) => x.arch !== 'maxi' && x.arch !== 'rekt');
       const quitter = this.present.find((x) => x.arch === 'pete') ?? d;
       if (quitter) {
         quitter.status = 'gone';
@@ -651,6 +784,7 @@ export class Game {
         this.stats.quits++;
         this.post(`${quitter.name} rage-quit the bunker and posted a farewell thread.`, 'bad');
         this.say('quit');
+        this.fx.push('quit');
       }
     }
     if (zone === 'manic' && this.rng.chance(0.007 * dt * 10)) {
@@ -674,7 +808,7 @@ export class Game {
       let dmg = 0;
       if (starving) dmg += 0.7;
       if (thirsty) dmg += 0.7;
-      if (this.rads > 50) dmg += (this.rads - 50) * 0.012;
+      if (this.rads > 50 && d.arch !== 'grandpa') dmg += (this.rads - 50) * 0.012;
       if (dmg > 0) this.hurt(d, dmg * dt, starving ? 'starvation' : thirsty ? 'dehydration' : 'radiation');
       else d.hp = Math.min(100, d.hp + 0.4 * dt);
     }
@@ -739,7 +873,8 @@ export class Game {
       this.fx.push('hit');
     }
     if (!this.bags.includes('safu')) {
-      const steal = Math.min(this.res.ramen, 1.6 * dt);
+      const carl = this.present.some((d) => d.arch === 'coldcarl');
+      const steal = Math.min(this.res.ramen, (carl ? 0.8 : 1.6) * dt);
       this.res.ramen -= steal;
       raid.stolen += steal;
     }
@@ -749,6 +884,7 @@ export class Game {
       this.stats.raidsWon++;
       this.post(`${raid.name} got liquidated. Looted ${n} ramen off their bodies.`, 'good');
       this.say('raidwon');
+      this.fx.push('raidwon');
       if (this.rng.chance(0.5)) this.giveBag();
       this.raid = null;
     } else if (raid.t >= 30) {
@@ -756,6 +892,7 @@ export class Game {
       this.stats.raidsLost++;
       this.post(`${raid.name} left with ${Math.round(raid.stolen)} ramen. They were not even mad.`, 'bad');
       this.say('raidlost');
+      this.fx.push('raidlost');
       this.raid = null;
     }
     this.touch();
