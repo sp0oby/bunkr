@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import { COLS, MAX_FLOORS, ROOMS } from '../sim/content';
 import type { Game } from '../sim/game';
 import type { Dweller, Room, RoomType } from '../sim/types';
+import { audio, type Sfx } from '../audio/audio';
 
 // ---------------------------------------------------------------------------
 // World layout (units). Street level is y = 0; floors stack downward.
@@ -62,6 +63,10 @@ interface DwellerView {
 }
 
 const RES_ICON: Partial<Record<RoomType, string>> = { reactor: '⚡', kitchen: '🍜', pool: '💧', copium: '💊' };
+const FX_SOUND: Record<string, Sfx> = {
+  card: 'card', bag: 'bag', death: 'death', raid: 'raid', raidwon: 'raidwon', raidlost: 'raidlost',
+  build: 'build', dig: 'dig', recruit: 'recruit', assign: 'assign', cope: 'cope', day: 'day', quit: 'quit',
+};
 const mat = (color: number) => new THREE.MeshBasicMaterial({ color });
 
 // ---------- Textures ----------
@@ -548,12 +553,13 @@ export class BunkerView {
     const g = this.game;
     while (g.fx.length) {
       const fx = g.fx.shift()!;
-      if (fx === 'drop') {
-        gsap.fromTo(this.flash, { opacity: 1 }, { opacity: 0, duration: 2.5, ease: 'power2.in' });
+      const sound = FX_SOUND[fx];
+      if (sound) audio.play(sound);
+      if (fx === 'landed') {
+        // Coming out of the cinematic: white-out, rumble, then dive into the bunker.
+        gsap.fromTo(this.flash, { opacity: 1 }, { opacity: 0, duration: 1.8, ease: 'power2.in' });
         this.shake = 1.2;
-        // Look up at the sky as it lights up, then dive into the bunker.
-        this.tcy = this.scrollRange().max;
-        setTimeout(() => this.scrollToFloor(0), 2600);
+        this.scrollToFloor(0);
       } else if (fx === 'hit') {
         this.shake = Math.max(this.shake, 0.25);
       } else if (fx === 'raid') {
@@ -576,6 +582,7 @@ export class BunkerView {
       const icon = room && RES_ICON[room.type];
       if (!room || !icon || amount < 1) continue;
       this.game.roomOut.set(roomId, amount - Math.floor(amount));
+      audio.play('tick');
       const el = document.createElement('div');
       el.className = 'popup';
       el.textContent = `+${Math.floor(amount)} ${icon}`;
@@ -726,6 +733,7 @@ export class BunkerView {
       const dd = this.dragDweller;
       if (dd && !dd.active && Math.hypot(e.clientX - dd.startX, e.clientY - dd.startY) > 6) {
         dd.active = true;
+        audio.play('pickup');
         this.cb.onDweller(dd.id); // select while carrying, for the info card
       }
     });

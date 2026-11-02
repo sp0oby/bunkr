@@ -1,6 +1,6 @@
 import { Rng } from './rng';
 import {
-  ARCHS, BAGS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  ARCHS, BAGS, BAG_FIDGETS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
   NAMES, POP_CAP, PREP_SECONDS, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
@@ -49,6 +49,8 @@ export class Game {
   wifiUntil = 0;
   hatchUnpluggedUntil = 0;
   mreUsed = false;
+  /** Most recently acquired Bag, for the "NEW BAG" reveal. Cleared by the UI. */
+  newBag: BagId | null = null;
 
   hotspotCd = new Map<string, number>();
 
@@ -58,6 +60,8 @@ export class Game {
 
   hatchMood: HatchMood = 'smug';
   hatchLine = '';
+  /** Voice clip id for the current line (null for ad-hoc lines with no recording). */
+  hatchVoice: string | null = null;
   log: LogEntry[] = [];
   stats: Stats = { raidsWon: 0, raidsLost: 0, deaths: 0, quits: 0, recruits: 0, expeditions: 0, cardsPlayed: 0, peakRamen: 0 };
   ending: Ending | null = null;
@@ -213,6 +217,7 @@ export class Game {
       }
     }
     this.post(`Built ${ROOMS[type].name} for ${cost} ramen.`, 'info');
+    this.fx.push('build');
     this.touch();
     return true;
   }
@@ -223,6 +228,7 @@ export class Game {
     this.res.ramen -= cost;
     this.floorsDug++;
     this.post(`Dug floor ${this.floorsDug}. The shovel was paid in ramen.`, 'info');
+    this.fx.push('dig');
     this.touch();
     return true;
   }
@@ -234,6 +240,7 @@ export class Game {
     this.recruitsBought++;
     const d = this.addDweller(this.rng.pick(STARTER_ARCHS));
     this.post(`Shilled the group chat. ${d.name} (${ARCHS[d.arch].name}) is in.`, 'good');
+    this.fx.push('recruit');
     this.touch();
     return true;
   }
@@ -246,6 +253,7 @@ export class Game {
       if (!room || this.workersIn(room).filter((w) => w.id !== d.id).length >= this.capacity(room)) return false;
     }
     d.roomId = roomId;
+    if (roomId != null) this.fx.push('assign');
     this.touch();
     return true;
   }
@@ -257,6 +265,7 @@ export class Game {
     this.vibeVel *= 0.3;
     this.vibe *= 0.6;
     this.say('cope');
+    this.fx.push('cope');
     this.touch();
     return true;
   }
@@ -286,6 +295,11 @@ export class Game {
 
   skipPrep(): void {
     if (this.phase === 'prep') this.phaseTime = PREP_SECONDS;
+  }
+
+  /** Called when the drop cinematic finishes (or is skipped). */
+  skipDrop(): void {
+    if (this.phase === 'drop') this.phaseTime = DROP_SECONDS;
   }
 
   chooseCard(optionIndex: number): void {
@@ -399,15 +413,49 @@ export class Game {
     const bag = id ?? (pool.length ? this.rng.pick(pool) : null);
     if (!bag || this.bags.includes(bag)) return null;
     this.bags.push(bag);
-    if (bag === 'ledger') {
-      this.addRes('ramen', 200);
-      this.kick(-10);
-    }
+    this.newBag = bag;
     this.post(`New Bag: ${BAGS[bag].name}. ${BAGS[bag].desc}`, 'good');
     if (this.bags.length > BAG_SOFT_CAP) this.post('Bagholder: you are carrying too many bags. Output -10%.', 'bad');
     this.say('bag');
     this.fx.push('bag');
     return bag;
+  }
+
+  /** The inspect view's action button for a Bag. */
+  useBag(id: BagId): string | null {
+    if (!this.bags.includes(id) || this.phase === 'ended') return null;
+    const drop = () => this.bags.splice(this.bags.indexOf(id), 1);
+    const room = this.caps().ramen - this.res.ramen;
+    if ((id === 'ledger' && room < 60) || (id === 'mrenft' && room < 20)) {
+      return 'Your ramen storage is too full to take it. Spend some ramen or build Cold Storage first.';
+    }
+    let text: string;
+    switch (id) {
+      case 'ledger':
+        drop();
+        this.kick(-10);
+        text = `It boots. It has funds. It also has a ghost. +${this.addRes('ramen', 200)} 🍜. Morale −10.`;
+        break;
+      case 'mrenft':
+        drop();
+        this.mreUsed = true;
+        text = `You ate the NFT. +${this.addRes('ramen', 60)} 🍜. It tasted like a rug pull.`;
+        break;
+      case 'laserpointer': {
+        const key = 'bag:laserpointer';
+        if (this.time < (this.hotspotCd.get(key) ?? 0)) return 'The laser needs to cool down. Like the market.';
+        this.hotspotCd.set(key, this.time + 15);
+        const d = this.randomPresent();
+        if (!d) return 'You point it at the wall. The wall is unimpressed.';
+        this.kick(3);
+        text = `You point it at ${d.name}. ${d.name} chases the dot for a full minute. Morale +3.`;
+        break;
+      }
+      default:
+        text = this.rng.pick(BAG_FIDGETS[id] ?? ['Nothing happens. It\'s a bag.']);
+    }
+    this.touch();
+    return text;
   }
 
   randomPresent(filter?: (d: Dweller) => boolean): Dweller | null {
@@ -423,9 +471,12 @@ export class Game {
 
   say(trigger: HatchTrigger): void {
     if (this.time < this.hatchUnpluggedUntil) return;
-    const [mood, line] = this.rng.pick(HATCH_LINES[trigger]);
+    const lines = HATCH_LINES[trigger];
+    const i = this.rng.int(0, lines.length - 1);
+    const [mood, line] = lines[i];
     this.hatchMood = mood;
     this.hatchLine = line;
+    this.hatchVoice = `${trigger}-${i}`;
     this.touch();
   }
 
@@ -490,6 +541,7 @@ export class Game {
     this.day = 1;
     this.rads = 25;
     this.nextCardAt = 9;
+    this.fx.push('landed');
     this.say('drop');
     this.post('Day 1 underground. Keep ramen, water and power above zero. Keep the vibes in the middle.', 'info');
     this.touch();
@@ -497,7 +549,10 @@ export class Game {
 
   private onNewDay(): void {
     if (this.day > RUN_DAYS) return;
-    if (this.day > 1) this.say('dayStart');
+    if (this.day > 1) {
+      this.say('dayStart');
+      this.fx.push('day');
+    }
     this.post(`— DAY ${this.day} —`, 'info');
     if (this.day === 10 || this.day === 20) this.startRaid(this.day === 10 ? 1 : 2);
     if (this.day === 24 && !this.dwellers.some((d) => d.arch === 'larry')) {
@@ -584,6 +639,7 @@ export class Game {
               const d = this.addDweller(this.rng.pick(STARTER_ARCHS));
               this.post(`${d.name} (${ARCHS[d.arch].name}) heard the Shill Tower and crawled in.`, 'good');
               this.say('recruit');
+              this.fx.push('recruit');
             }
           }
           break;
@@ -615,8 +671,9 @@ export class Game {
     this.rates.water -= 0.05 * this.present.length;
     if (this.res.ramen <= 0 && this.bags.includes('mrenft') && !this.mreUsed) {
       this.mreUsed = true;
+      this.bags.splice(this.bags.indexOf('mrenft'), 1);
       this.res.ramen = 60;
-      this.post('Ate the Expired MRE NFT. +60 ramen. Tasted like a rug.', 'good');
+      this.post('Starving degens ate the Expired MRE NFT. +60 ramen. Tasted like a rug.', 'good');
     }
     this.addRads(0.012 * dt);
   }
@@ -651,6 +708,7 @@ export class Game {
         this.stats.quits++;
         this.post(`${quitter.name} rage-quit the bunker and posted a farewell thread.`, 'bad');
         this.say('quit');
+        this.fx.push('quit');
       }
     }
     if (zone === 'manic' && this.rng.chance(0.007 * dt * 10)) {
@@ -749,6 +807,7 @@ export class Game {
       this.stats.raidsWon++;
       this.post(`${raid.name} got liquidated. Looted ${n} ramen off their bodies.`, 'good');
       this.say('raidwon');
+      this.fx.push('raidwon');
       if (this.rng.chance(0.5)) this.giveBag();
       this.raid = null;
     } else if (raid.t >= 30) {
@@ -756,6 +815,7 @@ export class Game {
       this.stats.raidsLost++;
       this.post(`${raid.name} left with ${Math.round(raid.stolen)} ramen. They were not even mad.`, 'bad');
       this.say('raidlost');
+      this.fx.push('raidlost');
       this.raid = null;
     }
     this.touch();

@@ -3,8 +3,9 @@ import gsap from 'gsap';
 import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS } from '../sim/content';
 import { COPE_COST, type Game } from '../sim/game';
 import { HOTSPOTS, WORKER_QUIPS } from '../sim/hotspots';
-import type { Dweller, ResKey, Room } from '../sim/types';
+import type { BagId, Dweller, ResKey, Room } from '../sim/types';
 import type { BunkerView } from '../render/view';
+import { audio } from '../audio/audio';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
 
@@ -15,6 +16,8 @@ export interface UiState {
   drawer: Drawer;
   /** Room popped out into the big view. */
   roomView: number | null;
+  /** Bag open in the inspect view. */
+  inspectBag: BagId | null;
 }
 
 type Set = (fn: () => void) => void;
@@ -64,8 +67,10 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
       {sel && !popped && <DwellerCard game={game} d={sel} ui={ui} set={set} />}
       {popped && <RoomPopup key={popped.id} game={game} room={popped} ui={ui} set={set} view={view} />}
       {ui.buildAt && <BuildMenu game={game} ui={ui} set={set} />}
+      {game.newBag && !game.card && !ui.inspectBag && <BagReveal game={game} ui={ui} set={set} />}
+      {ui.inspectBag && <BagInspect key={ui.inspectBag} game={game} id={ui.inspectBag} ui={ui} set={set} />}
       {game.card && <Card game={game} />}
-      {game.phase === 'drop' && <div class="drop-text">THE BOMBS HAVE DROPPED</div>}
+      {game.phase === 'drop' && <Cinematic game={game} />}
       {game.ending && <End game={game} />}
     </div>
   );
@@ -128,6 +133,9 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
         )}
       </div>
       <div class="speed">
+        <button class={audio.muted ? '' : 'on-soft'} onClick={() => set(() => audio.toggleMute())} title="Sound on/off (M)">
+          {audio.muted ? '🔇' : '🔊'}
+        </button>
         {[0, 1, 2, 4].map((s) => (
           <button key={s} class={ui.speed === s ? 'on' : ''} onClick={() => set(() => (ui.speed = s))} title={s === 0 ? 'Pause (Space)' : `${s}x speed`}>
             {s === 0 ? '❚❚' : `${s}×`}
@@ -184,6 +192,7 @@ function Hatch({ game }: { game: Game }) {
 
   useEffect(() => {
     if (!line) return;
+    if (game.hatchVoice) void audio.voice(`/audio/hatch/${game.hatchVoice}.mp3`);
     setOpen(true);
     setShown('');
     let i = 0;
@@ -223,7 +232,7 @@ function Dock({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: Set
       {ui.drawer && (
         <div class="drawer panel scroll">
           {ui.drawer === 'degens' && <Roster game={game} ui={ui} set={set} focusFloor={focusFloor} />}
-          {ui.drawer === 'bags' && <Bags game={game} />}
+          {ui.drawer === 'bags' && <Bags game={game} ui={ui} set={set} />}
           {ui.drawer === 'log' && <Log game={game} />}
         </div>
       )}
@@ -291,18 +300,103 @@ function Roster({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: S
   );
 }
 
-function Bags({ game }: { game: Game }) {
+function Bags({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
   return (
     <>
       <div class="drawer-title">BAGS {game.bags.length}/5{game.bags.length > 5 ? ' — BAGHOLDER' : ''}</div>
       {game.bags.length === 0 && <div class="drawer-hint">No bags yet. Find them on expeditions, in the Meme Lab, or off dead raiders.</div>}
-      {game.bags.map((b) => (
-        <div class="bag" key={b}>
-          <b>{BAGS[b].name}</b>
-          <small>{BAGS[b].desc}</small>
-        </div>
-      ))}
+      <div class="bag-grid">
+        {game.bags.map((b) => (
+          <button class={`bag-tile r-${BAGS[b].rarity}`} key={b} onClick={() => set(() => (ui.inspectBag = b))} title={BAGS[b].desc}>
+            <img src={`/art/bags/${b}.webp`} alt="" draggable={false} />
+            <span>{BAGS[b].name}</span>
+          </button>
+        ))}
+      </div>
     </>
+  );
+}
+
+/** Big "you found a Bag" moment. */
+function BagReveal({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
+  const id = game.newBag!;
+  const def = BAGS[id];
+  useEffect(() => {
+    const t = setTimeout(() => set(() => (game.newBag = null)), 7000);
+    return () => clearTimeout(t);
+  }, [id]);
+  return (
+    <div class="modal-bg bag-reveal-bg" onClick={() => set(() => (game.newBag = null))}>
+      <div class={`bag-reveal r-${def.rarity}`} onClick={(e) => e.stopPropagation()}>
+        <div class="rays" />
+        <div class="br-kicker">NEW BAG · {def.rarity.toUpperCase()}</div>
+        <img class="br-item" src={`/art/bags/${id}.webp`} alt="" draggable={false} />
+        <div class="br-name">{def.name}</div>
+        <div class="br-desc">{def.desc}</div>
+        <div class="br-row">
+          <button class="btn btn-dark" onClick={() => set(() => (game.newBag = null))}>NICE</button>
+          <button class="btn btn-amber" onClick={() => set(() => { game.newBag = null; ui.inspectBag = id; })}>INSPECT</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Inspect a Bag: a big floating item you can tilt, its effect, and a button to use or fiddle with it. */
+function BagInspect({ game, id, ui, set }: { game: Game; id: BagId; ui: UiState; set: Set }) {
+  const def = BAGS[id];
+  const [result, setResult] = useState<string | null>(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [jiggle, setJiggle] = useState(0);
+  const held = game.bags.includes(id);
+  const close = () => set(() => (ui.inspectBag = null));
+  return (
+    <div class="modal-bg" onClick={close}>
+      <div class={`modal bag-inspect r-${def.rarity}`} onClick={(e) => e.stopPropagation()}>
+        <button class="x big bi-x" onClick={close}>✕</button>
+        <div
+          class="bi-stage"
+          onPointerMove={(e) => {
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            setTilt({ x: ((e.clientX - r.left) / r.width - 0.5) * 30, y: ((e.clientY - r.top) / r.height - 0.5) * -30 });
+          }}
+          onPointerLeave={() => setTilt({ x: 0, y: 0 })}
+        >
+          <div class="bi-glow" />
+          <img
+            key={jiggle}
+            class={`bi-item ${jiggle ? 'jiggle' : ''} ${held ? '' : 'gone'}`}
+            src={`/art/bags/${id}.webp`}
+            alt=""
+            draggable={false}
+            style={{ transform: `perspective(600px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg)` }}
+          />
+        </div>
+        <div class="bi-body">
+          <span class={`rarity r-${def.rarity}`}>{def.rarity.toUpperCase()}</span>
+          <div class="bi-name">{def.name}</div>
+          <div class="bi-desc">{def.desc}</div>
+          <div class="bi-flavor">“{def.flavor}”</div>
+          {result && <div class="bi-result">{result}</div>}
+          {held ? (
+            <button
+              class={`btn ${def.action.consume ? 'btn-green' : 'btn-amber'} bi-act`}
+              onClick={() => {
+                const text = game.useBag(id);
+                if (!text) return;
+                audio.play(def.action.consume ? 'bag' : 'boop');
+                setResult(text);
+                setJiggle((n) => n + 1);
+              }}
+            >
+              {def.action.label}{def.action.consume && <small> · uses it up</small>}
+            </button>
+          ) : (
+            <button class="btn btn-dark bi-act" onClick={close}>Gone. Close</button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -376,6 +470,7 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
   useEffect(() => {
     const el = ref.current;
     const from = view.roomScreenRect(room.id);
+    audio.play('open');
     if (!el || !from) return;
     const to = el.getBoundingClientRect();
     gsap.fromTo(
@@ -403,6 +498,7 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
   }, [room.id, workers.length]);
 
   const close = () => {
+    audio.play('close');
     const el = ref.current;
     const to = view.roomScreenRect(room.id);
     if (!el || !to) return set(() => (ui.roomView = null));
@@ -442,6 +538,7 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
               class={`hotspot ${game.hotspotReady(room.id, i) ? '' : 'cooling'}`}
               style={{ left: `${h.x * 100}%`, top: `${h.y * 100}%` }}
               onClick={() => {
+                audio.play(game.hotspotReady(room.id, i) ? 'boop' : 'denied');
                 const text = game.pokeHotspot(room.id, i);
                 if (text) react(h.x, h.y, text, h.icon);
               }}
@@ -502,6 +599,58 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The bombs drop: an in-engine cinematic built from two paintings — the calm
+ *  street and the detonation — with a flash, shockwave, debris and shake. */
+function Cinematic({ game }: { game: Game }) {
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const q = (s: string) => el.querySelector(s) as HTMLElement;
+    audio.play('nuke'); // siren ~1.1s, then the boom lands on the flash
+    const shards = [...el.querySelectorAll<HTMLElement>('.shard')];
+    const tl = gsap.timeline({ onComplete: () => game.skipDrop() });
+    tl.fromTo(q('.cine-calm'), { scale: 1 }, { scale: 1.06, duration: 1.1, ease: 'power1.in' }, 0)
+      .to(q('.cine-sky'), { opacity: 0.6, duration: 1.1 }, 0)
+      .set(q('.cine-flash'), { opacity: 1 }, 1.1)
+      .set(q('.cine-blast'), { opacity: 1 }, 1.1)
+      .set(q('.cine-calm'), { opacity: 0 }, 1.1)
+      .to(q('.cine-flash'), { opacity: 0, duration: 1.0, ease: 'power2.out' }, 1.15)
+      .fromTo(q('.cine-blast'), { scale: 1.25 }, { scale: 1.04, duration: 3.2, ease: 'power3.out' }, 1.1)
+      .fromTo(q('.cine-ring'), { scale: 0, opacity: 1 }, { scale: 5, opacity: 0, duration: 1.6, ease: 'power2.out' }, 1.15)
+      .fromTo(q('.cine-ring2'), { scale: 0, opacity: 0.8 }, { scale: 4, opacity: 0, duration: 2, ease: 'power2.out' }, 1.4)
+      .fromTo(q('.cine-title'), { scale: 3, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: 'back.out(2)' }, 2.1)
+      .to(q('.cine-white'), { opacity: 1, duration: 0.6, ease: 'power2.in' }, 4.6);
+    // Debris blasts outward from the fireball toward the camera.
+    shards.forEach((sh, i) => {
+      const a = (i / shards.length) * Math.PI * 2 + Math.random() * 0.5;
+      const d = 600 + Math.random() * 900;
+      tl.fromTo(sh, { x: 0, y: 0, scale: 0.2, rotate: 0, opacity: 1 },
+        { x: Math.cos(a) * d, y: Math.sin(a) * d * 0.6 + 200, scale: 1 + Math.random() * 2.5, rotate: (Math.random() - 0.5) * 900, opacity: 0, duration: 1.4 + Math.random() * 1.2, ease: 'power2.out' },
+        1.15 + Math.random() * 0.3);
+    });
+    // Screen shake: hard on impact, rumbling after.
+    const shake = gsap.to(q('.cine-shake'), { x: () => (Math.random() - 0.5) * 40, y: () => (Math.random() - 0.5) * 30, duration: 0.05, repeat: 70, repeatRefresh: true, delay: 1.1, ease: 'none' });
+    return () => { tl.kill(); shake.kill(); };
+  }, []);
+  return (
+    <div class="cinematic" ref={root}>
+      <div class="cine-shake">
+        <div class="cine-img cine-calm" style={{ backgroundImage: 'url(/art/cine-calm.webp)' }} />
+        <div class="cine-sky" />
+        <div class="cine-img cine-blast" style={{ backgroundImage: 'url(/art/drop-end.webp)' }} />
+        <div class="cine-ring" />
+        <div class="cine-ring2" />
+        <div class="cine-debris">{Array.from({ length: 36 }).map((_, i) => <span class={`shard s${i % 4}`} key={i} />)}</div>
+      </div>
+      <div class="cine-flash" />
+      <div class="cine-white" />
+      <div class="cine-title">THE BOMBS HAVE DROPPED</div>
+      <button class="btn btn-dark skip-cine" onClick={() => game.skipDrop()}>SKIP ⏭</button>
     </div>
   );
 }

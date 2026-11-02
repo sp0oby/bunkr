@@ -4,7 +4,8 @@ import type { ArchId, BagId, HatchMood, ResKey, RoomType, StatKey } from './type
 export const DAY_SECONDS = 24;
 export const RUN_DAYS = 30;
 export const PREP_SECONDS = 75;
-export const DROP_SECONDS = 5;
+// The drop waits for the cinematic to call skipDrop(); this is only a fallback.
+export const DROP_SECONDS = 20;
 export const COLS = 6;
 export const MAX_FLOORS = 6;
 export const POP_CAP = 14;
@@ -68,21 +69,36 @@ export const NAMES = [
 ];
 
 // ---------- Bags (relics) ----------
+export type Rarity = 'common' | 'rare' | 'legendary';
+
 export interface BagDef {
   id: BagId;
   name: string;
   desc: string;
+  flavor: string;
+  rarity: Rarity;
+  /** What the inspect view's button does. `consume` removes the Bag. */
+  action: { label: string; consume: boolean };
 }
 
 export const BAGS: Record<BagId, BagDef> = {
-  hwnecklace: { id: 'hwnecklace', name: 'Hardware Wallet Necklace', desc: 'Saves one degen from liquidation. Then it\'s gone.' },
-  whitepaper: { id: 'whitepaper', name: 'Signed Whitepaper (Blank)', desc: 'Meme Lab research x2.' },
-  lambokeys: { id: 'lambokeys', name: 'Lambo Keys (No Lambo)', desc: 'Expeditions 30% faster. 0% safer.' },
-  ledger: { id: 'ledger', name: 'Ledger of a Dead Man', desc: '+200 ramen when found. Haunted.' },
-  laserpointer: { id: 'laserpointer', name: 'Laser Pointer', desc: 'Everyone +1 Hands. Laser eyes for all.' },
-  safu: { id: 'safu', name: 'Funds Are SAFU Lockbox', desc: 'Raiders can\'t steal ramen.' },
-  fewunderstand: { id: 'fewunderstand', name: '"Few Understand" Scroll', desc: 'Degens with Brain under 4 get +2 Brain.' },
-  mrenft: { id: 'mrenft', name: 'Expired MRE NFT', desc: 'The first time ramen hits 0, eat it: +60 ramen.' },
+  hwnecklace: { id: 'hwnecklace', name: 'Hardware Wallet Necklace', rarity: 'legendary', desc: 'Saves one degen from liquidation. Then it\'s gone.', flavor: 'Not your keys, not your neck.', action: { label: 'Polish it', consume: false } },
+  whitepaper: { id: 'whitepaper', name: 'Signed Whitepaper (Blank)', rarity: 'rare', desc: 'Meme Lab research x2.', flavor: 'It\'s signed. That\'s the whole roadmap.', action: { label: 'Read it', consume: false } },
+  lambokeys: { id: 'lambokeys', name: 'Lambo Keys (No Lambo)', rarity: 'common', desc: 'Expeditions 30% faster. 0% safer.', flavor: 'The Lambo is "in escrow."', action: { label: 'Press the unlock button', consume: false } },
+  ledger: { id: 'ledger', name: 'Ledger of a Dead Man', rarity: 'rare', desc: 'Plug it in for +200 ramen. It\'s haunted, so morale takes a hit.', flavor: 'The sticky note says "sorry."', action: { label: 'Plug it in', consume: true } },
+  laserpointer: { id: 'laserpointer', name: 'Laser Pointer', rarity: 'common', desc: 'Everyone +1 Hands. Laser eyes for all.', flavor: 'Price target: yes.', action: { label: 'Point it at a degen', consume: false } },
+  safu: { id: 'safu', name: 'Funds Are SAFU Lockbox', rarity: 'rare', desc: 'Raiders can\'t steal ramen.', flavor: 'Three padlocks. Nobody remembers any of the codes.', action: { label: 'Rattle it', consume: false } },
+  fewunderstand: { id: 'fewunderstand', name: '"Few Understand" Scroll', rarity: 'legendary', desc: 'Degens with Brain under 4 get +2 Brain.', flavor: 'If you understand it, it stops working.', action: { label: 'Try to understand it', consume: false } },
+  mrenft: { id: 'mrenft', name: 'Expired MRE NFT', rarity: 'common', desc: 'Eat it for +60 ramen. Eats itself if ramen hits 0.', flavor: 'Right-click, save as, eat.', action: { label: 'Eat it', consume: true } },
+};
+
+/** What happens when you fiddle with a passive Bag (pure flavor, no effect). */
+export const BAG_FIDGETS: Partial<Record<BagId, string[]>> = {
+  hwnecklace: ['It gleams. Everyone feels 4% safer.', 'You polish it. The screen says "HODL". It always says HODL.'],
+  whitepaper: ['Still blank. You nod thoughtfully anyway.', 'You hold it up to the light. Still blank. Bullish.'],
+  lambokeys: ['BEEP BEEP. Somewhere far away, nothing happens.', 'You press unlock. A raccoon on the surface flinches.'],
+  safu: ['It rattles. Something inside rattles back.', 'Funds: still SAFU. Probably.'],
+  fewunderstand: ['You almost understood it. Then it was gone.', 'The eye blinks. You did not see that.'],
 };
 
 // ---------- Expeditions ----------
@@ -170,7 +186,7 @@ export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   ],
   dayStart: [
     ['neutral', 'New day. Same apocalypse.'],
-    ['smug', 'Good morning. The sky is still green. That is not a bullish signal.'],
+    ['smug', 'Good morning. The sky is still on fire. That is not a bullish signal.'],
     ['neutral', 'Day report: we are alive. Barely. Like most portfolios.'],
   ],
 };

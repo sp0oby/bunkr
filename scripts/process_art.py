@@ -53,8 +53,22 @@ def sprites() -> None:
         save(im, OUT / "sprites" / f"{f.stem}.webp", quality=88)
 
 
+def bags() -> None:
+    """Bag item icons: trimmed to alpha, square-padded."""
+    for f in sorted((SRC / "bags").glob("*.png")):
+        im = Image.open(f).convert("RGBA")
+        alpha = im.getchannel("A").point(lambda a: 255 if a > 40 else 0)
+        im = im.crop(alpha.getbbox())
+        side = max(im.size)
+        sq = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        sq.paste(im, ((side - im.width) // 2, (side - im.height) // 2))
+        sq = sq.resize((360, 360), Image.LANCZOS)
+        save(sq, OUT / "bags" / f"{f.stem}.webp", quality=88)
+
+
 if __name__ == "__main__":
     rooms()
     surface()
     env()
     sprites()
+    bags()
