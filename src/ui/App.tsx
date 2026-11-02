@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import gsap from 'gsap';
-import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS } from '../sim/content';
+import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS, spriteFile } from '../sim/content';
 import { COPE_COST, type Game } from '../sim/game';
 import { HOTSPOTS, WORKER_QUIPS } from '../sim/hotspots';
 import type { BagId, Dweller, ResKey, Room } from '../sim/types';
@@ -29,7 +29,8 @@ const RES: { k: ResKey; icon: string; name: string }[] = [
   { k: 'copium', icon: '💊', name: 'Copium — spend it to calm the vibes' },
 ];
 const CARD_COLORS = ['btn-green', 'btn-pink', 'btn-red'];
-const sprite = (d: Dweller) => `url(/art/sprites/${d.arch}.webp)`;
+const spriteUrl = (d: Dweller) => `/art/sprites/${spriteFile(d.arch, d.look)}.webp`;
+const sprite = (d: Dweller) => `url(${spriteUrl(d)})`;
 
 function useFrame(game: Game): void {
   const [, set] = useState(0);
@@ -67,7 +68,8 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
       {sel && !popped && <DwellerCard game={game} d={sel} ui={ui} set={set} />}
       {popped && <RoomPopup key={popped.id} game={game} room={popped} ui={ui} set={set} view={view} />}
       {ui.buildAt && <BuildMenu game={game} ui={ui} set={set} />}
-      {game.newBag && !game.card && !ui.inspectBag && <BagReveal game={game} ui={ui} set={set} />}
+      {game.newLegend != null && !game.card && <LegendReveal game={game} set={set} />}
+      {game.newBag && game.newLegend == null && !game.card && !ui.inspectBag && <BagReveal game={game} ui={ui} set={set} />}
       {ui.inspectBag && <BagInspect key={ui.inspectBag} game={game} id={ui.inspectBag} ui={ui} set={set} />}
       {game.card && <Card game={game} />}
       {game.phase === 'drop' && <Cinematic game={game} />}
@@ -283,7 +285,7 @@ function Roster({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: S
               focusFloor(room ? room.floor : 0);
             })}
           >
-            <span class="face" style={{ backgroundImage: sprite(d) }} />
+            <span class={`face r-${ARCHS[d.arch].rarity}`} style={{ backgroundImage: sprite(d) }} />
             <span class="r-text">
               <span class="r-name">{d.name}</span>
               <span class="r-where">{where}</span>
@@ -314,6 +316,27 @@ function Bags({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
         ))}
       </div>
     </>
+  );
+}
+
+/** A legendary degen crawled out of the porta-potty. */
+function LegendReveal({ game, set }: { game: Game; set: Set }) {
+  const d = game.dwellers.find((x) => x.id === game.newLegend);
+  if (!d) return null;
+  const a = ARCHS[d.arch];
+  const close = () => set(() => (game.newLegend = null));
+  return (
+    <div class="modal-bg bag-reveal-bg" onClick={close}>
+      <div class="bag-reveal legend r-legendary" onClick={(e) => e.stopPropagation()}>
+        <div class="rays" />
+        <div class="br-kicker">LEGENDARY DEGEN HAS ARRIVED</div>
+        <img class="br-item legend-sprite" src={spriteUrl(d)} alt="" draggable={false} />
+        <div class="br-name">{d.name}</div>
+        <div class="legend-arch">{a.name}</div>
+        <div class="br-desc"><span class="up">✚ {a.perk}</span><br /><span class="down">✖ {a.curse}</span></div>
+        <div class="br-row"><button class="btn btn-amber" onClick={close}>WELCOME TO THE BUNKER</button></div>
+      </div>
+    </div>
   );
 }
 
@@ -420,6 +443,7 @@ function DwellerCard({ game, d, ui, set }: { game: Game; d: Dweller; ui: UiState
       <div class="dc-main">
         <div class="dc-head">
           <b>{d.name}</b>
+          <span class={`rarity r-${a.rarity}`}>{a.rarity.toUpperCase()}</span>
           <span>{a.name} · {room ? ROOMS[room.type].name : 'unemployed'}</span>
           <button class="x" onClick={() => set(() => (ui.selected = null))}>✕</button>
         </div>
@@ -557,7 +581,7 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
                 onClick={() => react(s.x / 100, 0.42, `${w.name}: "${WORKER_QUIPS[Math.floor(Math.random() * WORKER_QUIPS.length)]}"`, '💬')}
               >
                 <span class="rp-name">{w.name}</span>
-                <img src={`/art/sprites/${w.arch}.webp`} style={{ transform: `scaleX(${s.flip ? -1 : 1})` }} draggable={false} alt={w.name} />
+                <img src={spriteUrl(w)} style={{ transform: `scaleX(${s.flip ? -1 : 1})` }} draggable={false} alt={w.name} />
               </div>
             );
           })}

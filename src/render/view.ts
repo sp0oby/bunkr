@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import gsap from 'gsap';
-import { COLS, MAX_FLOORS, ROOMS } from '../sim/content';
+import { COLS, MAX_FLOORS, ROOMS, spriteFile } from '../sim/content';
 import type { Game } from '../sim/game';
 import type { Dweller, Room, RoomType } from '../sim/types';
 import { audio, type Sfx } from '../audio/audio';
@@ -65,7 +65,7 @@ interface DwellerView {
 const RES_ICON: Partial<Record<RoomType, string>> = { reactor: '⚡', kitchen: '🍜', pool: '💧', copium: '💊' };
 const FX_SOUND: Record<string, Sfx> = {
   card: 'card', bag: 'bag', death: 'death', raid: 'raid', raidwon: 'raidwon', raidlost: 'raidlost',
-  build: 'build', dig: 'dig', recruit: 'recruit', assign: 'assign', cope: 'cope', day: 'day', quit: 'quit',
+  legend: 'raidwon', build: 'build', dig: 'dig', recruit: 'recruit', assign: 'assign', cope: 'cope', day: 'day', quit: 'quit',
 };
 const mat = (color: number) => new THREE.MeshBasicMaterial({ color });
 
@@ -451,7 +451,7 @@ export class BunkerView {
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.56, 32), mat(0x8cff4f));
     ring.scale.y = 0.3;
     ring.visible = false;
-    const sprite = spriteMesh(spriteArt(d.arch), DWELLER_H);
+    const sprite = spriteMesh(spriteArt(spriteFile(d.arch, d.look)), DWELLER_H);
     sprite.userData.dwellerId = d.id;
     // Generous invisible hit box so degens are easy to grab.
     const hit = new THREE.Mesh(new THREE.PlaneGeometry(1.2, DWELLER_H + 0.2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));

@@ -21,7 +21,16 @@ export type ArchId =
   | 'rugpuller'
   | 'replyguy'
   | 'intern'
-  | 'larry';
+  | 'larry'
+  | 'mevbot'
+  | 'nftartist'
+  | 'influencer'
+  | 'memedev'
+  | 'yieldfarmer'
+  | 'coldcarl'
+  | 'vc'
+  | 'rekt'
+  | 'grandpa';
 
 export type BagId =
   | 'hwnecklace'
@@ -57,6 +66,8 @@ export interface Dweller {
   id: number;
   name: string;
   arch: ArchId;
+  /** Which art variant of the archetype this degen uses (0 or 1). */
+  look: number;
   grind: number;
   brain: number;
   vibes: number;

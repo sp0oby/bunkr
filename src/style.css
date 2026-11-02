@@ -339,6 +339,13 @@ img { -webkit-user-drag: none; }
 .bi-act { margin-top: 4px; font-size: 18px; align-self: flex-start; }
 .bi-act small { font: 800 12px var(--body); text-shadow: none; opacity: 0.85; }
 
+.bag-reveal.legend { width: 460px; }
+.legend-sprite { width: auto; height: 260px; }
+.legend-arch { font: 16px var(--display); color: var(--amber); letter-spacing: 0.06em; }
+.face.r-rare { box-shadow: 0 0 0 2px var(--rar); }
+.face.r-legendary { box-shadow: 0 0 0 2px var(--rar), 0 0 12px var(--rar); }
+.dc-head .rarity { align-self: center; }
+
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes itemDrop { from { transform: translateY(-120px) scale(0.3) rotate(-30deg); opacity: 0; } }
 @keyframes floaty { 50% { transform: translateY(-8px) rotate(3deg); } }
