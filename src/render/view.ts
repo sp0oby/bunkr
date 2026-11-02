@@ -5,6 +5,7 @@ import { COLS, MAX_FLOORS, ROOMS, spriteFile } from '../sim/content';
 import type { Game } from '../sim/game';
 import type { Dweller, Room, RoomType } from '../sim/types';
 import { audio, type Sfx } from '../audio/audio';
+import { iconUrl, richHtml } from '../ui/icons';
 
 // ---------------------------------------------------------------------------
 // World layout (units). Street level is y = 0; floors stack downward.
@@ -65,7 +66,7 @@ interface DwellerView {
 const RES_ICON: Partial<Record<RoomType, string>> = { reactor: '⚡', kitchen: '🍜', pool: '💧', copium: '💊' };
 const FX_SOUND: Record<string, Sfx> = {
   card: 'card', bag: 'bag', death: 'death', raid: 'raid', raidwon: 'raidwon', raidlost: 'raidlost',
-  legend: 'raidwon', build: 'build', dig: 'dig', recruit: 'recruit', assign: 'assign', cope: 'cope', day: 'day', quit: 'quit',
+  legend: 'raidwon', stamp: 'build', denied: 'denied', audit: 'card', launch: 'nuke', build: 'build', dig: 'dig', recruit: 'recruit', assign: 'assign', cope: 'cope', day: 'day', quit: 'quit',
 };
 const mat = (color: number) => new THREE.MeshBasicMaterial({ color });
 
@@ -327,7 +328,7 @@ export class BunkerView {
     if (g.floorsDug < MAX_FLOORS) {
       const el = document.createElement('button');
       el.className = 'dig-btn';
-      el.textContent = `⛏ DIG FLOOR ${g.floorsDug + 1} · ${g.digCost()} 🍜`;
+      el.innerHTML = `<img class="ico" src="${iconUrl('dig')}" width="22" height="22" alt=""> DIG FLOOR ${g.floorsDug + 1} · ${richHtml(`${g.digCost()} 🍜`, 18)}`;
       el.addEventListener('pointerdown', (e) => e.stopPropagation());
       el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -528,7 +529,7 @@ export class BunkerView {
       v.ring.visible = d.id === sel;
       v.tag.classList.toggle('sel', d.id === sel);
       v.tag.classList.toggle('hurt', d.hp < 40);
-      v.tag.textContent = d.hp < 40 ? `${d.name} ♥${Math.round(d.hp)}` : d.name;
+      v.tag.textContent = d.hp < 40 ? `${d.name} · HP ${Math.round(d.hp)}` : d.name;
     }
     for (const [id, v] of [...this.dwellers]) {
       if (visible.has(id)) continue;
@@ -538,9 +539,26 @@ export class BunkerView {
     }
   }
 
+  private raidKind: string | null = null;
+
   private syncRaid(): void {
     const raid = this.game.raid;
-    const want = raid ? Math.max(1, Math.ceil((raid.hp / raid.maxHp) * 4)) : 0;
+    const kind = raid?.kind ?? null;
+    if (kind !== this.raidKind) {
+      this.raidKind = kind;
+      while (this.raiders.children.length) this.raiders.remove(this.raiders.children[0]);
+      if (kind === 'whale') this.raiders.add(spriteMesh(spriteArt('whale'), 2.7));
+    }
+    if (!raid) return;
+    if (raid.kind === 'whale') {
+      // One huge whale wedged into the top floor, heaving.
+      const w = this.raiders.children[0];
+      const t = this.game.time;
+      w.position.set(4.2 + Math.sin(t * 0.8) * 0.4, floorY(0) - 0.05, 0.6);
+      w.rotation.z = Math.sin(t * 2.2) * 0.04;
+      return;
+    }
+    const want = Math.max(1, Math.ceil((raid.hp / raid.maxHp) * 4));
     while (this.raiders.children.length > want) this.raiders.remove(this.raiders.children[0]);
     while (this.raiders.children.length < want) this.raiders.add(spriteMesh(spriteArt('raider'), 1.8));
     this.raiders.children.forEach((r, i) => {
@@ -585,7 +603,7 @@ export class BunkerView {
       audio.play('tick');
       const el = document.createElement('div');
       el.className = 'popup';
-      el.textContent = `+${Math.floor(amount)} ${icon}`;
+      el.innerHTML = richHtml(`+${Math.floor(amount)} ${icon}`, 22);
       const obj = new CSS2DObject(el);
       obj.position.set(roomX(room.col) + (room.width * CW) / 2 + (Math.random() - 0.5), floorTop(room.floor) - 0.9, 2);
       this.scene.add(obj);

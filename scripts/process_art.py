@@ -32,6 +32,11 @@ def surface() -> None:
     im = Image.open(SRC / "surface.png").convert("RGB")
     im = im.resize((2400, round(2400 * im.height / im.width)), Image.LANCZOS)
     save(im, OUT / "surface.webp", quality=82)
+    title = SRC / "title.png"
+    if title.exists():
+        im = Image.open(title).convert("RGB")
+        im = im.resize((2400, round(2400 * im.height / im.width)), Image.LANCZOS)
+        save(im, OUT / "title.webp", quality=82)
 
 
 def env() -> None:
@@ -66,9 +71,22 @@ def bags() -> None:
         save(sq, OUT / "bags" / f"{f.stem}.webp", quality=88)
 
 
+def icons() -> None:
+    """Small UI icons (replace every emoji in the game)."""
+    for f in sorted((SRC / "icons").glob("*.png")):
+        im = Image.open(f).convert("RGBA")
+        alpha = im.getchannel("A").point(lambda a: 255 if a > 40 else 0)
+        im = im.crop(alpha.getbbox())
+        side = max(im.size)
+        sq = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+        sq.paste(im, ((side - im.width) // 2, (side - im.height) // 2))
+        save(sq.resize((128, 128), Image.LANCZOS), OUT / "icons" / f"{f.stem}.webp", quality=90)
+
+
 if __name__ == "__main__":
     rooms()
     surface()
     env()
     sprites()
     bags()
+    icons()

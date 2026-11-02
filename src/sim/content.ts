@@ -34,9 +34,10 @@ export const ROOMS: Record<RoomType, RoomDef> = {
   memelab: { id: 'memelab', name: 'Meme Lab', short: 'MEME LAB', color: 0x9b4dff, cost: 60, stat: 'brain', desc: 'Research. Produces Bags.' },
   storage: { id: 'storage', name: 'Cold Storage', short: 'STORAGE', color: 0x8fa3b8, cost: 30, stat: null, desc: '+ramen and +water capacity. No workers.' },
   grass: { id: 'grass', name: 'Touch Grass Hydroponics', short: 'GRASS', color: 0x2bd96b, cost: 45, stat: 'vibes', desc: 'Dampens the vibe pendulum.' },
+  rocket: { id: 'rocket', name: 'Rocket Room', short: 'ROCKET', color: 0xffffff, cost: 150, stat: 'grind', desc: 'Build a rocket out of a water heater and a porta-potty. Leave Earth.' },
 };
 
-export const ROOM_ORDER: RoomType[] = ['reactor', 'kitchen', 'pool', 'copium', 'grass', 'rugdetector', 'storage', 'shill', 'memelab'];
+export const ROOM_ORDER: RoomType[] = ['reactor', 'kitchen', 'pool', 'copium', 'grass', 'rugdetector', 'storage', 'shill', 'memelab', 'rocket'];
 
 // ---------- Archetypes ----------
 export interface ArchDef {
@@ -126,6 +127,18 @@ export const BAGS: Record<BagId, BagDef> = {
   safu: { id: 'safu', name: 'Funds Are SAFU Lockbox', rarity: 'rare', desc: 'Raiders can\'t steal ramen.', flavor: 'Three padlocks. Nobody remembers any of the codes.', action: { label: 'Rattle it', consume: false } },
   fewunderstand: { id: 'fewunderstand', name: '"Few Understand" Scroll', rarity: 'legendary', desc: 'Degens with Brain under 4 get +2 Brain.', flavor: 'If you understand it, it stops working.', action: { label: 'Try to understand it', consume: false } },
   mrenft: { id: 'mrenft', name: 'Expired MRE NFT', rarity: 'common', desc: 'Eat it for +60 ramen. Eats itself if ramen hits 0.', flavor: 'Right-click, save as, eat.', action: { label: 'Eat it', consume: true } },
+  pickaxe: { id: 'pickaxe', name: 'Emotional Support Pickaxe', rarity: 'common', desc: 'Digging new floors costs 40% less.', flavor: 'It believes in you. It is a pickaxe.', action: { label: 'Hug it', consume: false } },
+  diamondgloves: { id: 'diamondgloves', name: 'Diamond Hands Gloves', rarity: 'rare', desc: 'Every degen +2 Hands.', flavor: 'Can\'t sell if you can\'t open your hands.', action: { label: 'Make a fist', consume: false } },
+  inhaler: { id: 'inhaler', name: 'Hopium Inhaler', rarity: 'common', desc: 'COPE costs half as much copium.', flavor: 'Two puffs and everything is bullish.', action: { label: 'Take a puff', consume: false } },
+  bearspray: { id: 'bearspray', name: 'Bear Spray', rarity: 'common', desc: 'Raiders and bosses hit 30% softer.', flavor: 'Effective against bears. And bear markets, emotionally.', action: { label: 'Test spray', consume: false } },
+  bullhorn: { id: 'bullhorn', name: 'Bull Horn', rarity: 'rare', desc: 'Your degens deal 30% more damage in raids.', flavor: 'Every message is "LFG".', action: { label: 'Yell into it', consume: false } },
+  tradewatch: { id: 'tradewatch', name: 'Day-Trader Watch', rarity: 'common', desc: '+12 ramen every morning (dividends).', flavor: 'It only shows green candles. It is broken.', action: { label: 'Check the time', consume: false } },
+  ramenprinter: { id: 'ramenprinter', name: 'Ramen Printer (Brrr)', rarity: 'legendary', desc: 'Kitchens produce 50% more.', flavor: 'Money printer, but edible.', action: { label: 'Go brrr', consume: false } },
+  seedtattoo: { id: 'seedtattoo', name: 'Seed Phrase Tattoo', rarity: 'rare', desc: 'Expedition death risk halved.', flavor: 'All 24 words, on a forearm. Do not wear short sleeves.', action: { label: 'Admire it', consume: false } },
+  hazmat: { id: 'hazmat', name: 'Hazmat Onesie', rarity: 'common', desc: 'Radiation damage halved.', flavor: 'Fleece-lined. Rated for nuclear winter.', action: { label: 'Zip it up', consume: false } },
+  moonmap: { id: 'moonmap', name: 'Map to the Moon', rarity: 'legendary', desc: 'Unlocks the Rocket Room this run.', flavor: 'It is mostly arrows pointing up.', action: { label: 'Study it', consume: false } },
+  tuningfork: { id: 'tuningfork', name: 'Vibe Tuning Fork', rarity: 'rare', desc: 'The vibe pendulum swings half as hard.', flavor: 'Hums at exactly 432 hopium.', action: { label: 'Strike it', consume: false } },
+  airdropcrate: { id: 'airdropcrate', name: 'Unopened Airdrop Crate', rarity: 'common', desc: 'Open it. Could be loot. Could be a landmine.', flavor: 'Eligibility: you, probably.', action: { label: 'Crack it open', consume: true } },
 };
 
 /** What happens when you fiddle with a passive Bag (pure flavor, no effect). */
@@ -135,7 +148,56 @@ export const BAG_FIDGETS: Partial<Record<BagId, string[]>> = {
   lambokeys: ['BEEP BEEP. Somewhere far away, nothing happens.', 'You press unlock. A raccoon on the surface flinches.'],
   safu: ['It rattles. Something inside rattles back.', 'Funds: still SAFU. Probably.'],
   fewunderstand: ['You almost understood it. Then it was gone.', 'The eye blinks. You did not see that.'],
+  pickaxe: ['It whispers "you can dig it." You can.', 'Hugged. The pickaxe feels seen.'],
+  diamondgloves: ['You make a fist. You cannot open it again for an hour.', 'Sparkly. Unsellable. Perfect.'],
+  inhaler: ['Two puffs. Suddenly you believe in a 100x.', 'Pfffft. Everything smells like a bull run.'],
+  bearspray: ['You test spray. A degen walks into it. Eyes: affected.', 'Psssht. A bear somewhere feels uneasy.'],
+  bullhorn: ['"LFG!" echoes through the bunker. Three degens yell it back.', 'You yell "WAGMI" so loud the reactor flickers.'],
+  tradewatch: ['It is always 9:30am on this watch. Market open. Forever.', 'Green candle. Green candle. Green candle. Nice.'],
+  ramenprinter: ['BRRRRRR. A cup of ramen rolls out. Then another.', 'It goes brrr. The noodles go brrr. Inflation is delicious.'],
+  seedtattoo: ['Word 17 is "potato." You are sure of it now.', 'You flex. All 24 words ripple.'],
+  hazmat: ['Zipped. You feel 50% less glowy.', 'It has feet. Fleece feet. You are unstoppable.'],
+  moonmap: ['Every arrow points up. You are starting to understand.', 'There is a little doodle of a porta-potty with flames under it.'],
+  tuningfork: ['Hmmmmmmm. The vibes settle a little.', 'Ting. Somewhere, a degen stops panic-selling.'],
 };
+
+// ---------- DEFCON difficulty ladder ----------
+export interface DefconDef {
+  level: number;
+  name: string;
+  mods: string[];
+  score: number;
+}
+export const DEFCONS: Record<number, DefconDef> = {
+  5: { level: 5, name: 'DEFCON 5 · Fade Out', mods: ['The normal apocalypse.'], score: 1 },
+  4: { level: 4, name: 'DEFCON 4 · Double Take', mods: ['Raiders and bosses have +40% HP.'], score: 1.25 },
+  3: { level: 3, name: 'DEFCON 3 · Round House', mods: ['Raiders +40% HP.', 'Ramen spoils: −3% every day.'], score: 1.5 },
+  2: { level: 2, name: 'DEFCON 2 · Fast Pace', mods: ['Raiders +40% HP.', 'Ramen spoils.', 'Only 55s to prep, and panic hits harder.'], score: 1.8 },
+  1: { level: 1, name: 'DEFCON 1 · Cocked Pistol', mods: ['All of the above.', 'Rads start at 40 and climb 50% faster.'], score: 2.2 },
+};
+
+// ---------- S.E.C. audit (Surface Enforcement Corps) ----------
+export const AUDIT_LEGIT: [string, string][] = [
+  ['Ramen Inventory', 'Counted twice. Matches the cups in the kitchen.'],
+  ['Reactor Safety Report', 'Glows the correct shade of green. Inspector did not die.'],
+  ['Headcount Declaration', 'Every degen accounted for. Even Dave.'],
+  ['Water Filtration Log', 'Filters changed daily. Flamingo inspected.'],
+  ['Expense Report', 'Item: 1 mop. Reason: the puddle.'],
+  ['Proof of Reserves', 'Photo of actual cans on actual shelves.'],
+  ['Visitor Log', 'One mutant. Asked about restaking. Escorted out.'],
+  ['Power Usage Statement', 'Kilowatts in, kilowatts out. Boring. Correct.'],
+];
+export const AUDIT_FRAUD: [string, string][] = [
+  ['Ramen Inventory', '9,000,000 cups (trust me bro).'],
+  ['Reactor Safety Report', '"Vibes: immaculate." Signed: the reactor.'],
+  ['Expense Report', '40 Lambos. Business use. The business is Lambos.'],
+  ['Proof of Reserves', 'A JPEG of a vault. The JPEG is also a vault.'],
+  ['Tax Return', 'Box 1: "gm". Box 2: "gn".'],
+  ['Audit Firm', 'Dave\'s Cousin LLC (Dave\'s cousin is Dave).'],
+  ['Risk Disclosure', 'Risks: none. Up only. Number go up.'],
+  ['Board Approval', 'Approved unanimously by Exit Liquidity Larry.'],
+  ['Collateral Statement', 'Collateral: future ramen we will definitely have.'],
+];
 
 // ---------- Expeditions ----------
 export interface LocDef {
@@ -157,7 +219,7 @@ export const LOCATIONS: LocDef[] = [
 // ---------- HATCH ----------
 export type HatchTrigger =
   | 'start' | 'drop' | 'nopower' | 'starving' | 'thirsty' | 'over' | 'back' | 'balanced'
-  | 'death' | 'raid' | 'raidwon' | 'raidlost' | 'bag' | 'recruit' | 'cope' | 'idle' | 'quit' | 'yolo' | 'dayStart';
+  | 'death' | 'raid' | 'whale' | 'audit' | 'raidwon' | 'raidlost' | 'bag' | 'recruit' | 'cope' | 'idle' | 'quit' | 'yolo' | 'dayStart';
 
 export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   start: [
@@ -195,6 +257,12 @@ export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   ],
   raid: [
     ['angry', 'RAID. The Liquidators are at the porta-potty. Everyone to your stations.'],
+  ],
+  whale: [
+    ['panic', 'There is a whale in the bunker. I repeat: a whale. It is eating the furniture.'],
+  ],
+  audit: [
+    ['smug', 'The S.E.C. is here. Act natural. Hide the Lambo receipts.'],
   ],
   raidwon: [
     ['laugh', 'Raiders liquidated. Their loot is our loot now. Number go up.'],

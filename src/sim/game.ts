@@ -1,12 +1,16 @@
 import { Rng } from './rng';
 import {
-  ARCHS, BAGS, BAG_FIDGETS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
   LOOK_PRESENTATION, NAMES, POP_CAP, archTitle, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
-import { CARDS, type CardDef } from './events';
+import { CARDS as CARDS1, type CardDef } from './events';
+import { CARDS2 } from './events2';
+
+const CARDS: CardDef[] = [...CARDS1, ...CARDS2];
 import { HOTSPOTS } from './hotspots';
 import type {
+  Audit, AuditForm, RunConfig,
   ArchId, BagId, Dweller, Ending, HatchMood, LogEntry, LogKind, Phase, Raid, ResKey, Room, RoomType, StatKey, Stats,
 } from './types';
 
@@ -19,8 +23,10 @@ const HATCH_COOLDOWN: Partial<Record<HatchTrigger, number>> = {
   death: 40, quit: 60, yolo: 60, bag: 90, recruit: 120, cope: 120,
   dayStart: 72, nopower: 60, starving: 60, thirsty: 60, over: 90, back: 90, balanced: 120, idle: 150,
 };
-const HATCH_URGENT = new Set<HatchTrigger>(['start', 'drop', 'raid', 'death']);
+const HATCH_URGENT = new Set<HatchTrigger>(['start', 'drop', 'raid', 'whale', 'audit', 'death']);
 export const COPE_COST = 6;
+/** Seconds to stamp each S.E.C. audit form. */
+export const AUDIT_FORM_SECONDS = 4.5;
 
 export interface PendingCard {
   def: CardDef;
@@ -66,6 +72,12 @@ export class Game {
   hotspotCd = new Map<string, number>();
 
   card: PendingCard | null = null;
+  /** The S.E.C. audit minigame, while it's running (pauses the sim like a card). */
+  audit: Audit | null = null;
+  /** Rocket Room build progress, 0-100. At 100 you can launch. */
+  rocketProg = 0;
+  readonly config: RunConfig;
+  readonly prepSeconds: number;
   nextCardAt = 0;
   seenCards = new Set<string>();
 
@@ -77,7 +89,7 @@ export class Game {
   private hatchLastAny = -Infinity;
   private hatchSpoken = new Set<string>();
   log: LogEntry[] = [];
-  stats: Stats = { raidsWon: 0, raidsLost: 0, deaths: 0, quits: 0, recruits: 0, expeditions: 0, cardsPlayed: 0, peakRamen: 0 };
+  stats: Stats = { raidsWon: 0, raidsLost: 0, deaths: 0, quits: 0, recruits: 0, expeditions: 0, cardsPlayed: 0, peakRamen: 0, auditsPassed: 0, whaleSlain: false, launched: false };
   ending: Ending | null = null;
 
   /** Bumped whenever something UI-visible changes. */
@@ -91,15 +103,19 @@ export class Game {
   private logId = 1;
   private warned = new Set<string>();
 
-  constructor(seed = (Math.random() * 2 ** 31) | 0) {
+  constructor(seed = (Math.random() * 2 ** 31) | 0, config: Partial<RunConfig> = {}) {
     this.seed = seed;
     this.rng = new Rng(seed);
-    // Starting crew: three different non-legendary degens.
+    this.config = { defcon: 5, daily: false, startRamen: 0, extraDegen: false, startBag: false, legendLuck: false, rocket: false, ...config };
+    this.prepSeconds = this.config.defcon <= 2 ? 55 : PREP_SECONDS;
+    this.res.ramen += this.config.startRamen;
+    // Starting crew: different non-legendary degens.
     const archs = STARTER_ARCHS.filter((a) => ARCHS[a].rarity !== 'legendary');
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < (this.config.extraDegen ? 4 : 3); i++) {
       const a = archs.splice(this.rng.int(0, archs.length - 1), 1)[0];
       this.addDweller(a, undefined, true);
     }
+    if (this.config.startBag) this.giveBag();
     this.say('start');
     this.post('The bombs drop when the T-MINUS clock hits zero. Build your bunker before then. Prices go up as panic sets in.', 'info');
   }
@@ -123,11 +139,11 @@ export class Game {
   get panicMult(): number {
     if (this.phase !== 'prep') return 1.25;
     // Cheap early, brutal late.
-    return 1 + 1.5 * (this.phaseTime / PREP_SECONDS) ** 2;
+    return 1 + (this.config.defcon <= 2 ? 2 : 1.5) * (this.phaseTime / this.prepSeconds) ** 2;
   }
 
   get prepLeft(): number {
-    return Math.max(0, PREP_SECONDS - this.phaseTime);
+    return Math.max(0, this.prepSeconds - this.phaseTime);
   }
 
   get dayProgress(): number {
@@ -187,6 +203,7 @@ export class Game {
   stat(d: Dweller, k: StatKey): number {
     let v = d[k];
     if (k === 'hands' && this.bags.includes('laserpointer')) v += 1;
+    if (k === 'hands' && this.bags.includes('diamondgloves')) v += 2;
     if (k === 'brain' && this.bags.includes('fewunderstand') && d.brain < 4) v += 2;
     return Math.min(12, v);
   }
@@ -196,11 +213,21 @@ export class Game {
   }
 
   digCost(): number {
-    return Math.round(35 * this.floorsDug * this.panicMult);
+    return Math.round(35 * this.floorsDug * this.panicMult * (this.bags.includes('pickaxe') ? 0.6 : 1));
   }
 
   recruitCost(): number {
     return Math.round(22 * (1 + 0.35 * this.recruitsBought) * this.panicMult);
+  }
+
+  /** Whether a room type can be built at all this run (the Rocket Room is a secret). */
+  canBuildType(type: RoomType): boolean {
+    if (type !== 'rocket') return true;
+    return (this.config.rocket || this.bags.includes('moonmap')) && !this.rooms.some((r) => r.type === 'rocket');
+  }
+
+  copeCost(): number {
+    return this.bags.includes('inhaler') ? Math.ceil(COPE_COST / 2) : COPE_COST;
   }
 
   canBuildAt(floor: number, col: number): boolean {
@@ -216,7 +243,7 @@ export class Game {
   build(type: RoomType, floor: number, col: number): boolean {
     if (this.phase === 'ended' || this.phase === 'drop') return false;
     const cost = this.buildCost(type);
-    if (!this.canBuildAt(floor, col) || this.res.ramen < cost) return false;
+    if (!this.canBuildAt(floor, col) || !this.canBuildType(type) || this.res.ramen < cost) return false;
     this.res.ramen -= cost;
     this.roomsBuilt++;
     let room: Room = { id: this.nextId++, type, floor, col, width: 1 };
@@ -224,7 +251,7 @@ export class Game {
     // Merge with same-type neighbours up to width 3.
     for (const dir of [-1, 1]) {
       const n = this.roomAt(floor, dir < 0 ? room.col - 1 : room.col + room.width);
-      if (n && n.type === type && n.width + room.width <= 3) {
+      if (n && n.type === type && type !== 'rocket' && n.width + room.width <= 3) {
         const keep = dir < 0 ? n : room;
         const drop = dir < 0 ? room : n;
         keep.col = Math.min(n.col, room.col);
@@ -278,7 +305,7 @@ export class Game {
   }
 
   cope(): boolean {
-    const cost = COPE_COST;
+    const cost = this.copeCost();
     if (this.res.copium < cost || this.phase === 'ended') return false;
     this.res.copium -= cost;
     this.vibeVel *= 0.3;
@@ -317,7 +344,39 @@ export class Game {
   }
 
   skipPrep(): void {
-    if (this.phase === 'prep') this.phaseTime = PREP_SECONDS;
+    if (this.phase === 'prep') this.phaseTime = this.prepSeconds;
+  }
+
+  /** Blast off in the Rocket Room: ends the run with the Moon Mission ending. */
+  launch(): boolean {
+    if (!this.underground || this.rocketProg < 100 || this.raid || this.audit) return false;
+    this.stats.launched = true;
+    this.post('3... 2... 1... The porta-potty rocket clears the blast doors. Next stop: the Moon.', 'good');
+    this.fx.push('launch');
+    this.finish(true);
+    return true;
+  }
+
+  /** Stamp the current audit form. `null` means the timer ran out. */
+  answerAudit(approve: boolean | null): void {
+    const a = this.audit;
+    if (!a || a.done) return;
+    const form = a.forms[a.idx];
+    const right = approve !== null && approve === form.legit;
+    if (right) a.correct++;
+    a.log.push(right);
+    this.fx.push(right ? 'stamp' : 'denied');
+    a.idx++;
+    a.timer = AUDIT_FORM_SECONDS;
+    if (a.idx >= a.forms.length) this.resolveAudit();
+    this.touch();
+  }
+
+  dismissAudit(): void {
+    if (this.audit?.done) {
+      this.audit = null;
+      this.touch();
+    }
   }
 
   /** Called when the drop cinematic finishes (or is skipped). */
@@ -408,7 +467,8 @@ export class Game {
 
   /** Random recruit, weighted by rarity. */
   rollArch(): ArchId {
-    return this.rng.weighted(STARTER_ARCHS, (a) => RARITY_WEIGHT[ARCHS[a].rarity]) ?? 'midcurve';
+    const luck = (a: ArchId) => (this.config.legendLuck && ARCHS[a].rarity === 'legendary' ? 3 : 1);
+    return this.rng.weighted(STARTER_ARCHS, (a) => RARITY_WEIGHT[ARCHS[a].rarity] * luck(a)) ?? 'midcurve';
   }
 
   addDweller(arch: ArchId, name?: string, silent = false, forceLook?: number): Dweller {
@@ -483,6 +543,23 @@ export class Game {
         this.mreUsed = true;
         text = `You ate the NFT. +${this.addRes('ramen', 60)} 🍜. It tasted like a rug pull.`;
         break;
+      case 'airdropcrate': {
+        drop();
+        const r = this.rng.next();
+        if (r < 0.55) {
+          const a = this.addRes('ramen', this.rng.int(60, 120));
+          const w = this.addRes('water', this.rng.int(20, 50));
+          text = `Loot! +${a} 🍜 and +${w} 💧. Eligibility confirmed.`;
+        } else if (r < 0.8) {
+          const b = this.giveBag();
+          text = b ? 'There was a Bag inside the Bag. Bagception.' : 'It was full of packing peanuts. Edible ones? No.';
+        } else {
+          const d = this.randomPresent();
+          if (d) this.hurt(d, 50, 'an airdrop crate that was a landmine');
+          text = `It was a landmine. ${d ? `${d.name} −50 HP.` : 'Nobody was hurt. Somehow.'} Classic airdrop.`;
+        }
+        break;
+      }
       case 'laserpointer': {
         const key = 'bag:laserpointer';
         if (this.time < (this.hotspotCd.get(key) ?? 0)) return 'The laser needs to cool down. Like the market.';
@@ -545,6 +622,14 @@ export class Game {
   /** Advance by exactly one fixed step. Paused while a card is open. */
   step(): void {
     if (this.phase === 'ended' || this.card) return;
+    if (this.audit) {
+      // The audit pauses the bunker; only its form timer runs.
+      if (!this.audit.done) {
+        this.audit.timer -= STEP;
+        if (this.audit.timer <= 0) this.answerAudit(null);
+      }
+      return;
+    }
     const dt = STEP;
     this.time += dt;
     this.phaseTime += dt;
@@ -552,7 +637,7 @@ export class Game {
     if (this.phase === 'prep') {
       this.produce(dt);
       this.pendulum(dt);
-      if (this.phaseTime >= PREP_SECONDS) this.startDrop();
+      if (this.phaseTime >= this.prepSeconds) this.startDrop();
     } else if (this.phase === 'drop') {
       if (this.phaseTime >= DROP_SECONDS) this.startUnderground();
     } else {
@@ -593,7 +678,7 @@ export class Game {
     this.phase = 'underground';
     this.phaseTime = 0;
     this.day = 1;
-    this.rads = 25;
+    this.rads = this.config.defcon <= 1 ? 40 : 25;
     this.nextCardAt = 9;
     this.fx.push('landed');
     this.say('drop');
@@ -608,7 +693,17 @@ export class Game {
       this.fx.push('day');
     }
     this.post(`— DAY ${this.day} —`, 'info');
-    if (this.day === 10 || this.day === 20) this.startRaid(this.day === 10 ? 1 : 2);
+    if (this.day === 10) this.startRaid('liquidators');
+    if (this.day === 20) this.startAudit();
+    if (this.day === 28) this.startRaid('whale');
+    if (this.day > 1 && this.config.defcon <= 3 && this.res.ramen > 0) {
+      const spoiled = Math.round(this.res.ramen * 0.03);
+      if (spoiled > 0) {
+        this.res.ramen -= spoiled;
+        this.post(`${spoiled} ramen spoiled overnight. DEFCON ${this.config.defcon} is not kind to noodles.`, 'bad');
+      }
+    }
+    if (this.day > 1 && this.bags.includes('tradewatch')) this.addRes('ramen', 12);
     if (this.day === 24 && !this.dwellers.some((d) => d.arch === 'larry')) {
       this.queueCard('larry');
     }
@@ -688,6 +783,7 @@ export class Game {
       case 'shill': return `new degen every ~${Math.ceil(100 / (0.55 * e))} days`;
       case 'memelab': return `new Bag every ~${Math.ceil(100 / (0.45 * e * (this.bags.includes('whitepaper') ? 2 : 1)))} days`;
       case 'grass': return 'calming the vibe swings';
+      case 'rocket': return this.rocketProg >= 100 ? 'READY FOR LAUNCH' : `rocket ${Math.floor(this.rocketProg)}% built`;
       case 'rugdetector': return `+${Math.round(30 * this.workersIn(room).reduce((s, w) => s + 1 + 0.12 * this.stat(w, 'hands'), 0))}% raid defense`;
       default: return '';
     }
@@ -704,7 +800,21 @@ export class Game {
       const out = (n: number) => this.roomOut.set(room.id, (this.roomOut.get(room.id) ?? 0) + n * dt);
       switch (room.type) {
         case 'reactor': rates.power += 0.11 * eff; out(0.11 * eff); break;
-        case 'kitchen': rates.ramen += 0.14 * eff; out(0.14 * eff); break;
+        case 'kitchen': {
+          const k = 0.14 * eff * (this.bags.includes('ramenprinter') ? 1.5 : 1);
+          rates.ramen += k;
+          out(k);
+          break;
+        }
+        case 'rocket':
+          if (this.underground && this.rocketProg < 100) {
+            this.rocketProg = Math.min(100, this.rocketProg + 0.35 * eff * dt);
+            if (this.rocketProg >= 100) {
+              this.post('THE ROCKET IS READY. Open the Rocket Room to launch. This ends the run.', 'good');
+              this.fx.push('bag');
+            }
+          }
+          break;
         case 'pool':
           rates.water += 0.14 * eff;
           out(0.14 * eff);
@@ -755,7 +865,7 @@ export class Game {
       this.res.ramen = 60;
       this.post('Starving degens ate the Expired MRE NFT. +60 ramen. Tasted like a rug.', 'good');
     }
-    this.addRads(0.012 * dt);
+    this.addRads(0.012 * dt * (this.config.defcon <= 1 ? 1.5 : 1));
   }
 
   private pendulum(dt: number): void {
@@ -765,12 +875,13 @@ export class Game {
       if (this.res.water <= 0) pressure -= 1.2;
       if (this.res.power <= 0) pressure -= 0.7;
       if (this.rads > 60) pressure -= 0.5;
-      if (this.raid) pressure -= 0.6;
+      if (this.raid) pressure -= this.raid.kind === 'whale' ? 1.0 : 0.6;
     }
     // Spring pulls toward the middle, but degens amplify momentum (negative damping),
     // so the swing grows unless you dampen it with copium or grass.
-    this.vibeVel += (-0.011 * this.vibe + pressure + this.rng.range(-1.6, 1.6)) * dt;
-    this.vibeVel *= 1 + 0.006 * dt;
+    const fork = this.bags.includes('tuningfork') ? 0.5 : 1;
+    this.vibeVel += (-0.011 * this.vibe + pressure + this.rng.range(-1.6, 1.6) * fork) * dt;
+    this.vibeVel *= 1 + 0.006 * fork * dt;
     this.vibe += this.vibeVel * dt;
     if (this.vibe > 100 || this.vibe < -100) {
       this.vibe = Math.max(-100, Math.min(100, this.vibe));
@@ -812,7 +923,7 @@ export class Game {
       let dmg = 0;
       if (starving) dmg += 0.7;
       if (thirsty) dmg += 0.7;
-      if (this.rads > 50 && d.arch !== 'grandpa') dmg += (this.rads - 50) * 0.012;
+      if (this.rads > 50 && d.arch !== 'grandpa') dmg += (this.rads - 50) * 0.012 * (this.bags.includes('hazmat') ? 0.5 : 1);
       if (dmg > 0) this.hurt(d, dmg * dt, starving ? 'starvation' : thirsty ? 'dehydration' : 'radiation');
       else d.hp = Math.min(100, d.hp + 0.4 * dt);
     }
@@ -824,7 +935,7 @@ export class Game {
       const loc = LOCATIONS.find((l) => l.id === d.exp!.locId)!;
       d.exp = null;
       d.status = 'active';
-      const deathChance = Math.max(0.02, loc.risk * (1 + this.rads / 100) - 0.015 * this.stat(d, 'hands'));
+      const deathChance = Math.max(0.02, loc.risk * (1 + this.rads / 100) - 0.015 * this.stat(d, 'hands')) * (this.bags.includes('seedtattoo') ? 0.5 : 1);
       if (this.rng.chance(deathChance)) {
         this.kill(d, `lost at ${loc.name}`);
         this.post(`${d.name}'s last message from ${loc.name}: "wagmi".`, 'bad');
@@ -849,13 +960,69 @@ export class Game {
     }
   }
 
-  private startRaid(level: number): void {
-    const hp = (level === 1 ? 130 : 280) * this.raidMod;
-    this.raid = { name: level === 1 ? 'The Liquidators' : 'The Liquidators (10x Leverage)', hp, maxHp: hp, power: level === 1 ? 6 : 10, t: 0, hitTimer: 0, stolen: 0 };
+  private startRaid(kind: 'liquidators' | 'whale'): void {
+    const tough = this.config.defcon <= 4 ? 1.4 : 1;
+    const whale = kind === 'whale';
+    const hp = (whale ? 380 : 130) * this.raidMod * tough;
+    this.raid = { kind, name: whale ? 'THE MUTANT WHALE' : 'The Liquidators', hp, maxHp: hp, power: whale ? 9 : 5, t: 0, hitTimer: 0, stolen: 0 };
     this.raidMod = 1;
-    this.say('raid');
+    this.say(whale ? 'whale' : 'raid');
     this.fx.push('raid');
-    this.post(`BOSS: ${this.raid.name} are coming through the porta-potty. Defense = everyone's Grind + Hands. Rug Detectors help.`, 'bad');
+    this.post(whale
+      ? 'FINAL BOSS: A MUTANT WHALE is dragging itself down the shaft. It is one giant sell wall. Kill it before it eats everything.'
+      : `BOSS: ${this.raid.name} are coming through the porta-potty. Defense = everyone's Grind + Hands. Rug Detectors help.`, 'bad');
+  }
+
+  /** Day 20: the Surface Enforcement Corps audits your bunker. */
+  private startAudit(): void {
+    const legit = [...AUDIT_LEGIT];
+    const fraud = [...AUDIT_FRAUD];
+    const forms: AuditForm[] = [];
+    const nLegit = this.rng.int(2, 4);
+    for (let i = 0; i < 6; i++) {
+      const isLegit = i < nLegit;
+      const pool = isLegit ? legit : fraud;
+      const [title, claim] = pool.splice(this.rng.int(0, pool.length - 1), 1)[0];
+      forms.push({ title, claim, legit: isLegit });
+    }
+    for (let i = forms.length - 1; i > 0; i--) {
+      const j = this.rng.int(0, i);
+      [forms[i], forms[j]] = [forms[j], forms[i]];
+    }
+    this.audit = { forms, idx: 0, correct: 0, timer: AUDIT_FORM_SECONDS, log: [], done: false, verdict: null };
+    this.fx.push('audit');
+    this.say('audit');
+    this.post('BOSS: The S.E.C. (Surface Enforcement Corps) is auditing the bunker. Approve the real paperwork. Reject the fraud.', 'bad');
+  }
+
+  private resolveAudit(): void {
+    const a = this.audit!;
+    a.done = true;
+    if (a.correct >= 5) {
+      this.stats.auditsPassed++;
+      this.kick(20);
+      const n = this.addRes('copium', 20);
+      a.verdict = `CLEAN AUDIT (${a.correct}/6). The agent nods, stamps your forehead, and leaves. Morale up. +${n} 💊 confiscated from someone else.`;
+      this.fx.push('raidwon');
+    } else if (a.correct >= 3) {
+      const fine = Math.round(this.res.ramen * 0.25);
+      this.res.ramen -= fine;
+      a.verdict = `PASSED WITH CONCERNS (${a.correct}/6). Fined ${fine} ramen for "vibes-based accounting".`;
+      this.fx.push('raidlost');
+    } else {
+      const fine = Math.round(this.res.ramen * 0.35);
+      this.res.ramen -= fine;
+      this.kick(-25);
+      let bag = '';
+      if (this.bags.length) {
+        const b = this.rng.pick(this.bags);
+        this.bags.splice(this.bags.indexOf(b), 1);
+        bag = ` and confiscated your ${BAGS[b].name}`;
+      }
+      a.verdict = `FAILED AUDIT (${a.correct}/6). They took ${fine} ramen${bag}. The agent says "see you next cycle."`;
+      this.fx.push('raidlost');
+    }
+    this.post(a.verdict, a.correct >= 5 ? 'good' : 'bad');
   }
 
   private raidStep(dt: number): void {
@@ -867,31 +1034,36 @@ export class Game {
     for (const r of this.rooms) {
       if (r.type === 'rugdetector') rug += this.workersIn(r).reduce((s, w) => s + 1 + 0.12 * this.stat(w, 'hands'), 0);
     }
-    const dmg = fighters.reduce((s, d) => s + 1 + 0.15 * this.stat(d, 'grind') + 0.1 * this.stat(d, 'hands'), 0) * (1 + 0.3 * rug);
+    const dmg = fighters.reduce((s, d) => s + 1 + 0.15 * this.stat(d, 'grind') + 0.1 * this.stat(d, 'hands'), 0) * (1 + 0.3 * rug) * (this.bags.includes('bullhorn') ? 1.3 : 1);
     raid.hp -= dmg * 1.1 * dt;
     raid.hitTimer += dt;
-    if (raid.hitTimer >= 1 && fighters.length) {
+    if (raid.hitTimer >= 1.5 && fighters.length) {
       raid.hitTimer = 0;
       const victim = this.rng.pick(fighters);
-      this.hurt(victim, raid.power * this.rng.range(0.6, 1.3), `stabbed by ${raid.name}`);
+      const hit = raid.power * this.rng.range(0.6, 1.3) * (this.bags.includes('bearspray') ? 0.7 : 1);
+      this.hurt(victim, hit, raid.kind === 'whale' ? 'swallowed by the Mutant Whale' : `stabbed by ${raid.name}`);
       this.fx.push('hit');
     }
     if (!this.bags.includes('safu')) {
       const carl = this.present.some((d) => d.arch === 'coldcarl');
-      const steal = Math.min(this.res.ramen, (carl ? 0.8 : 1.6) * dt);
+      const steal = Math.min(this.res.ramen, (carl ? 0.5 : 1) * (raid.kind === 'whale' ? 2.6 : 1.6) * dt);
       this.res.ramen -= steal;
       raid.stolen += steal;
     }
     if (raid.hp <= 0) {
-      const n = this.addRes('ramen', 60 + raid.stolen);
+      const whale = raid.kind === 'whale';
+      const n = this.addRes('ramen', (whale ? 220 : 60) + raid.stolen);
       this.kick(30);
       this.stats.raidsWon++;
-      this.post(`${raid.name} got liquidated. Looted ${n} ramen off their bodies.`, 'good');
+      if (whale) this.stats.whaleSlain = true;
+      this.post(whale
+        ? `THE MUTANT WHALE IS DOWN. The bunker eats whale ramen for a week. +${n} ramen.`
+        : `${raid.name} got liquidated. Looted ${n} ramen off their bodies.`, 'good');
       this.say('raidwon');
       this.fx.push('raidwon');
       if (this.rng.chance(0.5)) this.giveBag();
       this.raid = null;
-    } else if (raid.t >= 30) {
+    } else if (raid.t >= (raid.kind === 'whale' ? 45 : 30)) {
       this.kick(-25);
       this.stats.raidsLost++;
       this.post(`${raid.name} left with ${Math.round(raid.stolen)} ramen. They were not even mad.`, 'bad');
@@ -944,6 +1116,9 @@ export class Game {
     const alive = this.alive.length;
     const breakdown: [string, number][] = [
       ['Survivors x 250', alive * 250],
+      ...(this.stats.launched ? [['Moon Mission', 2500] as [string, number]] : []),
+      ...(this.stats.whaleSlain ? [['Mutant Whale slain', 1000] as [string, number]] : []),
+      ...(this.stats.auditsPassed ? [['Clean S.E.C. audit', 400] as [string, number]] : []),
       ['Ramen', Math.round(this.res.ramen)],
       ['Water', Math.round(this.res.water)],
       ['Copium x 2', Math.round(this.res.copium * 2)],
@@ -951,16 +1126,21 @@ export class Game {
       ['Days survived x 40', Math.min(this.day, RUN_DAYS) * 40],
       ['Raids won x 300', this.stats.raidsWon * 300],
     ];
-    const score = breakdown.reduce((s, [, n]) => s + n, 0);
+    const mult = DEFCONS[this.config.defcon].score;
+    const base = breakdown.reduce((s, [, n]) => s + n, 0);
+    if (mult !== 1) breakdown.push([`DEFCON ${this.config.defcon} multiplier x${mult}`, Math.round(base * (mult - 1))]);
+    const score = Math.round(base * mult);
     let title = 'LIQUIDATED';
     let blurb = `Everyone died by day ${this.day}. The bunker is now a very sad NFT.`;
     if (survived) {
-      if (alive >= 8) { title = 'BUNKER DAO'; blurb = 'You surfaced with a whole community. Governance proposal #1: never go back down there.'; }
+      if (this.stats.launched) { title = 'MOON MISSION'; blurb = 'You strapped a porta-potty to a water heater and left the planet. Literally to the moon. Few understand.'; }
+      else if (alive >= 8) { title = 'BUNKER DAO'; blurb = 'You surfaced with a whole community. Governance proposal #1: never go back down there.'; }
+      else if (this.stats.whaleSlain) { title = 'WHALE HUNTER'; blurb = 'You took down the Mutant Whale and surfaced. Every degen on Earth wants your signal.'; }
       else if (this.res.ramen >= 400) { title = 'RAMEN BARON'; blurb = 'You surfaced holding the world\'s largest ramen reserve. You are the Fed now.'; }
       else if (alive <= 2) { title = 'LAST DEGENS STANDING'; blurb = 'Two survivors. Zero friends. Infinite trauma. Still bullish.'; }
       else { title = 'TOUCHED GRASS'; blurb = 'You climbed out of the porta-potty and touched grass. It was radioactive grass. Still counts.'; }
     }
-    this.ending = { title, blurb, score, breakdown };
+    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily };
     this.fx.push('end');
     this.touch();
   }
