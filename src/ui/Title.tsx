@@ -28,8 +28,8 @@ export function Title({ meta }: { meta: Meta }) {
 
       <div class="title-bar">
         <div class="tb-difficulty">
+          <span class="tp-label">DIFFICULTY</span>
           <div class="tb-head">
-            <span class="tp-label">DIFFICULTY</span>
             <div class="defcons">
               {levels.map((l) => {
                 const locked = l < meta.unlocked;
@@ -47,9 +47,9 @@ export function Title({ meta }: { meta: Meta }) {
               })}
             </div>
           </div>
-          <div class="tb-info">
-            <b>{DEFCONS[defcon].name}</b> <span class="tp-mult">×{DEFCONS[defcon].score}{meta.best[`defcon${defcon}`] ? ` · best ${meta.best[`defcon${defcon}`].toLocaleString()}` : ''}</span>
-            <span class="tb-mods">{DEFCONS[defcon].mods.join(' · ')}</span>
+          <div class="tb-info" title={DEFCONS[defcon].mods.join(' · ')}>
+            <b>{DEFCONS[defcon].name}</b>
+            <span class="tp-mult">score ×{DEFCONS[defcon].score}{meta.best[`defcon${defcon}`] ? ` · best ${meta.best[`defcon${defcon}`].toLocaleString()}` : ''}</span>
           </div>
         </div>
         <button class="btn btn-green tp-play" onClick={() => go(`?play=1&defcon=${defcon}`)}>ENTER THE BUNKER</button>

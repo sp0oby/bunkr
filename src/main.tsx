@@ -1,10 +1,11 @@
 import { render } from 'preact';
 import { Game, STEP } from './sim/game';
-import { ROOMS } from './sim/content';
+import { ROOMS, UNDERGROUND_PACE } from './sim/content';
 import type { Defcon } from './sim/types';
 import { BunkerView } from './render/view';
 import { App, type UiState } from './ui/App';
 import { Title } from './ui/Title';
+import { PhoneGate, isPhone, phoneOverride } from './ui/PhoneGate';
 import { audio } from './audio/audio';
 import { dailySeed, loadMeta, recordRun, runConfig } from './meta';
 import './style.css';
@@ -28,8 +29,13 @@ window.addEventListener('keydown', (e) => {
 });
 
 const playing = params.has('play') || params.has('daily') || params.has('seed');
-if (!playing) render(<Title meta={meta} />, document.getElementById('ui')!);
-else startRun();
+function boot(): void {
+  if (!playing) render(<Title meta={meta} />, document.getElementById('ui')!);
+  else startRun();
+}
+// Phones get HATCH's "play it on PC" screen until the real mobile version ships.
+if (isPhone() && !phoneOverride()) render(<PhoneGate onAnyway={boot} />, document.getElementById('ui')!);
+else boot();
 
 function startRun(): void {
   const daily = params.has('daily');
@@ -92,7 +98,10 @@ function startRun(): void {
   function loop(now: number) {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    acc += dt * ui.speed;
+    // Underground days run at one real minute each; boss fights and the audit
+    // stay at full speed so they don't drag.
+    const pace = game.phase === 'underground' && !game.raid && !game.audit ? UNDERGROUND_PACE : 1;
+    acc += dt * ui.speed * pace;
     let steps = 0;
     while (acc >= STEP && steps < 40) {
       game.step();

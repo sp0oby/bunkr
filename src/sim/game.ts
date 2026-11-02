@@ -403,7 +403,7 @@ export class Game {
     const key = `${roomId}:${index}`;
     const ready = this.hotspotCd.get(key) ?? 0;
     if (this.time < ready) return `${spot.label}: recharging. Like your portfolio. (${Math.ceil(ready - this.time)}s)`;
-    this.hotspotCd.set(key, this.time + 20);
+    this.hotspotCd.set(key, this.time + 8); // ~20 real seconds at the underground pace
     const text = spot.poke(this, room, this.workersIn(room));
     this.touch();
     return text;

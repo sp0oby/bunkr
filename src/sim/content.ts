@@ -1,7 +1,13 @@
 import type { ArchId, BagId, HatchMood, ResKey, RoomType, StatKey } from './types';
 
 // ---------- Tuning ----------
+/** A day in sim-seconds. All economy rates are tuned against this. */
 export const DAY_SECONDS = 24;
+/** Real seconds a day takes at 1x speed. Slower than sim time so runs leave room
+ *  for reading, room pop-outs and (later) wallet transactions. */
+export const REAL_SECONDS_PER_DAY = 60;
+/** Sim-seconds per real second while underground (outside boss fights). */
+export const UNDERGROUND_PACE = DAY_SECONDS / REAL_SECONDS_PER_DAY;
 export const RUN_DAYS = 30;
 export const PREP_SECONDS = 75;
 // The drop waits for the cinematic to call skipDrop(); this is only a fallback.
