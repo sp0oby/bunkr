@@ -762,3 +762,4 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 .tut-target { outline: 4px solid var(--rad) !important; outline-offset: 3px; animation: tutPulse 0.9s ease-in-out infinite !important; position: relative; z-index: 8; }
 @keyframes tutPulse { 50% { outline-color: var(--amber); outline-offset: 7px; } }
 .guide-tut { font-size: 13px; padding: 4px 12px; margin-left: 8px; }
+.revive .card-title { margin: 8px 0 6px; } /* no character art to make room for */
