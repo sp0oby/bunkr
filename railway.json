@@ -1,11 +1,10 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "RAILPACK",
-    "buildCommand": "echo results server: no build step"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile.server"
   },
   "deploy": {
-    "startCommand": "npx tsx server/index.ts",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 60,
     "restartPolicyType": "ON_FAILURE",

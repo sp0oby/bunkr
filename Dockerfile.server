@@ -1,0 +1,11 @@
+# The BUNKR results server (Railway). The game site itself is built and hosted by Vercel.
+FROM node:22-slim
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+# The server replays runs with the game's own sim, so it needs src/ as well as server/.
+COPY tsconfig.json ./
+COPY src ./src
+COPY server ./server
+CMD ["npx", "tsx", "server/index.ts"]
