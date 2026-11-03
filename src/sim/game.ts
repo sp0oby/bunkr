@@ -673,7 +673,10 @@ export class Game {
   /** Random recruit, weighted by rarity. */
   rollArch(): ArchId {
     const luck = (a: ArchId) => (this.config.legendLuck && ARCHS[a].rarity === 'legendary' ? 3 : 1);
-    return this.rng.weighted(STARTER_ARCHS, (a) => RARITY_WEIGHT[ARCHS[a].rarity] * luck(a)) ?? 'midcurve';
+    // Skip archetypes whose every look is already in the bunker, so no two degens are twins.
+    const inUse = (a: ArchId) => this.dwellers.filter((d) => d.arch === a && d.status !== 'gone').length;
+    const open = STARTER_ARCHS.filter((a) => inUse(a) < ARCHS[a].looks);
+    return this.rng.weighted(open.length ? open : STARTER_ARCHS, (a) => RARITY_WEIGHT[ARCHS[a].rarity] * luck(a)) ?? 'midcurve';
   }
 
   addDweller(arch: ArchId, name?: string, silent = false, forceLook?: number): Dweller {

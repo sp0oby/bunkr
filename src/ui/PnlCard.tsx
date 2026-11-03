@@ -151,7 +151,10 @@ export async function renderPnlCard(game: Game, nukeSkin: string | null): Promis
 
   // The crew that made it (or the last ones standing), kept in the right-hand zone so they
   // never cover the score or stats. Bigger crews squeeze together instead of spreading left.
-  const crew = (alive ? game.alive : game.dwellers).slice(0, 6);
+  const seen = new Set<string>();
+  const crew = (alive ? game.alive : game.dwellers)
+    .filter((d) => !seen.has(`${d.arch}:${d.look}`) && !!seen.add(`${d.arch}:${d.look}`))
+    .slice(0, 6);
   const faces = (await Promise.all(crew.map((d) => load(`/art/sprites/${spriteFile(d.arch, d.look)}.webp`)))).filter(
     (img): img is HTMLImageElement => !!img,
   );
