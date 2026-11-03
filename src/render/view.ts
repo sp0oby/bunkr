@@ -936,6 +936,15 @@ export class BunkerView {
     this.syncRooms();
   }
 
+  private inRaidZone(clientX: number, clientY: number): boolean {
+    const box = new THREE.Box3();
+    for (const r of this.raiders.children) box.expandByObject(r);
+    if (box.isEmpty()) return false;
+    const p = this.screenToWorld(clientX, clientY);
+    const pad = 0.5;
+    return p.x >= box.min.x - pad && p.x <= box.max.x + pad && p.y >= box.min.y - 0.2 && p.y <= box.max.y + pad;
+  }
+
   private hitTest(clientX: number, clientY: number): { dweller: number | null; room: number | null; raider: boolean } {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
@@ -952,6 +961,9 @@ export class BunkerView {
       if (rid != null && room == null) room = rid;
     }
     if (this.dragDweller?.active) dweller = null;
+    // During a raid, the whole area around the raiders is one big target, so a click that
+    // lands in a gap (or where a raider just fell) still smashes instead of opening the room.
+    if (!raider && this.game.raid && this.inRaidZone(clientX, clientY)) raider = true;
     return { dweller, room, raider: raider && !!this.game.raid };
   }
 
