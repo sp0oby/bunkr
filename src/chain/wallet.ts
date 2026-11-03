@@ -16,6 +16,8 @@ type Kind = 'injected' | 'dev';
 export interface Recipe {
   cost: bigint;
   minTier: number;
+  /** Has to be found in a verified run before it can be forged. */
+  foundOnly: boolean;
 }
 
 export interface WalletState {
@@ -237,8 +239,8 @@ async function readRecipes(): Promise<Partial<Record<BagId, Recipe>>> {
     FORGE_ORDER.map((_, i) => pub!.readContract({ address: deployment!.forge, abi: forgeAbi, functionName: 'recipes', args: [BigInt(i)] })),
   );
   const out: Partial<Record<BagId, Recipe>> = {};
-  rows.forEach(([cost, minTier, enabled], i) => {
-    if (enabled) out[FORGE_ORDER[i]] = { cost, minTier };
+  rows.forEach(([cost, minTier, enabled, foundOnly], i) => {
+    if (enabled) out[FORGE_ORDER[i]] = { cost, minTier, foundOnly };
   });
   return out;
 }
@@ -285,11 +287,18 @@ export const buyTickets = (qty: number) =>
       : send('Buying tickets', deployment!.tickets, ticketsAbi, 'buyTickets', [BigInt(qty)]);
   });
 
-export const forgeBag = (bag: BagId) =>
+/** Forge a Bag. Found Bags need the results server's voucher from the run they were found in. */
+export const forgeBag = (bag: BagId, found?: { runId: number; voucher: Hex }) =>
   run('Forging', async () => {
     const id = BigInt(FORGE_ORDER.indexOf(bag));
     const cost = state.recipes[bag]?.cost ?? 0n;
     const permit = await maybePermit(deployment!.forge, cost);
+    if (found) {
+      const head = [id, BigInt(found.runId), found.voucher] as const;
+      return permit
+        ? send('Forging', deployment!.forge, forgeAbi, 'forgeFoundWithPermit', [...head, ...permit])
+        : send('Forging', deployment!.forge, forgeAbi, 'forgeFound', [...head]);
+    }
     return permit
       ? send('Forging', deployment!.forge, forgeAbi, 'forgeWithPermit', [id, ...permit])
       : send('Forging', deployment!.forge, forgeAbi, 'forge', [id]);

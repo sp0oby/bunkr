@@ -64,6 +64,7 @@ contract Deploy is Script {
             minTiers[i] = RARITY[i] + 1; // common: Shed, rare: Basement, legendary: Bunker
         }
         forge.setRecipes(ids, costs, minTiers);
+        forge.setFoundOnly(ids, true); // Bags must be found in a verified run before forging
     }
 
     /// Cosmetics (ids 100+, must match COSMETICS in src/chain/constants.ts). Shed tier.

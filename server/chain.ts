@@ -1,5 +1,8 @@
 // Reading the game contracts, and the oracle's transactions.
-import { createPublicClient, createWalletClient, decodeEventLog, defineChain, http, parseAbi, type Address, type Hash } from 'viem';
+import {
+  createPublicClient, createWalletClient, decodeEventLog, defineChain, encodeAbiParameters, http, keccak256, parseAbi, parseAbiParameters, toBytes,
+  type Address, type Hash, type Hex,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { forgeAbi, ticketsAbi } from '../src/chain/abi';
 import { FORGE_ORDER } from '../src/chain/constants';
@@ -117,6 +120,19 @@ export async function rollDay(day: number): Promise<Hash> {
     account: oracle, address: deployment.tickets, abi: oracleAbi, functionName: 'rollDay', args: [BigInt(day)],
   });
   return sendAndWait(request);
+}
+
+/**
+ * The oracle's voucher that `player` found `bag` in verified run `runId`: an Ethereum
+ * signed message over the Forge's voucherDigest, which forgeFound checks on chain.
+ */
+export async function signVoucher(player: Address, bag: BagId, runId: number): Promise<Hex> {
+  const digest = keccak256(
+    encodeAbiParameters(parseAbiParameters('bytes32, uint256, address, address, uint256, uint256'), [
+      keccak256(toBytes('BUNKR found Bag')), BigInt(deployment.chainId), deployment.forge, player, BigInt(FORGE_ORDER.indexOf(bag)), BigInt(runId),
+    ]),
+  );
+  return oracle.signMessage({ message: { raw: digest } });
 }
 
 /** Close a run's lock: burn the shattered Bags, give the rest back. */

@@ -13,7 +13,8 @@ contract BunkrTest is Test {
     BunkrTickets tickets;
     BunkrForge forge;
     address owner = makeAddr("owner");
-    address oracle = makeAddr("oracle");
+    uint256 oracleKey = 0xA11CE0;
+    address oracle = vm.addr(0xA11CE0);
     address alice;
     uint256 aliceKey;
     address bob = makeAddr("bob");
@@ -453,6 +454,56 @@ contract BunkrTest is Test {
         forge.setRoyalty(bob, 0);
         (, cut) = forge.royaltyInfo(0, 1 ether);
         assertEq(cut, 0);
+    }
+
+    function voucher(uint256 key, address player, uint256 bagId, uint256 runId) internal view returns (bytes memory) {
+        bytes32 d = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", forge.voucherDigest(player, bagId, runId)));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, d);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function test_foundBagsNeedAVoucher() public {
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = 0;
+        vm.prank(bob);
+        vm.expectRevert();
+        forge.setFoundOnly(ids, true);
+        vm.prank(owner);
+        forge.setFoundOnly(ids, true);
+        fund(alice, 30_000e18);
+        vm.startPrank(alice);
+        token.approve(address(forge), type(uint256).max);
+        vm.expectRevert(BunkrForge.NeedsVoucher.selector);
+        forge.forge(0);
+        // Someone else's key, someone else's voucher, the wrong Bag: all refused.
+        (, uint256 strangerKey) = makeAddrAndKey("stranger");
+        bytes memory real = voucher(oracleKey, alice, 0, 7);
+        bytes memory fake = voucher(strangerKey, alice, 0, 7);
+        bytes memory bobs = voucher(oracleKey, bob, 0, 7);
+        bytes memory next = voucher(oracleKey, alice, 0, 8);
+        vm.expectRevert(BunkrForge.BadVoucher.selector);
+        forge.forgeFound(0, 7, fake);
+        vm.expectRevert(BunkrForge.BadVoucher.selector);
+        forge.forgeFound(0, 7, bobs);
+        vm.expectRevert(BunkrForge.BadVoucher.selector);
+        forge.forgeFound(1, 7, real);
+        // The real one works once.
+        forge.forgeFound(0, 7, real);
+        assertEq(forge.balanceOf(alice, 0), 1);
+        vm.expectRevert(BunkrForge.VoucherUsed.selector);
+        forge.forgeFound(0, 7, real);
+        // A Bag found in another run is another voucher.
+        forge.forgeFound(0, 8, next);
+        assertEq(forge.balanceOf(alice, 0), 2);
+        vm.stopPrank();
+        // Repricing keeps the flag.
+        uint128[] memory costs = new uint128[](1);
+        uint8[] memory tiers = new uint8[](1);
+        (costs[0], tiers[0]) = (6_000e18, 1);
+        vm.prank(owner);
+        forge.setRecipes(ids, costs, tiers);
+        (,,, bool foundOnly) = forge.recipes(0);
+        assertTrue(foundOnly);
     }
 
     function test_bagsAreTradeable() public {

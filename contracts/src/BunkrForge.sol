@@ -11,6 +11,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {BunkrTickets} from "./BunkrTickets.sol";
 
 /// @title BunkrForge
@@ -40,6 +42,8 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
         uint128 cost;
         uint8 minTier;
         bool enabled;
+        /// @notice Must be found in a verified run first: forging needs the oracle's voucher.
+        bool foundOnly;
     }
 
     IERC20 public immutable bunkr;
@@ -65,6 +69,9 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
     mapping(address => mapping(uint256 => uint256)) public lockedBalance;
     /// @notice Contracts or wallets allowed to award items without a recipe (season prizes).
     mapping(address => bool) public minters;
+    /// @notice A voucher (one Bag found in one run) can be used once.
+    mapping(uint256 => mapping(uint256 => bool)) public voucherUsed;
+    bytes32 private constant VOUCHER_TAG = keccak256("BUNKR found Bag");
 
     event Forged(address indexed player, uint256 indexed bagId, uint256 burned);
     event LoadoutLocked(address indexed player, uint256 indexed runId, uint256[] ids);
@@ -73,6 +80,9 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
     event RecipeSet(uint256 indexed bagId, uint128 cost, uint8 minTier, bool enabled);
     event OracleChanged(address oracle);
     event MinterSet(address indexed minter, bool allowed);
+    /// @notice Where a found Bag came from: the verified run it was found in.
+    event ForgedFrom(address indexed player, uint256 indexed bagId, uint256 indexed runId);
+    event FoundOnlySet(uint256 indexed bagId, bool foundOnly);
     event Awarded(address indexed to, uint256 indexed id, uint256 amount, address indexed minter);
     /// @dev ERC-7572: tells marketplaces the collection metadata changed.
     event ContractURIUpdated();
@@ -88,6 +98,9 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
     error NotInLoadout();
     error TooEarly();
     error NotMinter();
+    error NeedsVoucher();
+    error BadVoucher();
+    error VoucherUsed();
 
     /// @param base_ metadata base URL, ending in a slash: item `id` is at `<base_><id>.json`
     /// @param contractURI_ collection metadata (ERC-7572)
@@ -118,14 +131,42 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
         return _contractURI;
     }
 
+    /// @notice Forge anything that doesn't need to be found first (cosmetics).
     function forge(uint256 bagId) external nonReentrant {
+        if (recipes[bagId].foundOnly) revert NeedsVoucher();
         _forge(bagId);
     }
 
     function forgeWithPermit(uint256 bagId, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external nonReentrant {
-        try IERC20Permit(address(bunkr)).permit(msg.sender, address(this), recipes[bagId].cost, deadline, v, r, s) {}
-            catch {}
+        if (recipes[bagId].foundOnly) revert NeedsVoucher();
+        _permit(recipes[bagId].cost, deadline, v, r, s);
         _forge(bagId);
+    }
+
+    /// @notice Forge a Bag you found: `voucher` is the oracle's signature that you held it at the
+    ///         end of verified run `runId`. Each (run, Bag) can be forged once.
+    function forgeFound(uint256 bagId, uint256 runId, bytes calldata voucher) external nonReentrant {
+        _checkVoucher(bagId, runId, voucher);
+        _forge(bagId);
+    }
+
+    function forgeFoundWithPermit(
+        uint256 bagId,
+        uint256 runId,
+        bytes calldata voucher,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external nonReentrant {
+        _checkVoucher(bagId, runId, voucher);
+        _permit(recipes[bagId].cost, deadline, v, r, s);
+        _forge(bagId);
+    }
+
+    /// @notice What the oracle signs (as an Ethereum signed message) for one found Bag.
+    function voucherDigest(address player, uint256 bagId, uint256 runId) public view returns (bytes32) {
+        return keccak256(abi.encode(VOUCHER_TAG, block.chainid, address(this), player, bagId, runId));
     }
 
     /// @notice Balances for a list of Bag ids, for one player.
@@ -200,8 +241,16 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
 
     function setRecipes(uint256[] calldata ids, uint128[] calldata costs, uint8[] calldata minTiers) external onlyOwner {
         for (uint256 i; i < ids.length; i++) {
-            recipes[ids[i]] = Recipe(costs[i], minTiers[i], true);
+            recipes[ids[i]] = Recipe(costs[i], minTiers[i], true, recipes[ids[i]].foundOnly);
             emit RecipeSet(ids[i], costs[i], minTiers[i], true);
+        }
+    }
+
+    /// @notice Mark items as found-only (Bags) or buy-only (cosmetics).
+    function setFoundOnly(uint256[] calldata ids, bool foundOnly) external onlyOwner {
+        for (uint256 i; i < ids.length; i++) {
+            recipes[ids[i]].foundOnly = foundOnly;
+            emit FoundOnlySet(ids[i], foundOnly);
         }
     }
 
@@ -221,6 +270,19 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
         _contractURI = contractURI_;
         emit ContractURIUpdated();
         emit URI(base_, type(uint256).max); // hint for indexers that all item URIs moved
+    }
+
+    function _checkVoucher(uint256 bagId, uint256 runId, bytes calldata voucher) internal {
+        if (voucherUsed[runId][bagId]) revert VoucherUsed();
+        bytes32 digest = MessageHashUtils.toEthSignedMessageHash(voucherDigest(msg.sender, bagId, runId));
+        (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, voucher);
+        if (err != ECDSA.RecoverError.NoError || signer != oracle) revert BadVoucher();
+        voucherUsed[runId][bagId] = true;
+        emit ForgedFrom(msg.sender, bagId, runId);
+    }
+
+    function _permit(uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) internal {
+        try IERC20Permit(address(bunkr)).permit(msg.sender, address(this), value, deadline, v, r, s) {} catch {}
     }
 
     function _close(uint256 runId, bool[] memory broken) internal {

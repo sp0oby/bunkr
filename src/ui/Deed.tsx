@@ -1,4 +1,4 @@
-import { formatUnits } from 'viem';
+import { formatUnits, type Hex } from 'viem';
 import { BAGS } from '../sim/content';
 import type { BagId } from '../sim/types';
 import { LOADOUT_SLOTS, TIERS, TIER_PERKS, deployment, devWalletAllowed, explorerTx, tokenGate } from '../chain/config';
@@ -253,8 +253,12 @@ function DripSection({ s }: { s: WalletState }) {
   );
 }
 
-/** End screen: make a Bag from this run permanent by burning $BUNKR. */
-export function ForgePanel({ bags }: { bags: BagId[] }) {
+/**
+ * End screen: make a Bag from this run permanent by burning $BUNKR. Bags have to be found to be
+ * forged: the results server signs a voucher for each one once it has verified the run.
+ * `vouchers` is null while that's pending (or for a run the server never saw).
+ */
+export function ForgePanel({ bags, runId, vouchers }: { bags: BagId[]; runId: number | null; vouchers: Partial<Record<BagId, Hex>> | null }) {
   const s = useWallet();
   if (!tokenGate || s.status !== 'connected' || !bags.length) return null;
   return (
@@ -266,6 +270,8 @@ export function ForgePanel({ bags }: { bags: BagId[] }) {
           if (!r) return null;
           const locked = r.minTier > s.tier;
           const poor = s.balance < r.cost;
+          const voucher = vouchers?.[b];
+          const unproven = r.foundOnly && (!voucher || runId == null);
           // Burning tokens can drop you below your Deed tier. Say so before they click.
           const after = s.balance - r.cost;
           let dropTo = s.tier;
@@ -282,11 +288,11 @@ export function ForgePanel({ bags }: { bags: BagId[] }) {
               </div>
               <button
                 class="btn btn-amber"
-                disabled={!!s.busy || locked || poor}
-                title={locked ? `Needs a ${TIERS[r.minTier]} Deed` : poor ? 'Not enough $BUNKR' : ''}
-                onClick={() => void forgeBag(b)}
+                disabled={!!s.busy || locked || poor || unproven}
+                title={locked ? `Needs a ${TIERS[r.minTier]} Deed` : poor ? 'Not enough $BUNKR' : unproven ? 'Waiting for the results server to verify this run' : ''}
+                onClick={() => void forgeBag(b, voucher && runId != null ? { runId, voucher } : undefined)}
               >
-                {locked ? `NEEDS ${TIERS[r.minTier]}` : `FORGE · ${fmtBunkr(r.cost)}`}
+                {locked ? `NEEDS ${TIERS[r.minTier]}` : unproven ? (vouchers ? 'NOT FOUND HERE' : 'VERIFYING…') : `FORGE · ${fmtBunkr(r.cost)}`}
               </button>
             </div>
           );

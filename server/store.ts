@@ -37,6 +37,8 @@ export interface RunRecord {
   result?: RunResult;
   shattered?: BagId[];
   shatterTxs?: Hex[];
+  /** Oracle-signed proof per Bag found this run, for forgeFound. */
+  vouchers?: Partial<Record<BagId, Hex>>;
 }
 
 interface Data {

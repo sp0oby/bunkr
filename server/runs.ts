@@ -4,10 +4,11 @@ import { createHmac } from 'node:crypto';
 import { keccak256, type Hash, type Hex } from 'viem';
 import { ACTIONS, replay, type Input } from '../src/sim/game';
 import { mutatorForDay } from '../src/sim/content';
-import { LOADOUT_SLOTS, SHATTER_CHANCE } from '../src/chain/constants';
+import { FORGE_ORDER, LOADOUT_SLOTS, SHATTER_CHANCE } from '../src/chain/constants';
 import { dailySeed } from '../src/meta';
 import type { BagId, Defcon, MarketEvent, RunConfig } from '../src/sim/types';
-import { bagTiers, lockedBags, runFromTx, settleRun } from './chain';
+import { bagTiers, lockedBags, runFromTx, settleRun, signVoucher } from './chain';
+import { Game } from '../src/sim/game';
 import { MIN_DAY_GAP_MS, SERVER_SECRET, deployment } from './env';
 import { getWeather, marketEventNow } from './weather';
 import { db, dailyBoard, type RunRecord } from './store';
@@ -158,6 +159,8 @@ export interface FinishResult {
   verified: true;
   shattered: BagId[];
   dailyRank: number | null;
+  /** Signed proof for each Bag found this run, so it can be forged (forgeFound). */
+  vouchers: Partial<Record<BagId, Hex>>;
 }
 
 /** Replay the run, record the real result, and roll shatters if it ended in liquidation. */
@@ -185,6 +188,13 @@ export async function finishRun(body: FinishBody): Promise<FinishResult> {
   rec.status = 'finished';
   rec.finishedAt = Date.now();
   rec.result = { score: e.score, title: e.title, survived: e.survived, day: g.day, tent: !!e.tent, ticks, inputs: inputs.length };
+  // Bags found this run (held at the end, not carried in or handed out at the start) can be forged.
+  const start = new Set(new Game(rec.seed, rec.config).bags);
+  rec.vouchers = {};
+  for (const b of g.bags) {
+    if (start.has(b) || rec.loadout.includes(b) || !FORGE_ORDER.includes(b)) continue;
+    rec.vouchers[b] = await signVoucher(rec.player, b, rec.runId);
+  }
   db.putRun(rec);
   await settleBags(rec);
   return summary(rec);
@@ -216,7 +226,7 @@ function summary(rec: RunRecord): FinishResult {
   const rank = rec.daily ? board.findIndex((r) => r.player.toLowerCase() === rec.player.toLowerCase()) : -1;
   return {
     runId: rec.runId, score: rec.result!.score, title: rec.result!.title, survived: rec.result!.survived, verified: true,
-    shattered: rec.shattered ?? [], dailyRank: rank >= 0 ? rank + 1 : null,
+    shattered: rec.shattered ?? [], dailyRank: rank >= 0 ? rank + 1 : null, vouchers: rec.vouchers ?? {},
   };
 }
 

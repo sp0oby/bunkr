@@ -2,7 +2,7 @@
 // tickets -> /run/start -> play -> /run/finish, a shatter, cheating attempts, and a
 // Daily Doom payout after the chain's clock moves past midnight.
 import { readFileSync } from 'node:fs';
-import { createPublicClient, createWalletClient, http, keccak256, parseAbi, toHex, type Address, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, encodeAbiParameters, recoverMessageAddress, http, keccak256, parseAbi, parseAbiParameters, toBytes, toHex, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { forgeAbi, ticketsAbi, tokenAbi } from '../../src/chain/abi';
@@ -13,6 +13,14 @@ import type { RunConfig } from '../../src/sim/types';
 const API = 'http://localhost:8787';
 const dep = JSON.parse(readFileSync(new URL('../../src/chain/deployments/31337.json', import.meta.url), 'utf8'));
 const pub = createPublicClient({ chain: foundry, transport: http(), pollingInterval: 200 });
+// The local deploy makes Anvil account #0 the oracle, so the test can sign its own vouchers.
+const ORACLE = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
+function testVoucher(player: Address, bagId: number, runId: number): Promise<Hex> {
+  const digest = keccak256(encodeAbiParameters(parseAbiParameters('bytes32, uint256, address, address, uint256, uint256'), [
+    keccak256(toBytes('BUNKR found Bag')), 31337n, dep.forge, player, BigInt(bagId), BigInt(runId),
+  ]));
+  return ORACLE.signMessage({ message: { raw: digest } });
+}
 // Anvil test accounts #3 and #4.
 const KEYS: Hex[] = ['0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6', '0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a'];
 
@@ -149,7 +157,14 @@ async function main() {
   // --- Forged Bags: locked in the Forge for the run, then shattered or returned.
   {
     const bags = ['lambokeys', 'pickaxe', 'inhaler', 'mrenft'] as const; // commons: Shed tier
-    for (const b of bags) await bob.write(dep.forge, forgeAbi, 'forge', [BigInt(FORGE_ORDER.indexOf(b))]);
+    const plain = await bob.write(dep.forge, forgeAbi, 'forge', [BigInt(FORGE_ORDER.indexOf(bags[0]))]).then(() => false).catch(() => true);
+    check(plain, 'a Bag can\'t be forged without being found first');
+    // Vouchers as if each was found in some earlier run (fresh run ids each time the test runs).
+    const base = 1_000_000 + Math.floor(Date.now() / 1000) % 1_000_000;
+    for (const [i, b] of bags.entries()) {
+      const id = FORGE_ORDER.indexOf(b);
+      await bob.write(dep.forge, forgeAbi, 'forgeFound', [BigInt(id), BigInt(base + i), await testVoucher(bob.account.address, id, base + i)]);
+    }
     const [tier] = await pub.readContract({ address: dep.tickets, abi: ticketsAbi, functionName: 'playerState', args: [bob.account.address] });
     const slots = LOADOUT_SLOTS[tier];
     const carry = bags.slice(0, slots);
@@ -179,6 +194,25 @@ async function main() {
     const back = carry.filter((_, i) => after[i] === had[i]);
     check(gone.length + back.length === carry.length, 'every carried Bag was either shattered or returned');
     check(JSON.stringify(gone.sort()) === JSON.stringify([...fin.json.shattered].sort()), `on-chain balances match the shatter roll (shattered: ${fin.json.shattered.join(', ') || 'none'})`);
+    const found = Object.entries(fin.json.vouchers ?? {}) as [string, Hex][];
+    check(found.every(([b]) => !carry.includes(b as any)), `vouchers only cover Bags found in the run, not carried ones (${found.map(([b]) => b).join(', ') || 'none found'})`);
+    const vabi = parseAbi(['function voucherDigest(address,uint256,uint256) view returns (bytes32)', 'function recipes(uint256) view returns (uint128,uint8,bool,bool)']);
+    let signedOk = true;
+    for (const [bag, v] of found) {
+      const digest = await pub.readContract({ address: dep.forge, abi: vabi, functionName: 'voucherDigest', args: [bob.account.address, BigInt(FORGE_ORDER.indexOf(bag as any)), BigInt(fin.json.runId)] });
+      signedOk &&= (await recoverMessageAddress({ message: { raw: digest }, signature: v })) === ORACLE.address;
+    }
+    check(signedOk, 'every voucher is signed by the oracle for this player, Bag and run');
+    const [bobTier] = await pub.readContract({ address: dep.tickets, abi: ticketsAbi, functionName: 'playerState', args: [bob.account.address] });
+    const tiers = await Promise.all(found.map(([bag]) => pub.readContract({ address: dep.forge, abi: vabi, functionName: 'recipes', args: [BigInt(FORGE_ORDER.indexOf(bag as any))] })));
+    const usable = found.filter((_, i) => tiers[i][1] <= bobTier);
+    if (usable.length) {
+      const [b, v] = usable[0];
+      const ok = await bob.write(dep.forge, forgeAbi, 'forgeFound', [BigInt(FORGE_ORDER.indexOf(b as any)), BigInt(fin.json.runId), v]).then(() => true).catch(() => false);
+      check(ok, `the server's voucher forges ${b} on chain`);
+      const twice = await bob.write(dep.forge, forgeAbi, 'forgeFound', [BigInt(FORGE_ORDER.indexOf(b as any)), BigInt(fin.json.runId), v]).then(() => false).catch(() => true);
+      check(twice, 'the same voucher can\'t be used twice');
+    }
   }
 
   // --- Daily payout: move the chain clock past midnight and let the server settle.

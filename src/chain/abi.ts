@@ -38,7 +38,12 @@ export const ticketsAbi = parseAbi([
 ]);
 
 export const forgeAbi = parseAbi([
-  'function recipes(uint256 id) view returns (uint128 cost, uint8 minTier, bool enabled)',
+  'function recipes(uint256 id) view returns (uint128 cost, uint8 minTier, bool enabled, bool foundOnly)',
+  'function forgeFound(uint256 bagId, uint256 runId, bytes voucher)',
+  'function forgeFoundWithPermit(uint256 bagId, uint256 runId, bytes voucher, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
+  'error NeedsVoucher()',
+  'error BadVoucher()',
+  'error VoucherUsed()',
   'function bagsOf(address player, uint256[] ids) view returns (uint256[])',
   'function forge(uint256 bagId)',
   'function forgeWithPermit(uint256 bagId, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',

@@ -53,6 +53,8 @@ export interface FinishReply {
   verified: true;
   shattered: BagId[];
   dailyRank: number | null;
+  /** Proof per Bag found this run; forging a found Bag needs it. */
+  vouchers?: Partial<Record<BagId, `0x${string}`>>;
 }
 
 export const serverFinish = (body: { runId: number; secret: string; ticks: number; inputs: Input[] }) =>

@@ -1068,7 +1068,11 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
             <button class="btn btn-green" onClick={() => setDeedOpen(true)}>GET A DEED</button>
           </div>
         )}
-        {!e.daily && <ForgePanel bags={game.bags} />}
+        <ForgePanel
+          bags={game.bags.filter((b) => !game.config.loadout.includes(b))}
+          runId={ui.verdict?.state === 'ok' ? ui.verdict.reply.runId : null}
+          vouchers={ui.verdict?.state === 'ok' ? ui.verdict.reply.vouchers ?? {} : null}
+        />
         <div class="end-stats">
           Deaths {game.stats.deaths} · Quits {game.stats.quits} · Raids {game.stats.raidsWon}W/{game.stats.raidsLost}L · Cards {game.stats.cardsPlayed} · Seed {game.seed}
         </div>
