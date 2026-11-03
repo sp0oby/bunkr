@@ -305,7 +305,8 @@ async function maybePermit(spender: Address, value: bigint): Promise<[bigint, nu
     pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'name' }),
     pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'nonces', args: [owner] }),
   ]);
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800);
+  // The chain's clock, not this computer's: a skewed clock would expire the permit.
+  const deadline = (await pub!.getBlock()).timestamp + 1800n;
   try {
     set({ busy: 'Sign the approval in your wallet' });
     const sig = await client!.signTypedData({

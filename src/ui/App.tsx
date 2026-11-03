@@ -9,6 +9,7 @@ import type { BunkerView } from '../render/view';
 import { audio } from '../audio/audio';
 import { Icon, Rich, type IconName } from './icons';
 import { DeedModal, ForgePanel, enterAndGo } from './Deed';
+import { DailyEndBoard } from './Daily';
 import type { FinishReply } from '../chain/server';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
@@ -826,6 +827,7 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
           </tbody>
         </table>
         {ui.verdict && <Verdict ui={ui} />}
+        {e.daily && ui.verdict?.state === 'ok' && <DailyEndBoard />}
         {e.tent && (
           <div class="end-tent">
             <b>Your tent lasted {TENT_DAYS} days.</b> A Bunker Deed unlocks the full 30-day run, the whale, the audit and the Moon Mission.

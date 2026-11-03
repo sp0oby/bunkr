@@ -80,8 +80,12 @@ export async function deployDay(): Promise<number> {
 }
 
 export async function chainToday(): Promise<number> {
-  const block = await pub.getBlock();
-  return Number(block.timestamp / 86400n);
+  return Number((await chainNow()) / 86400n);
+}
+
+/** The chain's clock (seconds). Days and pots follow this, not the server's clock. */
+export async function chainNow(): Promise<bigint> {
+  return (await pub.getBlock()).timestamp;
 }
 
 export const potOf = (day: number) =>

@@ -2,11 +2,11 @@
 //   POST /run/start    { txHash, secret, defcon, vault, loadout }  -> { runId, seed, config }
 //   POST /run/day      { runId, secret, day }                      -> that day's seed (in order, paced)
 //   POST /run/finish   { runId, secret, ticks, inputs }            -> verified result
-//   GET  /leaderboard?day=N                                       -> Daily Doom top 10 + pot
+//   GET  /leaderboard?day=N&player=0x…                            -> Daily Doom top 10, pot, your rank
 //   GET  /health
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { formatUnits } from 'viem';
-import { chainToday, oracle, potOf } from './chain';
+import { chainNow, oracle, potOf } from './chain';
 import { ABANDON_MS, PORT, TICK_MS, deployment } from './env';
 import { HttpError, daySeed, finishRun, startRun, sweepAbandoned } from './runs';
 import { settleFinishedDays } from './settle';
@@ -39,16 +39,30 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
-async function leaderboard(dayParam: string | null) {
-  const day = dayParam != null ? Number(dayParam) : await chainToday();
+/** A day's Daily Doom board. `player` adds that wallet's own rank, even outside the top 10. */
+async function leaderboard(dayParam: string | null, player: string | null) {
+  const now = Number(await chainNow());
+  const today = Math.floor(now / 86400);
+  const day = dayParam != null ? Number(dayParam) : today;
   if (!Number.isInteger(day)) throw new HttpError(400, 'Bad day.');
   const pot = await potOf(day);
+  const board = dailyBoard(day);
+  const row = (r: (typeof board)[number], i: number) => ({
+    rank: i + 1, player: r.player, score: r.result!.score, title: r.result!.title, day: r.result!.day, runId: r.runId,
+  });
+  const mine = player ? board.findIndex((r) => r.player.toLowerCase() === player.toLowerCase()) : -1;
+  const s = db.settlement(day);
   return {
     day,
-    pot: pot.toString(),
-    potBunkr: formatUnits(pot, 18),
-    settlement: db.settlement(day) ?? null,
-    top: dailyBoard(day).slice(0, 10).map((r, i) => ({ rank: i + 1, player: r.player, score: r.result!.score, title: r.result!.title, runId: r.runId })),
+    today,
+    /** Seconds until this day's pot pays out (0 once it's over). */
+    endsIn: day === today ? Math.max(0, (day + 1) * 86400 - now) : 0,
+    pot: (s ? BigInt(s.amount) : pot).toString(),
+    potBunkr: formatUnits(s ? BigInt(s.amount) : pot, 18),
+    settlement: s ?? null,
+    total: board.length,
+    top: board.slice(0, 10).map(row),
+    you: mine >= 0 ? row(board[mine], mine) : null,
   };
 }
 
@@ -57,7 +71,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (req.method === 'OPTIONS') return send(res, 204, null);
     if (req.method === 'GET' && url.pathname === '/health') return send(res, 200, { ok: true, chainId: deployment.chainId, oracle: oracle.address });
-    if (req.method === 'GET' && url.pathname === '/leaderboard') return send(res, 200, await leaderboard(url.searchParams.get('day')));
+    if (req.method === 'GET' && url.pathname === '/leaderboard') return send(res, 200, await leaderboard(url.searchParams.get('day'), url.searchParams.get('player')));
     if (req.method === 'POST' && url.pathname === '/run/start') return send(res, 200, await startRun(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/run/day') return send(res, 200, await daySeed(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/run/finish') return send(res, 200, await finishRun(await readJson(req)));

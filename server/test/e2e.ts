@@ -160,7 +160,7 @@ async function main() {
   const before = await pub.readContract({ address: dep.bunkr, abi: tokenAbi, functionName: 'balanceOf', args: [winner] });
   await nextDay();
   let settled = false;
-  for (let i = 0; i < 30 && !settled; i++) {
+  for (let i = 0; i < 90 && !settled; i++) { // the server settles once a minute by default
     await new Promise((r) => setTimeout(r, 1000));
     settled = await pub.readContract({ address: dep.tickets, abi: parseAbi(['function settled(uint256) view returns (bool)']), functionName: 'settled', args: [BigInt(day)] });
   }

@@ -29,6 +29,7 @@ export const ticketsAbi = parseAbi([
   'function dailyAvailable(address player) view returns (bool)',
   'error BadQty()',
   'error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)',
+  'error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)',
 ]);
 
 export const forgeAbi = parseAbi([
@@ -40,4 +41,5 @@ export const forgeAbi = parseAbi([
   'error UnknownBag()',
   'error TierTooLow(uint8 need, uint8 have)',
   'error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)',
+  'error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)',
 ]);

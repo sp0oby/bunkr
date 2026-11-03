@@ -42,16 +42,34 @@ export interface FinishReply {
 export const serverFinish = (body: { runId: number; secret: string; ticks: number; inputs: Input[] }) =>
   post<FinishReply>('/run/finish', body);
 
-export interface Board {
+export interface BoardRow {
+  rank: number;
+  player: string;
+  score: number;
+  title: string;
+  /** Underground day the run reached. */
   day: number;
-  potBunkr: string;
-  top: { rank: number; player: string; score: number; title: string }[];
 }
 
-export async function fetchBoard(): Promise<Board | null> {
+export interface Board {
+  day: number;
+  today: number;
+  endsIn: number;
+  pot: string;
+  settlement: { tx: string; winners: string[]; amount: string; kind: 'settled' | 'rolled' } | null;
+  total: number;
+  top: BoardRow[];
+  you: BoardRow | null;
+}
+
+/** A day's Daily Doom board (today by default). null if the server can't be reached. */
+export async function fetchBoard(opts: { day?: number; player?: string | null } = {}): Promise<Board | null> {
   if (!SERVER_URL) return null;
+  const q = new URLSearchParams();
+  if (opts.day != null) q.set('day', String(opts.day));
+  if (opts.player) q.set('player', opts.player);
   try {
-    const res = await fetch(`${SERVER_URL}/leaderboard`);
+    const res = await fetch(`${SERVER_URL}/leaderboard?${q}`);
     return res.ok ? ((await res.json()) as Board) : null;
   } catch {
     return null;

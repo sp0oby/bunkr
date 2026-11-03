@@ -5,6 +5,7 @@ import { VAULT, buyVault, dailyPlayed, todayKey, vaultLevel, type Meta } from '.
 import { audio } from '../audio/audio';
 import { Icon } from './icons';
 import { DeedChip, DeedModal, enterAndGo, hasDeed } from './Deed';
+import { DailyModal } from './Daily';
 import { tokenGate } from '../chain/config';
 import { useWallet } from '../chain/wallet';
 
@@ -13,6 +14,7 @@ export function Title({ meta }: { meta: Meta }) {
   const [defcon, setDefcon] = useState<Defcon>(meta.unlocked);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [deedOpen, setDeedOpen] = useState(false);
+  const [dailyOpen, setDailyOpen] = useState(false);
   const w = useWallet();
   const deed = hasDeed(w);
   const tent = tokenGate && !deed;
@@ -66,12 +68,12 @@ export function Title({ meta }: { meta: Meta }) {
         <div class="tb-side">
           <button
             class="btn btn-amber"
-            disabled={playedToday || !!w.busy || (deed && !w.dailyAvailable)}
-            onClick={() => (tent ? setDeedOpen(true) : void enter('?daily=1', true))}
-            title="Same seed for everyone today. One attempt. DEFCON 3. No Vault perks."
+            disabled={!tokenGate && playedToday}
+            onClick={() => (tokenGate ? setDailyOpen(true) : void enter('?daily=1', true))}
+            title="Same start for everyone today. One attempt. DEFCON 3. No Vault perks."
           >
             DAILY DOOM
-            <small>{playedToday ? `done · ${meta.daily!.score.toLocaleString()}` : tent ? 'needs a deed' : !w.dailyAvailable ? 'played today' : todayKey()}</small>
+            <small>{playedToday ? `done · ${meta.daily!.score.toLocaleString()}` : tokenGate ? 'pot + board' : todayKey()}</small>
           </button>
           <DeedChip onOpen={() => setDeedOpen(true)} />
           <button class="btn btn-pink" onClick={() => setVaultOpen(true)}>
@@ -84,6 +86,17 @@ export function Title({ meta }: { meta: Meta }) {
       <div class="title-foot">Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 100 score</div>
 
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
+      {dailyOpen && (
+        <DailyModal
+          playedHere={playedToday}
+          onPlay={() => void enterAndGo('?daily=1', true)}
+          onDeed={() => {
+            setDailyOpen(false);
+            setDeedOpen(true);
+          }}
+          onClose={() => setDailyOpen(false)}
+        />
+      )}
       {vaultOpen && (
         <div class="modal-bg" onClick={() => setVaultOpen(false)}>
           <div class="modal vault" onClick={(e) => e.stopPropagation()}>

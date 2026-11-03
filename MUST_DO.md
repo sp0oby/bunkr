@@ -9,7 +9,7 @@ Things that have to happen before launch. Not optional.
 - [x] Results server: verifies every ticketed run by replaying its inputs, settles Daily Doom pots, rolls Bag shatters, Daily leaderboard
 - [x] No simulating ahead: each underground day's seed comes from the server, in order, at human pace
 - [ ] Host the results server (needs ORACLE_KEY + SERVER_SECRET) and a real database before mainnet traffic
-- [ ] Daily Doom leaderboard screen in the game (the API is there: GET /leaderboard)
+- [x] Daily Doom panel: pot, prizes, top 10 with your rank, yesterday's payout; board on the Daily end screen
 - [ ] Chart-as-weather (needs a live price, so after the Urufu launch)
 - [ ] The Wasteland season mode
 - [ ] Outside audit before mainnet
