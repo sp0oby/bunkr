@@ -764,6 +764,7 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 /* ---------- First-run tutorial ---------- */
 .tutorial { position: absolute; left: 132px; bottom: 78px; z-index: 9; width: min(400px, 60vw); background: #fff8ec; color: var(--ink); border: 4px solid var(--ink); border-radius: 18px 18px 18px 4px; padding: 10px 14px 12px; box-shadow: 0 6px 0 var(--ink); animation: bubbleIn 0.35s cubic-bezier(.2,1.6,.4,1); transform-origin: bottom left; }
 .tutorial.at-top { border-radius: 18px; transform-origin: top left; }
+.tutorial.slid { border-radius: 18px; }
 .tut-kicker { font: 11px var(--display); letter-spacing: 0.1em; color: #7a6a9a; }
 .tut-title { display: block; font: 22px var(--display); margin: 2px 0 4px; }
 .tutorial p { margin: 0 0 8px; font-size: 14px; line-height: 1.4; }

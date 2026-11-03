@@ -84,6 +84,8 @@ export const STEPS: Step[] = [
 ];
 
 const KEY = 'bunkr.tutorial';
+/** Where the bubble sits by default: just right of HATCH, along the bottom. */
+const HOME = { left: 132, top: null as number | null };
 
 export function tutorialSeen(): boolean {
   try {
@@ -116,12 +118,13 @@ export function Tutorial({ game, step, setStep }: { game: Game; step: number; se
     }
   });
 
-  // Pulse whatever this step is about, and get out of its way: if the bubble's usual spot
-  // beside HATCH would cover it, move up under the top bar until it's clear again.
+  // Pulse whatever this step is about, and get out of its way. The bubble's home is beside
+  // HATCH; if that covers the target it slides right along the bottom, past the target, and
+  // only goes up under the top bar if there's no room down there.
   const box = useRef<HTMLDivElement>(null);
-  const [top, setTop] = useState<number | null>(null);
+  const [spot, setSpot] = useState<{ left: number; top: number | null }>(HOME);
   useEffect(() => {
-    setTop(null);
+    setSpot(HOME);
     if (!s?.point) return;
     const mark = () => {
       const els = [...document.querySelectorAll<HTMLElement>(s.point!)];
@@ -131,11 +134,16 @@ export function Tutorial({ game, step, setStep }: { game: Game; step: number; se
       const w = b.offsetWidth;
       const h = b.offsetHeight;
       const targets = els.map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.bottom > 0 && r.top < innerHeight);
-      const hits = (y: number) => targets.some((r) => r.left < 132 + w && r.right > 132 && r.top < y + h && r.bottom > y);
       const atBottom = innerHeight - 78 - h;
+      const hits = (x: number, y: number | null) => {
+        const yy = y ?? atBottom;
+        return targets.some((r) => r.left < x + w && r.right > x && r.top < yy + h && r.bottom > yy);
+      };
+      const slid = Math.max(HOME.left, ...targets.map((r) => r.right + 16));
       const atTop = (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 60) + 12;
-      if (hits(atBottom) && !hits(atTop)) setTop(atTop);
-      else if (!hits(atBottom)) setTop(null);
+      const options = [HOME, ...(slid + w <= innerWidth - 12 ? [{ left: slid, top: null }] : []), { left: HOME.left, top: atTop }];
+      const best = options.find((o) => !hits(o.left, o.top)) ?? HOME;
+      setSpot((cur) => (cur.left === best.left && cur.top === best.top ? cur : best));
     };
     mark();
     const id = setInterval(mark, 300); // CSS2D labels get re-created as the bunker changes
@@ -151,7 +159,11 @@ export function Tutorial({ game, step, setStep }: { game: Game; step: number; se
     setStep(null);
   };
   return (
-    <div ref={box} class={`tutorial ${top != null ? 'at-top' : ''}`} style={top != null ? { top: `${top}px`, bottom: 'auto' } : undefined}>
+    <div
+      ref={box}
+      class={`tutorial ${spot.top != null ? 'at-top' : spot.left !== HOME.left ? 'slid' : ''}`}
+      style={{ left: `${spot.left}px`, ...(spot.top != null ? { top: `${spot.top}px`, bottom: 'auto' } : {}) }}
+    >
       <div class="tut-kicker">HATCH · TUTORIAL {step + 1}/{STEPS.length}</div>
       <b class="tut-title">{s.title}</b>
       <p><Rich text={s.text} size={18} /></p>

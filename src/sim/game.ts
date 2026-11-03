@@ -20,6 +20,8 @@ import type {
 export const STEP = 0.1;
 /** Minimum sim-seconds between any two HATCH lines (urgent ones skip this). */
 const HATCH_GAP = 14;
+/** How long a face from a line or event sticks before HATCH reacts to the bunker again (sim seconds). */
+const MOOD_HOLD = 8;
 /** Per-topic cooldowns in sim-seconds (a day is 24s). */
 const HATCH_COOLDOWN: Partial<Record<HatchTrigger, number>> = {
   start: 0, drop: 0, raid: 0, raidwon: 30, raidlost: 30,
@@ -119,7 +121,20 @@ export class Game {
   private cardTimes: number[] = [];
   seenCards = new Set<string>();
 
-  hatchMood: HatchMood = 'smug';
+  /** HATCH's face. A line or event sets it for a few seconds, then it follows the bunker. */
+  private moodSet: HatchMood = 'smug';
+  private moodAt = -Infinity;
+  get hatchMood(): HatchMood {
+    if (this.time < this.hatchUnpluggedUntil) return 'dead';
+    if (this.phase === 'ended' || this.time - this.moodAt < MOOD_HOLD) return this.moodSet;
+    if (this.raid) return 'panic';
+    const zone = this.vibeZone();
+    return zone === 'cooked' ? 'cry' : zone === 'over' ? 'angry' : zone === 'manic' || zone === 'back' ? 'laugh' : 'smug';
+  }
+  set hatchMood(m: HatchMood) {
+    this.moodSet = m;
+    this.moodAt = this.time;
+  }
   hatchLine = '';
   /** Bumps every time HATCH speaks, so a repeated line still pops the bubble. */
   hatchSeq = 0;
@@ -403,6 +418,7 @@ export class Game {
     this.res.copium -= cost;
     this.vibeVel *= 0.3;
     this.vibe *= 0.6;
+    this.moodAt = -Infinity; // the bunker just calmed down: drop whatever face HATCH was holding
     this.say('cope');
     this.fx.push('cope');
     this.touch();
