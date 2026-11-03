@@ -9,3 +9,4 @@ contracts/broadcast
 contracts/lib
 .env
 server/data
+.vercel
