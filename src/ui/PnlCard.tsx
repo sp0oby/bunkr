@@ -25,6 +25,23 @@ function status(e: NonNullable<Game['ending']>): string {
   return 'LIQUIDATED';
 }
 
+/** Each ending gets its own scene; a plain liquidation keeps the drop (or the Good Boy Nuke). */
+const ENDING_ART: Record<string, string> = {
+  'MOON MISSION': 'moon',
+  'WHALE HUNTER': 'whale',
+  'EXIT LIQUIDITY': 'rug',
+  'RUGGED YOUR OWN BUNKER': 'rug',
+  'TENT COLLAPSED': 'tent',
+  'BECAME THE RAIDERS': 'raiders',
+  'RAMEN BARON': 'ramen',
+};
+
+function endingArt(e: NonNullable<Game['ending']>, nukeSkin: string | null): string {
+  const scene = ENDING_ART[e.title] ?? (e.survived ? 'survived' : null);
+  if (scene) return `/art/pnl/${scene}.webp`;
+  return `/art/${nukeSkin === 'dog' ? 'drop-dog' : 'drop-end'}.webp`;
+}
+
 /** Net Worth After Apocalypse as a PnL: 1,000 is breaking even. */
 export function pnlPercent(score: number): number {
   return Math.round((score / 1000 - 1) * 100);
@@ -47,20 +64,20 @@ export async function renderPnlCard(game: Game, nukeSkin: string | null): Promis
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
 
-  // Background: the drop, darkened, with a terminal grid over it.
-  const bg = await load(`/art/${nukeSkin === 'dog' ? 'drop-dog' : 'drop-end'}.webp`);
+  // Background: art for how the run ended, darkened, with a terminal grid over it.
+  const bg = await load(endingArt(e, nukeSkin));
   ctx.fillStyle = '#120e0b';
   ctx.fillRect(0, 0, W, H);
   if (bg) {
     const s = Math.max(W / bg.width, H / bg.height);
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = 0.85;
     ctx.drawImage(bg, (W - bg.width * s) / 2, (H - bg.height * s) / 2, bg.width * s, bg.height * s);
     ctx.globalAlpha = 1;
   }
   const fade = ctx.createLinearGradient(0, 0, W, 0);
   fade.addColorStop(0, '#0b0b10f2');
-  fade.addColorStop(0.62, '#0b0b10c0');
-  fade.addColorStop(1, '#0b0b1040');
+  fade.addColorStop(0.5, '#0b0b10b0');
+  fade.addColorStop(1, '#0b0b1018');
   ctx.fillStyle = fade;
   ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = '#ffffff10';
@@ -132,16 +149,27 @@ export async function renderPnlCard(game: Game, nukeSkin: string | null): Promis
     outlined(ctx, v, x, 540, '#fff8ec', 6);
   });
 
-  // The crew that made it (or the last ones standing).
+  // The crew that made it (or the last ones standing), kept in the right-hand zone so they
+  // never cover the score or stats. Bigger crews squeeze together instead of spreading left.
   const crew = (alive ? game.alive : game.dwellers).slice(0, 6);
-  const faces = await Promise.all(crew.map((d) => load(`/art/sprites/${spriteFile(d.arch, d.look)}.webp`)));
+  const faces = (await Promise.all(crew.map((d) => load(`/art/sprites/${spriteFile(d.arch, d.look)}.webp`)))).filter(
+    (img): img is HTMLImageElement => !!img,
+  );
+  const ZONE_L = 790;
+  const ZONE_R = 1175;
+  const h = faces.length <= 3 ? 270 : faces.length <= 4 ? 250 : 225;
+  const widths = faces.map((img) => (img.width / img.height) * h);
+  const maxW = Math.max(0, ...widths);
+  const step = faces.length > 1 ? Math.min(maxW * 0.9, (ZONE_R - ZONE_L - maxW) / (faces.length - 1)) : 0;
+  const groupW = step * (faces.length - 1) + maxW;
+  const left = ZONE_L + (ZONE_R - ZONE_L - groupW) / 2;
   faces.forEach((img, i) => {
-    if (!img) return;
-    const h = 250;
-    const w = (img.width / img.height) * h;
+    const w = widths[i];
+    const cx = left + maxW / 2 + i * step;
+    const y = H - 56 - h - 14 + (i % 2 ? 0 : -16);
     ctx.save();
     if (!alive) ctx.filter = 'grayscale(1) brightness(0.7)';
-    ctx.drawImage(img, 1130 - (crew.length - i) * 92 - w / 2 + 40, 300 + (i % 2) * 18, w, h);
+    ctx.drawImage(img, cx - w / 2, y, w, h);
     ctx.restore();
   });
 

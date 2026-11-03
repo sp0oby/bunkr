@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- Source for the social banners in brand/. Rendered by scripts/gen-brand.sh with headless Chrome.
+     Query: w, h, img (path from repo root), flip=1 mirrors the art, pos = CSS background-position,
+     logo = logo size in px, tag=0 hides the tagline, lx/ly = logo centre in % of the card. -->
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; overflow: hidden; background: #0b0b10; }
+      .card { position: relative; overflow: hidden; }
+      .art { position: absolute; inset: 0; background-size: cover; }
+      .fade { position: absolute; inset: 0; background: radial-gradient(ellipse at var(--lx) var(--ly), #0b0b10a0, #0b0b1000 55%); }
+      .logo { position: absolute; left: var(--lx); top: var(--ly); transform: translate(-50%, -50%); text-align: center; font-family: 'Lilita One', sans-serif; white-space: nowrap; }
+      .word { line-height: 0.9; color: #8cff4f; paint-order: stroke fill; transform: rotate(-3deg); }
+      .tag { color: #fff8ec; paint-order: stroke fill; letter-spacing: 0.02em; }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card"><div class="art" id="art"></div><div class="fade"></div>
+      <div class="logo"><div class="word" id="word">BUNKR</div><div class="tag" id="tag">the world is ending. the chart is green. get in.</div></div>
+    </div>
+    <script>
+      const q = new URLSearchParams(location.search);
+      const w = +q.get('w'), h = +q.get('h'), logo = +(q.get('logo') || h * 0.36);
+      const card = document.getElementById('card');
+      Object.assign(card.style, { width: w + 'px', height: h + 'px' });
+      card.style.setProperty('--lx', (q.get('lx') || 50) + '%');
+      card.style.setProperty('--ly', (q.get('ly') || 45) + '%');
+      const art = document.getElementById('art');
+      art.style.backgroundImage = `url(../${q.get('img')})`;
+      art.style.backgroundPosition = q.get('pos') || 'center';
+      if (q.get('flip') === '1') art.style.transform = 'scaleX(-1)';
+      const word = document.getElementById('word');
+      Object.assign(word.style, { fontSize: logo + 'px', webkitTextStroke: `${logo * 0.05}px #0b0b10`, textShadow: `0 ${logo * 0.07}px 0 #0b0b10, 0 0 ${logo * 0.4}px #8cff4f66` });
+      const tag = document.getElementById('tag');
+      if (q.get('tag') === '0') tag.remove();
+      else Object.assign(tag.style, { fontSize: logo * 0.17 + 'px', marginTop: logo * 0.1 + 'px', webkitTextStroke: `${logo * 0.018}px #0b0b10`, textShadow: `0 ${logo * 0.025}px 0 #0b0b10` });
+    </script>
+  </body>
+</html>
