@@ -42,9 +42,14 @@ window.addEventListener('keydown', (e) => {
 
 const playing = params.has('play') || params.has('daily') || params.has('seed');
 const restored = restore();
+// Handy for checking sound from the console.
+Object.assign(window, { audio });
 function boot(): void {
-  if (!playing) render(<Title meta={meta} />, document.getElementById('ui')!);
-  else void startRun();
+  if (!playing) {
+    render(<Title meta={meta} />, document.getElementById('ui')!);
+    // The bunker radio plays on the title screen too (it starts on the first click or key).
+    audio.setMusic('bunker');
+  } else void startRun();
 }
 // Phones get HATCH's "play it on PC" screen until the real mobile version ships.
 if (isPhone() && !phoneOverride()) render(<PhoneGate onAnyway={boot} />, document.getElementById('ui')!);

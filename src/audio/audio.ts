@@ -262,7 +262,7 @@ class AudioEngine {
     if (mode === this.mode && !force) return;
     this.mode = mode;
     if (!this.ctx) return;
-    const level = mode === 'off' ? 0 : mode === 'raid' ? 0.22 : 0.16;
+    const level = mode === 'off' ? 0 : mode === 'raid' ? 0.45 : 0.35; // audible, but under the SFX and HATCH
     this.musicBus.gain.setTargetAtTime(level, this.ctx.currentTime, 0.6);
     if (this.nextBeat < this.ctx.currentTime) this.nextBeat = this.ctx.currentTime + 0.1;
   }
