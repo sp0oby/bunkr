@@ -93,7 +93,7 @@ export const GUIDE: GuideSection[] = [
       { title: 'Raids', body: 'The Liquidators and the Mutant Whale steal ramen and stab degens. Your crew fights automatically, and you can click the raiders to smash them yourself. Every 10th hit crits.', art: 'sprites/raider.webp' },
       { title: 'The audit', body: 'Day 20: approve the real paperwork, reject the fraud, before the timer runs out. Pass for a morale boost. Fail and they take ramen, and maybe a Bag.', art: 'sprites/secagent.webp' },
       { title: 'Bags', body: 'Relics with weird powers, found on expeditions, made in the Meme Lab, or dropped by raiders. Carry more than 5 and you\'re a Bagholder: output -10%.' },
-      { title: 'Weekly mutators', body: 'Every Monday the wasteland changes: Bear Market, Bull Run, Airdrop Season, Rug Season or The Halving. Some pay a score bonus for the suffering.' },
+      { title: 'This week', body: 'Every Monday (00:00 UTC) the wasteland changes, for every run including Daily Doom. Bear Market: everything costs double, score x1.3. Bull Run: rooms make 25% more and the vibes run hot, but rads +60%. Airdrop Season: crates fall most mornings, some hold Bags, some are live. Rug Season: extra raids on days 5 and 16, Rug Detectors work twice as hard. The Halving: rooms make 25% less, score x1.5. It shows on the title screen under THIS WEEK.' },
     ],
   },
   {
@@ -123,7 +123,7 @@ export const GUIDE: GuideSection[] = [
       { title: 'Forged Bags', body: 'Finish a run holding a Bag you found (Daily Doom counts) and you can forge it: burn $BUNKR and it becomes a token in your wallet (ERC-1155). Bring it into future runs, or trade it. Rarer Bags need higher Deeds. Every forged Bag is proof it was found: the results server verifies the run and signs for it, and the token records which run it came from.' },
       { title: 'They can break', body: 'Bags you carry are locked in the Forge for the run, so they can\'t be moved mid-run. Survive and they all come back. Get liquidated (or quit) and each has a 35% chance to shatter, gone for good. Daily Doom always uses standard issue.' },
       { title: 'Drip', body: 'Burn $BUNKR for cosmetics: Gold Bunker, Gamer Bunker, Good Boy Nuke (a dog-shaped mushroom cloud, in the drop and in the sky all run), Gold HATCH. Looks only. Also ERC-1155, also tradeable.', art: 'drip/dog.png' },
-      { title: 'The chart is the weather', body: 'When $BUNKR pumps, it is Bull Run Weather: more loot, hotter vibes, more radiation. When it dumps, Nuclear Winter: less loot, weaker raiders, score x1.2. Big moves hit everyone mid-run: WHALE SIGHTED or PAPER HANDS STORM.' },
+      { title: 'The chart is the weather', body: 'The $BUNKR chart sets the weather, checked live every few minutes; your run keeps the weather it started with. Up 8% or more in 24 hours: Bull Run Weather, with more loot, hotter vibes and more radiation. Down 8% or more: Nuclear Winter, with less loot and weaker raiders, score x1.2. In between: Crab Market, quiet. A swing of 8% within an hour hits everyone mid-run: WHALE SIGHTED on a pump, PAPER HANDS STORM on a dump.' },
       { title: 'Fair play', body: 'Every ticketed run is replayed on our results server before it counts, so the leaderboard and the pot only take real runs. Each day\'s randomness is revealed as you reach it, so nobody can simulate ahead.' },
       { title: 'Coming later', body: 'The Wasteland: every bunker on one map, one Doomsday Clock for everyone. Season 1.' },
     ],
