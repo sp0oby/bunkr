@@ -1,9 +1,10 @@
 import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 
-// The public site address, for canonical links, share cards and the sitemap. Set it when
-// building for the real site: SITE_URL=https://example.com npm run build
-const SITE_URL = (process.env.SITE_URL ?? '').replace(/\/+$/, '');
+// The public site address, for canonical links, share cards and the sitemap. On Vercel it
+// defaults to the project's production domain; set SITE_URL to override (custom domain).
+const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+const SITE_URL = (process.env.SITE_URL ?? (vercel ? `https://${vercel}` : '')).replace(/\/+$/, '');
 
 /** Fill %SITE_URL% in the pages, and write robots.txt + sitemap.xml into the build. */
 function seo(): Plugin {

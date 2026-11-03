@@ -3,13 +3,14 @@
 //
 //   SITE_URL=https://bunkr.game npx tsx scripts/gen-meta.ts
 //
-// Re-run with the real site URL before deploying the site, and deploy the contracts with
-// META_BASE=<SITE_URL>/meta/ (or call setMetadata on an existing Forge).
+// `npm run build` runs this first, so a Vercel build writes its own domain in. Deploy the
+// contracts with META_BASE=<SITE_URL>/meta/ (or call setMetadata on an existing Forge).
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { BAGS } from '../src/sim/content';
 import { COSMETICS, FORGE_ORDER, TIERS } from '../src/chain/constants';
 
-const SITE = (process.env.SITE_URL ?? 'http://localhost:5173').replace(/\/$/, '');
+const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+const SITE = (process.env.SITE_URL ?? (vercel ? `https://${vercel}` : 'http://localhost:5173')).replace(/\/+$/, '');
 const OUT = 'public/meta';
 mkdirSync(OUT, { recursive: true });
 

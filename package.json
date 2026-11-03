@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsx scripts/gen-meta.ts && vite build",
     "typecheck": "tsc --noEmit && tsc --noEmit -p server",
     "preview": "vite preview",
     "contracts:setup": "cd contracts && forge install --no-git foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts@v5.1.0",
