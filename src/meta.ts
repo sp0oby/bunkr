@@ -33,7 +33,14 @@ export interface Meta {
 }
 
 const KEY = 'bunkr.meta.v1';
-const fresh = (): Meta => ({ rf: 0, unlocked: 5, vault: {}, best: {}, daily: null, runs: 0, wins: 0 });
+export const freshMeta = (): Meta => ({ rf: 0, unlocked: 5, vault: {}, best: {}, daily: null, runs: 0, wins: 0 });
+const fresh = freshMeta;
+
+/** Called after every local save, so a linked wallet can keep its copy current. */
+let afterSave: ((m: Meta) => void) | null = null;
+export function onMetaSaved(fn: (m: Meta) => void): void {
+  afterSave = fn;
+}
 
 export function loadMeta(): Meta {
   try {
@@ -50,7 +57,64 @@ export function saveMeta(m: Meta): void {
   } catch {
     /* storage unavailable: progress lives for this session only */
   }
+  afterSave?.(m);
 }
+
+// ---------- Wallet-linked progress ----------
+// The same rules run in the game and on the results server.
+
+/** What a player signs (for free, no transaction) to keep their progress on their wallet. */
+export const linkMessage = (address: string, issued: number) =>
+  `BUNKR: keep my progress on this wallet.\nWallet: ${address.toLowerCase()}\nIssued: ${issued}\n\nThis is a free signature, not a transaction.`;
+
+const int = (v: unknown, lo: number, hi: number, dflt: number) =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.floor(v))) : dflt;
+
+/** Anything arriving from outside (server, save code) is clamped to values the game can make. */
+export function cleanMeta(raw: unknown): Meta {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const m = fresh();
+  m.rf = int(r.rf, 0, 10_000_000, 0);
+  m.unlocked = int(r.unlocked, 1, 5, 5) as Defcon;
+  m.runs = int(r.runs, 0, 10_000_000, 0);
+  m.wins = int(r.wins, 0, m.runs, 0);
+  const vault = (r.vault && typeof r.vault === 'object' ? r.vault : {}) as Record<string, unknown>;
+  for (const v of VAULT) {
+    const lvl = int(vault[v.id], 0, v.costs.length, 0);
+    if (lvl) m.vault[v.id] = lvl;
+  }
+  const best = (r.best && typeof r.best === 'object' ? r.best : {}) as Record<string, unknown>;
+  for (const k of ['daily', 'defcon1', 'defcon2', 'defcon3', 'defcon4', 'defcon5']) {
+    const v = int(best[k], 0, 100_000_000, 0);
+    if (v) m.best[k] = v;
+  }
+  const d = r.daily as { date?: unknown; score?: unknown } | null;
+  if (d && typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date)) m.daily = { date: d.date, score: int(d.score, 0, 100_000_000, 0) };
+  return m;
+}
+
+/**
+ * Two copies of the same player's progress (this browser and their wallet's). Unlocks,
+ * upgrades and bests keep the higher of each; Ramen Futures come from whichever copy has
+ * played more runs (the lower one on a tie, since that copy has spent them on upgrades).
+ */
+export function mergeMeta(a: Meta, b: Meta): Meta {
+  const m = fresh();
+  m.runs = Math.max(a.runs, b.runs);
+  m.wins = Math.max(a.wins, b.wins);
+  m.unlocked = Math.min(a.unlocked, b.unlocked) as Defcon;
+  m.rf = a.runs === b.runs ? Math.min(a.rf, b.rf) : a.runs > b.runs ? a.rf : b.rf;
+  for (const v of VAULT) {
+    const lvl = Math.max(a.vault[v.id] ?? 0, b.vault[v.id] ?? 0);
+    if (lvl) m.vault[v.id] = lvl;
+  }
+  for (const k of new Set([...Object.keys(a.best), ...Object.keys(b.best)])) m.best[k] = Math.max(a.best[k] ?? 0, b.best[k] ?? 0);
+  const days = [a.daily, b.daily].filter((d): d is NonNullable<Meta['daily']> => !!d);
+  m.daily = days.sort((x, y) => (x.date === y.date ? y.score - x.score : x.date < y.date ? 1 : -1))[0] ?? null;
+  return m;
+}
+
+export const sameMeta = (a: Meta, b: Meta) => JSON.stringify(cleanMeta(a)) === JSON.stringify(cleanMeta(b));
 
 export const vaultLevel = (m: Meta, id: VaultId) => m.vault[id] ?? 0;
 

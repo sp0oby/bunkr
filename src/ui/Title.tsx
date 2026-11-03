@@ -10,6 +10,42 @@ import { DailyModal } from './Daily';
 import { HowToPlay } from './HowToPlay';
 import { tokenGate } from '../chain/config';
 import { useWallet } from '../chain/wallet';
+import { linkWallet, pullProgress, useProgressSync } from '../chain/progress';
+
+/** Keep progress on the connected wallet, so it follows the player to any device. */
+function WalletSync({ meta }: { meta: Meta }) {
+  const w = useWallet();
+  const sync = useProgressSync();
+  if (sync.status === 'off' || w.status === 'off') return null;
+  const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+  let body;
+  if (w.status !== 'connected') {
+    body = <span class="sync-note">Connect a wallet in the Deed panel to keep this progress on every device.</span>;
+  } else if (!sync.linkedTo) {
+    body = (
+      <>
+        <button class="btn btn-green" disabled={sync.status === 'linking'} onClick={() => void linkWallet(meta)}>
+          {sync.status === 'linking' ? 'CHECK YOUR WALLET' : 'SAVE TO MY WALLET'}
+        </button>
+        <span class="sync-note">One free signature, no transaction. Then your progress follows {short(w.address!)} to any device.</span>
+      </>
+    );
+  } else {
+    const label = sync.status === 'syncing' ? 'saving…' : sync.status === 'error' ? 'couldn\'t save, will retry' : 'saved';
+    body = (
+      <span class="sync-note">
+        <b class={`sync-dot ${sync.status}`} /> Linked to {short(sync.linkedTo)} · {label}. Every run saves here automatically.
+      </span>
+    );
+  }
+  return (
+    <div class="save-codes">
+      <div class="deed-h">WALLET SAVE <small>your progress on any device</small></div>
+      <div class="save-row sync-row">{body}</div>
+      {sync.error && <div class="save-msg err">{sync.error}</div>}
+    </div>
+  );
+}
 
 /** Back up progress as a code, or bring it over from another browser. */
 function SaveCodes({ meta, onImported }: { meta: Meta; onImported: () => void }) {
@@ -34,7 +70,7 @@ function SaveCodes({ meta, onImported }: { meta: Meta; onImported: () => void })
   };
   return (
     <div class="save-codes">
-      <div class="deed-h">BACKUP <small>your progress lives in this browser only</small></div>
+      <div class="deed-h">SAVE CODE <small>for playing without a wallet</small></div>
       <div class="save-row">
         <button class="btn btn-green" onClick={() => void copy()}>COPY SAVE CODE</button>
         <input class="save-input" placeholder="Paste a save code to load it here" value={code} onInput={(e) => setCode((e.target as HTMLInputElement).value)} />
@@ -63,6 +99,10 @@ export function Title({ meta }: { meta: Meta }) {
   const [wastelandOpen, setWastelandOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const w = useWallet();
+  useProgressSync(); // re-render when a pull brings in progress from another device
+  useEffect(() => {
+    if (w.status === 'connected') void pullProgress(meta);
+  }, [w.address, w.status]);
   const deed = hasDeed(w);
   const tent = tokenGate && !deed;
   const outOfRuns = deed && w.tickets === 0 && !w.freeAvailable;
@@ -220,6 +260,7 @@ export function Title({ meta }: { meta: Meta }) {
                 </div>
               );
             })}
+            <WalletSync meta={meta} />
             <SaveCodes meta={meta} onImported={() => bump((n) => n + 1)} />
             <button class="btn btn-dark card-ok" onClick={() => setVaultOpen(false)}>CLOSE</button>
           </div>

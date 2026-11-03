@@ -4,6 +4,9 @@
 //   POST /run/finish   { runId, secret, ticks, inputs }            -> verified result
 //   GET  /leaderboard?day=N&player=0x…                            -> Daily Doom top 10, pot, your rank
 //   GET  /weather                                                 -> the $BUNKR chart as weather
+//   GET  /progress?address=0x…                                    -> progress saved to that wallet
+//   POST /progress/link { address, issued, signature }            -> save token (free signature)
+//   POST /progress      { token, meta }                           -> save, merged with what's there
 //   GET  /health
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { formatUnits } from 'viem';
@@ -11,6 +14,7 @@ import { chainNow, oracle, potOf } from './chain';
 import { ABANDON_MS, PORT, TICK_MS, deployment } from './env';
 import { HttpError, daySeed, finishRun, startRun, sweepAbandoned } from './runs';
 import { getWeather } from './weather';
+import { getProgress, linkProgress, saveProgress } from './progress';
 import { settleFinishedDays } from './settle';
 import { dailyBoard, db } from './store';
 
@@ -78,6 +82,9 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/run/start') return send(res, 200, await startRun(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/run/day') return send(res, 200, await daySeed(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/run/finish') return send(res, 200, await finishRun(await readJson(req)));
+    if (req.method === 'GET' && url.pathname === '/progress') return send(res, 200, getProgress(url.searchParams.get('address')));
+    if (req.method === 'POST' && url.pathname === '/progress/link') return send(res, 200, await linkProgress(await readJson(req)));
+    if (req.method === 'POST' && url.pathname === '/progress') return send(res, 200, saveProgress(await readJson(req)));
     send(res, 404, { error: 'Not found.' });
   } catch (err) {
     if (err instanceof HttpError) return send(res, err.status, { error: err.message });

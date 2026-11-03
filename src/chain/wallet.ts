@@ -131,6 +131,12 @@ export async function connect(kind: Kind, silent = false): Promise<void> {
   }
 }
 
+/** Sign a plain text message (free, no transaction). */
+export async function signText(message: string): Promise<Hex> {
+  if (!client || !account) throw new Error('Connect a wallet first.');
+  return client.signMessage({ account, message });
+}
+
 export async function switchChain(): Promise<void> {
   const eth = injected();
   if (!eth || !chain) return;

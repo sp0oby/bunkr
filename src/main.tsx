@@ -14,6 +14,7 @@ import { fetchWeather, serverDay, serverFinish, serverStart } from './chain/serv
 import { ServerProblem } from './ui/ServerProblem';
 import { CALM_ART, blastArt, preload } from './ui/preload';
 import { tutorialHolds, tutorialSeen } from './ui/Tutorial';
+import './chain/progress'; // keeps a linked wallet's copy of progress up to date
 import './style.css';
 
 const params = new URLSearchParams(location.search);
