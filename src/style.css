@@ -713,9 +713,13 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 .wasteland-tease { position: absolute; top: 16px; left: 16px; z-index: 3; display: flex; align-items: center; gap: 10px; text-align: left; color: var(--text); background: #0b0b10c8; border: 3px solid var(--ink); border-radius: 14px; padding: 8px 12px; box-shadow: var(--pop); }
 .wasteland-tease b { display: block; font: 18px var(--display); letter-spacing: 0.04em; color: var(--red); }
 .wasteland-tease small { font-size: 11px; color: var(--dim); }
-.wl-clock { font: 22px ui-monospace, monospace; color: var(--red); background: #1a0606; border: 2px solid var(--ink); border-radius: 8px; padding: 0 8px; animation: pulseScale 2s infinite; }
+.doom-clock { display: block; flex: none; filter: drop-shadow(0 0 8px #ff4b3e55); }
+.wasteland-tease .doom-clock { animation: pulseScale 2s infinite; }
+.doom-sec { transform-box: view-box; transform-origin: 20px 20px; animation: doomTick 10s steps(10, end) infinite; }
+@keyframes doomTick { from { transform: rotate(-66deg); } to { transform: rotate(-6deg); } }
 .wasteland { width: min(520px, 92vw); text-align: center; }
-.wl-big-clock { font: 64px ui-monospace, monospace; color: var(--red); text-shadow: 0 0 18px #ff4b3e88; }
+.wasteland > .doom-clock { margin: 0 auto 4px; }
+.wl-clock-cap { font: 13px var(--display); letter-spacing: 0.12em; color: var(--red); margin-bottom: 4px; }
 .wl-list { text-align: left; padding-left: 18px; margin: 4px 0 10px; color: var(--dim); font-size: 13px; }
 .wl-list li { margin-bottom: 6px; }
 .wl-list b { color: var(--text); }

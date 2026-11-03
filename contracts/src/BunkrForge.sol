@@ -2,6 +2,9 @@
 pragma solidity ^0.8.26;
 
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {ERC1155Burnable} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
+import {ERC1155Supply} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -15,7 +18,11 @@ import {BunkrTickets} from "./BunkrTickets.sol";
 ///         can bring it into future runs or trade it. Rarer Bags need a higher Deed tier.
 ///         Get liquidated while carrying one and it can shatter: only the results oracle
 ///         can do that, once per run per Bag.
-contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
+///         Built to grow without a redeploy: new items are just new recipe ids, approved
+///         minters (a future season contract, say) can award items as prizes, holders can
+///         burn their own items (or let an approved contract burn them), and marketplace
+///         royalties go to whoever the owner sets.
+contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
@@ -40,11 +47,15 @@ contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
     /// @notice Token id = the Bag's index in the game's FORGE_ORDER list.
     mapping(uint256 => Recipe) public recipes;
     mapping(uint256 => mapping(uint256 => bool)) public shattered;
+    /// @notice Contracts or wallets allowed to award items without a recipe (season prizes).
+    mapping(address => bool) public minters;
 
     event Forged(address indexed player, uint256 indexed bagId, uint256 burned);
     event Shattered(address indexed player, uint256 indexed bagId, uint256 indexed runId);
     event RecipeSet(uint256 indexed bagId, uint128 cost, uint8 minTier, bool enabled);
     event OracleChanged(address oracle);
+    event MinterSet(address indexed minter, bool allowed);
+    event Awarded(address indexed to, uint256 indexed id, uint256 amount, address indexed minter);
     /// @dev ERC-7572: tells marketplaces the collection metadata changed.
     event ContractURIUpdated();
 
@@ -52,6 +63,7 @@ contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
     error TierTooLow(uint8 need, uint8 have);
     error NotOracle();
     error AlreadyShattered();
+    error NotMinter();
 
     /// @param base_ metadata base URL, ending in a slash: item `id` is at `<base_><id>.json`
     /// @param contractURI_ collection metadata (ERC-7572)
@@ -68,6 +80,7 @@ contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
         oracle = oracle_;
         _base = base_;
         _contractURI = contractURI_;
+        _setDefaultRoyalty(owner_, 500); // 5% on marketplace sales, changeable
         emit OracleChanged(oracle_);
     }
 
@@ -106,6 +119,24 @@ contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
         emit Shattered(player, bagId, runId);
     }
 
+    /// @notice Award items outside the forge: season prizes, leaderboard trophies, event drops.
+    function award(address to, uint256 id, uint256 amount) external {
+        if (!minters[msg.sender]) revert NotMinter();
+        _mint(to, id, amount, "");
+        emit Awarded(to, id, amount, msg.sender);
+    }
+
+    function setMinter(address minter, bool allowed) external onlyOwner {
+        minters[minter] = allowed;
+        emit MinterSet(minter, allowed);
+    }
+
+    /// @notice Marketplace royalty (ERC-2981), in basis points. 0 turns it off.
+    function setRoyalty(address receiver, uint96 bps) external onlyOwner {
+        if (bps == 0) _deleteDefaultRoyalty();
+        else _setDefaultRoyalty(receiver, bps);
+    }
+
     function setRecipes(uint256[] calldata ids, uint128[] calldata costs, uint8[] calldata minTiers) external onlyOwner {
         for (uint256 i; i < ids.length; i++) {
             recipes[ids[i]] = Recipe(costs[i], minTiers[i], true);
@@ -139,5 +170,16 @@ contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
         bunkr.safeTransferFrom(msg.sender, DEAD, r.cost);
         _mint(msg.sender, bagId, 1, "");
         emit Forged(msg.sender, bagId, r.cost);
+    }
+
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+        internal
+        override(ERC1155, ERC1155Supply)
+    {
+        super._update(from, to, ids, values);
+    }
+
+    function supportsInterface(bytes4 id) public view override(ERC1155, ERC2981) returns (bool) {
+        return super.supportsInterface(id);
     }
 }

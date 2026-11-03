@@ -1,7 +1,7 @@
 {
   "name": "Bear Spray",
   "description": "Raiders and bosses hit 30% softer. Effective against bears. And bear markets, emotionally. A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
-  "image": "http://localhost:5173/art/bags/bearspray.webp",
+  "image": "http://localhost:5173/nft/bearspray.png",
   "external_url": "http://localhost:5173",
   "attributes": [
     {

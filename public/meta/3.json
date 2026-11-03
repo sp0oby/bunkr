@@ -1,7 +1,7 @@
 {
   "name": "Ledger of a Dead Man",
   "description": "Plug it in for +200 ramen. It's haunted, so morale takes a hit. The sticky note says \"sorry.\" A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
-  "image": "http://localhost:5173/art/bags/ledger.webp",
+  "image": "http://localhost:5173/nft/ledger.png",
   "external_url": "http://localhost:5173",
   "attributes": [
     {

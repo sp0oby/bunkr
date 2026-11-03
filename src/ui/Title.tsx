@@ -146,7 +146,7 @@ export function Title({ meta }: { meta: Meta }) {
           <b>THE WASTELAND</b>
           <small>Season 1 · coming soon</small>
         </span>
-        <span class="wl-clock">11:30</span>
+        <DoomClock size={42} />
       </button>
       <div class="title-mutator">
         <span>THIS WEEK</span>
@@ -170,7 +170,8 @@ export function Title({ meta }: { meta: Meta }) {
       {wastelandOpen && (
         <div class="modal-bg" onClick={() => setWastelandOpen(false)}>
           <div class="modal wasteland" onClick={(e) => e.stopPropagation()}>
-            <div class="wl-big-clock">11:30</div>
+            <DoomClock size={120} />
+            <div class="wl-clock-cap">2 MINUTES TO MIDNIGHT</div>
             <div class="modal-title">THE WASTELAND</div>
             <div class="vault-sub">Season 1. Every bunker on one map. One Doomsday Clock for everyone.</div>
             <ul class="wl-list">
@@ -225,5 +226,23 @@ export function Title({ meta }: { meta: Meta }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** The Wasteland's Doomsday Clock: two minutes to midnight, and the second hand keeps
+ *  creeping toward twelve before somebody makes peace and it jumps back. */
+function DoomClock({ size }: { size: number }) {
+  return (
+    <svg class="doom-clock" width={size} height={size} viewBox="0 0 40 40" aria-label="Doomsday Clock: two minutes to midnight">
+      <circle cx="20" cy="20" r="17.5" fill="#1a0606" stroke="#0b0b10" stroke-width="3" />
+      <path d="M20 20 L20 4 A16 16 0 0 0 12 6.14 Z" fill="#ff4b3e" opacity="0.35" />
+      {Array.from({ length: 12 }, (_, i) => (
+        <line x1="20" y1={i % 3 ? 5.2 : 4.4} x2="20" y2="7.4" stroke={i === 0 ? '#ff4b3e' : '#fff8ec'} stroke-width={i % 3 ? 1 : 1.8} stroke-linecap="round" transform={`rotate(${i * 30} 20 20)`} />
+      ))}
+      <line x1="20" y1="20" x2="20" y2="10.5" stroke="#fff8ec" stroke-width="2.6" stroke-linecap="round" transform="rotate(-1 20 20)" />
+      <line x1="20" y1="20" x2="20" y2="6.5" stroke="#fff8ec" stroke-width="1.8" stroke-linecap="round" transform="rotate(-12 20 20)" />
+      <line class="doom-sec" x1="20" y1="23" x2="20" y2="6" stroke="#ff4b3e" stroke-width="0.9" stroke-linecap="round" />
+      <circle cx="20" cy="20" r="1.6" fill="#ff4b3e" stroke="#0b0b10" stroke-width="0.6" />
+    </svg>
   );
 }

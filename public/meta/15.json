@@ -1,7 +1,7 @@
 {
   "name": "Seed Phrase Tattoo",
   "description": "Expedition death risk halved. All 24 words, on a forearm. Do not wear short sleeves. A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
-  "image": "http://localhost:5173/art/bags/seedtattoo.webp",
+  "image": "http://localhost:5173/nft/seedtattoo.png",
   "external_url": "http://localhost:5173",
   "attributes": [
     {

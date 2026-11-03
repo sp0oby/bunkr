@@ -326,6 +326,58 @@ contract BunkrTest is Test {
         assertEq(forge.uri(0), "https://bunkr.game/meta/0.json");
     }
 
+    function test_growsWithoutRedeploy() public {
+        // New item: just a new recipe id.
+        uint256[] memory ids = new uint256[](1);
+        uint128[] memory costs = new uint128[](1);
+        uint8[] memory tiers = new uint8[](1);
+        (ids[0], costs[0], tiers[0]) = (500, 1_000e18, 0);
+        vm.prank(owner);
+        forge.setRecipes(ids, costs, tiers);
+        fund(alice, 1_000e18);
+        vm.startPrank(alice);
+        token.approve(address(forge), type(uint256).max);
+        forge.forge(500);
+        vm.stopPrank();
+        assertEq(forge.totalSupply(500), 1);
+
+        // Season prizes: only approved minters can award.
+        address season = makeAddr("season");
+        vm.prank(season);
+        vm.expectRevert(BunkrForge.NotMinter.selector);
+        forge.award(bob, 9000, 1);
+        vm.prank(bob);
+        vm.expectRevert();
+        forge.setMinter(season, true);
+        vm.prank(owner);
+        forge.setMinter(season, true);
+        vm.prank(season);
+        forge.award(bob, 9000, 3);
+        assertEq(forge.balanceOf(bob, 9000), 3);
+
+        // Holders burn their own; an approved contract can burn for them (e.g. a season entry fee).
+        vm.prank(bob);
+        forge.burn(bob, 9000, 1);
+        vm.prank(alice);
+        vm.expectRevert();
+        forge.burn(bob, 9000, 1);
+        vm.prank(bob);
+        forge.setApprovalForAll(season, true);
+        vm.prank(season);
+        forge.burn(bob, 9000, 1);
+        assertEq(forge.totalSupply(9000), 1);
+
+        // Royalties: 5% to the owner by default, owner can change or turn off.
+        (address to, uint256 cut) = forge.royaltyInfo(0, 1 ether);
+        assertEq(to, owner);
+        assertEq(cut, 0.05 ether);
+        assertTrue(forge.supportsInterface(0x2a55205a)); // ERC-2981
+        vm.prank(owner);
+        forge.setRoyalty(bob, 0);
+        (, cut) = forge.royaltyInfo(0, 1 ether);
+        assertEq(cut, 0);
+    }
+
     function test_bagsAreTradeable() public {
         fund(alice, 30_000e18);
         vm.startPrank(alice);

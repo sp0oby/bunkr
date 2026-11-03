@@ -1,7 +1,7 @@
 {
   "name": "Hopium Inhaler",
   "description": "COPE costs half as much copium. Two puffs and everything is bullish. A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
-  "image": "http://localhost:5173/art/bags/inhaler.webp",
+  "image": "http://localhost:5173/nft/inhaler.png",
   "external_url": "http://localhost:5173",
   "attributes": [
     {

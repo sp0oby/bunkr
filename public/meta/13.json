@@ -1,7 +1,7 @@
 {
   "name": "Day-Trader Watch",
   "description": "+12 ramen every morning (dividends). It only shows green candles. It is broken. A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
-  "image": "http://localhost:5173/art/bags/tradewatch.webp",
+  "image": "http://localhost:5173/nft/tradewatch.png",
   "external_url": "http://localhost:5173",
   "attributes": [
     {

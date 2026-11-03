@@ -24,7 +24,7 @@ FORGE_ORDER.forEach((bagId, id) => {
   writeFileSync(`${OUT}/${id}.json`, JSON.stringify({
     name: b.name,
     description: `${b.desc} ${b.flavor} A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.`,
-    image: `${SITE}/art/bags/${bagId}.webp`,
+    image: `${SITE}/nft/${bagId}.png`, // full 1024px art, not the in-game icon,
     external_url: SITE,
     attributes: [
       { trait_type: 'Type', value: 'Bag' },
