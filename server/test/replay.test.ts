@@ -21,6 +21,8 @@ function bot(seed: number, cfg = {}): Game {
     else if (x < 0.056 && g.rooms.length) g.pokeHotspot(g.rooms[0].id, 0);
     if (g.phase === 'prep' && i > 500) g.skipPrep();
     if (g.phase === 'drop') g.skipDrop();
+    const need = g.awaitingDay();
+    if (need != null) g.daySeeds.set(need, (seed * 7919 + need * 104729) >>> 0); // stands in for the server
     g.step();
   }
   return g;
@@ -28,9 +30,9 @@ function bot(seed: number, cfg = {}): Game {
 
 let fails = 0;
 for (const seed of [1, 7, 42, 1234, 99999]) {
-  for (const cfg of [{}, { defcon: 2 as const }, { tent: true }, { deedTier: 2, loadout: ['safu' as const] }]) {
+  for (const cfg of [{}, { defcon: 2 as const }, { tent: true }, { deedTier: 2, loadout: ['safu' as const] }, { serverDays: true }]) {
     const a = bot(seed, cfg);
-    const b = replay(seed, cfg, JSON.parse(JSON.stringify(a.inputs)), a.tick);
+    const b = replay(seed, cfg, JSON.parse(JSON.stringify(a.inputs)), a.tick, a.daySeeds);
     const same = JSON.stringify(a.ending) === JSON.stringify(b.ending) && a.day === b.day && JSON.stringify(a.res) === JSON.stringify(b.res);
     if (!same) fails++;
     console.log(`${same ? 'ok  ' : 'FAIL'} seed ${seed} ${JSON.stringify(cfg)} inputs=${a.inputs.length} ticks=${a.tick} -> ${a.ending?.title ?? 'running'} ${a.ending?.score ?? ''} | replay ${b.ending?.title} ${b.ending?.score}`);

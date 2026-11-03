@@ -1,6 +1,6 @@
 import { render } from 'preact';
 import { Game, STEP } from './sim/game';
-import { ROOMS, UNDERGROUND_PACE } from './sim/content';
+import { DAY_SECONDS, ROOMS, RUN_DAYS, UNDERGROUND_PACE } from './sim/content';
 import type { Defcon, RunConfig } from './sim/types';
 import { BunkerView } from './render/view';
 import { App, type UiState } from './ui/App';
@@ -10,7 +10,7 @@ import { audio } from './audio/audio';
 import { dailySeed, loadMeta, recordRun, runConfig } from './meta';
 import { tokenGate } from './chain/config';
 import { clearPass, readPass, refresh, restore, savePass, type RunPass } from './chain/wallet';
-import { serverFinish, serverStart } from './chain/server';
+import { serverDay, serverFinish, serverStart } from './chain/server';
 import { ServerProblem } from './ui/ServerProblem';
 import './style.css';
 
@@ -127,6 +127,29 @@ async function startRun(): Promise<void> {
 
   render(<App game={game} ui={ui} view={view} />, document.getElementById('ui')!);
 
+  // Ticketed runs get each underground day's seed from the results server just before
+  // that day starts. The sim waits (without counting time) if one hasn't arrived yet.
+  const fetching = new Set<number>();
+  function wantDay(): number | null {
+    const need = game.awaitingDay();
+    if (need != null) return need;
+    if (game.phase === 'drop') return 1;
+    if (game.phase === 'underground' && game.day < RUN_DAYS && game.phaseTime % DAY_SECONDS > DAY_SECONDS - 2) return game.day + 1;
+    return null;
+  }
+  function fetchDays(): void {
+    const day = pass ? wantDay() : null;
+    if (day == null || game.daySeeds.has(day) || fetching.has(day)) return;
+    fetching.add(day);
+    serverDay({ runId: pass!.runId, secret: pass!.secret, day })
+      .then((r) => game.daySeeds.set(r.day, r.seed))
+      .catch(() => new Promise((ok) => setTimeout(ok, 1000))) // too early or offline: try again shortly
+      .finally(() => {
+        fetching.delete(day);
+        game.touch();
+      });
+  }
+
   // Fixed-step sim, decoupled from render rate.
   let acc = 0;
   let last = performance.now();
@@ -136,7 +159,13 @@ async function startRun(): Promise<void> {
     // Underground days run at one real minute each; boss fights and the audit
     // stay at full speed so they don't drag.
     const pace = game.phase === 'underground' && !game.raid && !game.audit ? UNDERGROUND_PACE : 1;
+    fetchDays();
     acc += dt * ui.speed * pace;
+    // Don't bank time while waiting for a day seed, or the sim would lurch forward after.
+    if (game.awaitingDay() != null) {
+      acc = 0;
+      game.touch();
+    }
     let steps = 0;
     while (acc >= STEP && steps < 40) {
       game.step();

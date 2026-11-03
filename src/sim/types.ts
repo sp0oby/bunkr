@@ -177,4 +177,9 @@ export interface RunConfig {
   deedTier: number;
   /** Forged Bags (on-chain) brought into this run. */
   loadout: BagId[];
+  /**
+   * Each underground day's seed comes from the results server, released only once you
+   * reach that day, so nobody can simulate ahead. Otherwise day seeds derive from the run seed.
+   */
+  serverDays: boolean;
 }

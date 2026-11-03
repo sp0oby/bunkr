@@ -28,6 +28,8 @@ export interface RunRecord {
   config: Partial<RunConfig>;
   loadout: BagId[];
   status: 'started' | 'finished' | 'abandoned';
+  /** When each underground day's seed was handed out (index 0 = day 1). */
+  dayTimes?: number[];
   startedAt: number;
   finishedAt?: number;
   result?: RunResult;

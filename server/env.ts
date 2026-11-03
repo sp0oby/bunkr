@@ -39,5 +39,10 @@ if (!SERVER_SECRET) throw new Error('Set SERVER_SECRET (any long random string).
 
 /** A run started with forged Bags that never reports back counts as liquidated after this. */
 export const ABANDON_MS = Number(env.ABANDON_HOURS ?? 3) * 3600_000;
+/**
+ * Fastest a player can get from one underground day to the next: 36s days at 4x speed is
+ * 9s, and raid days run at full pace (24s / 4 = 6s). Day seeds come no faster than this.
+ */
+export const MIN_DAY_GAP_MS = Number(env.MIN_DAY_GAP_MS ?? 5000);
 /** How often to look for days to settle and runs to sweep. */
 export const TICK_MS = Number(env.TICK_SECONDS ?? 60) * 1000;

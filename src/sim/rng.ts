@@ -7,6 +7,11 @@ export class Rng {
     this.s = seed >>> 0 || 1;
   }
 
+  /** Restart the stream from a new seed (each underground day gets its own). */
+  reseed(seed: number): void {
+    this.s = seed >>> 0 || 1;
+  }
+
   next(): number {
     let t = (this.s = (this.s + 0x6d2b79f5) >>> 0);
     t = Math.imul(t ^ (t >>> 15), t | 1);

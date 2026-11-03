@@ -26,6 +26,9 @@ export interface StartReply {
 export const serverStart = (body: { txHash: string; secret: string; defcon: number; vault: Partial<RunConfig>; loadout: BagId[] }) =>
   post<StartReply>('/run/start', body);
 
+export const serverDay = (body: { runId: number; secret: string; day: number }) =>
+  post<{ day: number; seed: number }>('/run/day', body);
+
 export interface FinishReply {
   runId: number;
   score: number;

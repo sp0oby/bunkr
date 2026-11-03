@@ -70,6 +70,7 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
     <div class={`ui ${game.phase === 'prep' ? 'prep-on' : ''}`}>
       <TopBar game={game} ui={ui} set={set} />
       <Toasts game={game} />
+      {game.awaitingDay() != null && <div class="seed-wait">Syncing with the results server…</div>}
       {game.phase === 'prep' && <NewsTicker game={game} />}
       {game.raid && <RaidBar game={game} />}
       <Hatch game={game} />

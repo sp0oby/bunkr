@@ -8,7 +8,7 @@ import { LOADOUT_SLOTS, SHATTER_CHANCE } from '../src/chain/constants';
 import { dailySeed } from '../src/meta';
 import type { BagId, Defcon, RunConfig } from '../src/sim/types';
 import { ownedBags, runFromTx, shatter } from './chain';
-import { SERVER_SECRET, deployment } from './env';
+import { MIN_DAY_GAP_MS, SERVER_SECRET, deployment } from './env';
 import { db, dailyBoard, type RunRecord } from './store';
 
 export class HttpError extends Error {
@@ -65,8 +65,9 @@ export async function startRun(body: StartBody): Promise<{ runId: number; seed: 
   let seed: number;
   if (entry.daily) {
     // Daily Doom is a level field: same seed for everyone, standard issue, no perks.
+    // Underground days are still dealt per run, so one leaked attempt can't spoil the day.
     seed = dailySeed(dayKey(entry.day));
-    config = { defcon: 3, daily: true, deedTier: 1 };
+    config = { defcon: 3, daily: true, deedTier: 1, serverDays: true };
   } else {
     seed = hmac32(`run:${entry.runId}`);
     const wanted = Array.isArray(body.loadout) ? body.loadout.filter((b): b is BagId => typeof b === 'string' && b in BAGS) : [];
@@ -78,7 +79,7 @@ export async function startRun(body: StartBody): Promise<{ runId: number; seed: 
     }
     const defcon = Math.max(1, Math.min(5, Math.floor(Number(body.defcon) || 5))) as Defcon;
     const vault = vaultFrom(body.vault);
-    config = { ...vault, defcon, daily: false, deedTier: entry.tier, loadout, rocket: vault.rocket || entry.tier >= 3 };
+    config = { ...vault, defcon, daily: false, deedTier: entry.tier, loadout, rocket: vault.rocket || entry.tier >= 3, serverDays: true };
   }
 
   const rec: RunRecord = {
@@ -87,6 +88,29 @@ export async function startRun(body: StartBody): Promise<{ runId: number; seed: 
   };
   db.putRun(rec);
   return { runId: rec.runId, seed, config };
+}
+
+const daySeedOf = (runId: number, day: number) => hmac32(`day:${runId}:${day}`);
+
+/**
+ * The seed for one underground day, handed out only in order and no faster than a person
+ * could play. Without it the game can't go past that day, so nobody can simulate ahead.
+ */
+export async function daySeed(body: { runId?: number; secret?: string; day?: number }): Promise<{ day: number; seed: number }> {
+  const rec = db.run(Number(body.runId));
+  if (!rec) throw new HttpError(404, 'Unknown run.');
+  checkSecret(body.secret, rec.commit);
+  if (rec.status !== 'started') throw new HttpError(409, 'This run is over.');
+  const day = Number(body.day);
+  const times = rec.dayTimes ?? [];
+  if (!Number.isInteger(day) || day < 1 || day > times.length + 1) throw new HttpError(400, 'Days come one at a time.');
+  if (day === times.length + 1) {
+    const wait = times.length ? times[times.length - 1] + MIN_DAY_GAP_MS - Date.now() : 0;
+    if (wait > 0) throw new HttpError(429, `Too fast. Try again in ${Math.ceil(wait / 1000)}s.`);
+    rec.dayTimes = [...times, Date.now()];
+    db.putRun(rec);
+  }
+  return { day, seed: daySeedOf(rec.runId, day) };
 }
 
 export interface FinishBody {
@@ -134,9 +158,11 @@ export async function finishRun(body: FinishBody): Promise<FinishResult> {
   const ticks = Number(body.ticks);
   if (!Number.isInteger(ticks) || ticks < 0 || ticks > MAX_TICKS) throw new HttpError(400, 'Bad tick count.');
   const inputs = parseInputs(body.inputs);
+  // Only the days this player actually reached (and was handed) can be replayed.
+  const seeds = new Map((rec.dayTimes ?? []).map((_, i) => [i + 1, daySeedOf(rec.runId, i + 1)] as [number, number]));
   let g;
   try {
-    g = replay(rec.seed, rec.config, inputs, ticks);
+    g = replay(rec.seed, rec.config, inputs, ticks, seeds);
   } catch {
     throw new HttpError(400, 'That input log doesn\'t replay.');
   }

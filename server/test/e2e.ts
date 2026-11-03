@@ -39,14 +39,22 @@ function player(key: Hex) {
   return { account, write };
 }
 
-/** A lazy bot: builds nothing, so the bunker dies. Good for testing liquidation. */
-function playIdle(seed: number, config: Partial<RunConfig>) {
+/** A lazy bot: builds nothing, so the bunker dies. Fetches each day's seed like the game does. */
+async function playIdle(seed: number, config: Partial<RunConfig>, runId: number, secret: Hex) {
   const g = new Game(seed, config);
   g.skipPrep();
   for (let i = 0; i < 100_000 && !g.ending; i++) {
     if (g.card) g.card.result == null ? g.chooseCard(0) : g.dismissCard();
     if (g.audit) g.audit.done ? g.dismissAudit() : g.answerAudit(true);
     if (g.phase === 'drop') g.skipDrop();
+    const need = g.awaitingDay();
+    if (need != null) {
+      const r = await api('/run/day', { runId, secret, day: need });
+      if (r.status === 429) await new Promise((ok) => setTimeout(ok, 300));
+      else if (r.status === 200) g.daySeeds.set(r.json.day, r.json.seed);
+      else throw new Error(`day ${need}: ${r.json.error}`);
+      continue;
+    }
     g.step();
   }
   return g;
@@ -84,7 +92,8 @@ async function main() {
     check(start.json.config.defcon === 3 && !start.json.config.startRamen, `${name}: daily ignores requested DEFCON and perks`);
     const again = await api('/run/start', { ...t });
     check(again.json.seed === start.json.seed, `${name}: start is idempotent`);
-    const g = playIdle(start.json.seed, start.json.config);
+    check(start.json.config.serverDays === true, `${name}: underground days come from the server`);
+    const g = await playIdle(start.json.seed, start.json.config, start.json.runId, t.secret);
     const wrong = await api('/run/finish', { runId: start.json.runId, secret: toHex(new Uint8Array(32)), ticks: g.tick, inputs: g.inputs });
     check(wrong.status === 403, `${name}: someone without the secret can't submit`);
     const fin = await api('/run/finish', { runId: start.json.runId, secret: t.secret, ticks: g.tick, inputs: g.inputs });
@@ -102,6 +111,25 @@ async function main() {
     check(short.status === 400, `an unfinished run is rejected (${short.json.error})`);
     const junk = await api('/run/finish', { runId: start.json.runId, secret: t.secret, ticks: 10, inputs: [[0, 'mintMoney', []]] });
     check(junk.status === 400, 'unknown actions are rejected');
+
+    // Looking ahead: skip a day, ask too fast, or replay with day seeds you made up.
+    const skip = await api('/run/day', { runId: start.json.runId, secret: t.secret, day: 3 });
+    check(skip.status === 400, `can't ask for day 3 before day 1 (${skip.json.error})`);
+    const d1 = await api('/run/day', { runId: start.json.runId, secret: t.secret, day: 1 });
+    const d2 = await api('/run/day', { runId: start.json.runId, secret: t.secret, day: 2 });
+    check(d1.status === 200 && d2.status === 429, `day seeds are paced (${d2.json.error})`);
+    const fake = new Game(start.json.seed, start.json.config);
+    fake.skipPrep();
+    for (let i = 0; i < 100_000 && !fake.ending; i++) {
+      if (fake.card) fake.card.result == null ? fake.chooseCard(0) : fake.dismissCard();
+      if (fake.audit) fake.audit.done ? fake.dismissAudit() : fake.answerAudit(true);
+      if (fake.phase === 'drop') fake.skipDrop();
+      const need = fake.awaitingDay();
+      if (need != null) fake.daySeeds.set(need, need === 1 ? d1.json.seed : 12345 + need);
+      fake.step();
+    }
+    const forged = await api('/run/finish', { runId: start.json.runId, secret: t.secret, ticks: fake.tick, inputs: fake.inputs });
+    check(forged.status === 400, `a run simulated past the days you were given is rejected (${forged.json.error})`);
   }
 
   // --- Forged Bags: liquidated while carrying them. Each has a 35% shatter chance.
@@ -115,7 +143,7 @@ async function main() {
     const ids = lo.map((b) => BigInt(FORGE_ORDER.indexOf(b as any)));
     const bagsOf = () => pub.readContract({ address: dep.forge, abi: forgeAbi, functionName: 'bagsOf', args: [bob.account.address, ids] });
     const had = await bagsOf();
-    const g = playIdle(start.json.seed, start.json.config);
+    const g = await playIdle(start.json.seed, start.json.config, start.json.runId, t.secret);
     const fin = await api('/run/finish', { runId: start.json.runId, secret: t.secret, ticks: g.tick, inputs: g.inputs });
     check(fin.status === 200 && !fin.json.survived, `bob got liquidated (${fin.json.title})`);
     const owned = await bagsOf();

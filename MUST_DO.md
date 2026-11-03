@@ -7,6 +7,7 @@ Things that have to happen before launch. Not optional.
 - [x] Wallet connect, Deed panel, ticket per run, Tent Mode, forged-Bag loadout, forge from the end screen
 - [ ] Deploy to Robinhood Chain testnet (needs a funded deployer key: `npm run deploy:testnet`)
 - [x] Results server: verifies every ticketed run by replaying its inputs, settles Daily Doom pots, rolls Bag shatters, Daily leaderboard
+- [x] No simulating ahead: each underground day's seed comes from the server, in order, at human pace
 - [ ] Host the results server (needs ORACLE_KEY + SERVER_SECRET) and a real database before mainnet traffic
 - [ ] Daily Doom leaderboard screen in the game (the API is there: GET /leaderboard)
 - [ ] Chart-as-weather (needs a live price, so after the Urufu launch)

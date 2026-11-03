@@ -115,6 +115,8 @@ export class Game {
 
   /** Calls to step() so far, paused or not. */
   tick = 0;
+  /** Seeds for underground days, filled in by the results server as the run reaches them. */
+  readonly daySeeds = new Map<number, number>();
   /** Player actions so far, for replay. */
   readonly inputs: Input[] = [];
   /** >0 while the sim (or an action) is running, so nested calls aren't recorded. */
@@ -129,7 +131,7 @@ export class Game {
     this.rng = new Rng(seed);
     this.config = {
       defcon: 5, daily: false, startRamen: 0, extraDegen: false, startBag: false, legendLuck: false, rocket: false,
-      tent: false, deedTier: 0, loadout: [], ...config,
+      tent: false, deedTier: 0, loadout: [], serverDays: false, ...config,
     };
     this.prepSeconds = this.config.defcon <= 2 ? 55 : PREP_SECONDS;
     this.res.ramen += this.config.startRamen;
@@ -671,8 +673,30 @@ export class Game {
     }
   }
 
+  /**
+   * The underground day whose seed the next step needs but doesn't have yet. While this is
+   * set, step() does nothing (and doesn't count a tick), so waiting never changes the run.
+   */
+  awaitingDay(): number | null {
+    if (!this.config.serverDays || this.phase === 'ended' || this.card || this.audit) return null;
+    const next = this.phaseTime + STEP;
+    let day: number | null = null;
+    if (this.phase === 'drop' && next >= DROP_SECONDS) day = 1;
+    else if (this.phase === 'underground') {
+      const d = 1 + Math.floor(next / DAY_SECONDS);
+      if (d !== this.day && d <= RUN_DAYS) day = d;
+    }
+    return day != null && !this.daySeeds.has(day) ? day : null;
+  }
+
+  private daySeed(day: number): number {
+    if (this.config.serverDays) return this.daySeeds.get(day)!;
+    return new Rng(this.seed ^ Math.imul(day, 0x9e3779b1)).int(0, 2 ** 31);
+  }
+
   /** Advance by exactly one fixed step. Paused while a card is open. */
   step(): void {
+    if (this.awaitingDay() != null) return;
     this.tick++;
     this.depth++;
     try {
@@ -705,7 +729,10 @@ export class Game {
     } else {
       const prevDay = this.day;
       this.day = 1 + Math.floor(this.phaseTime / DAY_SECONDS);
-      if (this.day !== prevDay) this.onNewDay();
+      if (this.day !== prevDay) {
+        if (this.day <= RUN_DAYS) this.rng.reseed(this.daySeed(this.day));
+        this.onNewDay();
+      }
       if (this.day > RUN_DAYS) {
         this.finish(true);
         return;
@@ -745,6 +772,7 @@ export class Game {
     this.phase = 'underground';
     this.phaseTime = 0;
     this.day = 1;
+    this.rng.reseed(this.daySeed(1));
     this.rads = this.config.defcon <= 1 ? 40 : 25;
     this.nextCardAt = 9;
     this.fx.push('landed');
@@ -1234,8 +1262,9 @@ export class Game {
  * Re-run a recorded game from its seed: apply each input at its tick, step in between.
  * Same seed + config + inputs = the same game, so this is the server's source of truth.
  */
-export function replay(seed: number, config: Partial<RunConfig>, inputs: Input[], ticks: number): Game {
+export function replay(seed: number, config: Partial<RunConfig>, inputs: Input[], ticks: number, daySeeds?: Map<number, number>): Game {
   const g = new Game(seed, config);
+  for (const [d, s] of daySeeds ?? []) g.daySeeds.set(d, s);
   const run = g as unknown as Record<ActionName, (...a: unknown[]) => unknown>;
   let i = 0;
   for (let t = 0; t <= ticks && !g.ending; t++) {
@@ -1244,7 +1273,10 @@ export function replay(seed: number, config: Partial<RunConfig>, inputs: Input[]
       if (!ACTIONS.includes(name)) throw new Error(`Unknown action ${String(name)}`);
       run[name](...args);
     }
-    if (t < ticks) g.step();
+    if (t < ticks) {
+      if (g.awaitingDay() != null) throw new Error(`Day ${g.awaitingDay()} seed missing`);
+      g.step();
+    }
   }
   return g;
 }

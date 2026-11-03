@@ -1,5 +1,6 @@
 // BUNKR results server.
 //   POST /run/start    { txHash, secret, defcon, vault, loadout }  -> { runId, seed, config }
+//   POST /run/day      { runId, secret, day }                      -> that day's seed (in order, paced)
 //   POST /run/finish   { runId, secret, ticks, inputs }            -> verified result
 //   GET  /leaderboard?day=N                                       -> Daily Doom top 10 + pot
 //   GET  /health
@@ -7,7 +8,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { formatUnits } from 'viem';
 import { chainToday, oracle, potOf } from './chain';
 import { ABANDON_MS, PORT, TICK_MS, deployment } from './env';
-import { HttpError, finishRun, startRun, sweepAbandoned } from './runs';
+import { HttpError, daySeed, finishRun, startRun, sweepAbandoned } from './runs';
 import { settleFinishedDays } from './settle';
 import { dailyBoard, db } from './store';
 
@@ -58,6 +59,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/health') return send(res, 200, { ok: true, chainId: deployment.chainId, oracle: oracle.address });
     if (req.method === 'GET' && url.pathname === '/leaderboard') return send(res, 200, await leaderboard(url.searchParams.get('day')));
     if (req.method === 'POST' && url.pathname === '/run/start') return send(res, 200, await startRun(await readJson(req)));
+    if (req.method === 'POST' && url.pathname === '/run/day') return send(res, 200, await daySeed(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/run/finish') return send(res, 200, await finishRun(await readJson(req)));
     send(res, 404, { error: 'Not found.' });
   } catch (err) {

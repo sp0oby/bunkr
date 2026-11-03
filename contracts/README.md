@@ -37,7 +37,7 @@ The oracle. Every ticketed run is checked by replaying it:
 
 1. `enterRun(daily, keccak256(secret))` spends a ticket. Only the player's browser knows `secret`.
 2. `POST /run/start` with the ticket's tx hash and the secret. The server reads the `RunEntered` event, then hands out the seed (secret-derived; Daily Doom uses the shared daily seed) and the official run config, with the forged loadout checked against on-chain balances and tier.
-3. The game records every player action with its sim tick.
+3. The game records every player action with its sim tick. Each underground day's randomness comes from `POST /run/day`, which only hands out day N+1 after day N, and no faster than 5 seconds apart (a human at 4x speed). Nobody can simulate ahead: the seed for tomorrow doesn't exist on their machine yet. Daily Doom shares the prep phase (same seed for everyone) but deals the underground days per run, so one leaked attempt can't be practiced by everyone else.
 4. `POST /run/finish` with the inputs. The server replays the run from the seed and stores *its* result, never the browser's score.
 5. Liquidated with forged Bags: each has a 35% chance to shatter (`BunkrForge.shatter`). Runs with a loadout that never report back count as liquidated after 3 hours.
 6. Once a UTC day ends, its pot goes to the top 3 Daily Doom scores (50/30/20; 60/40 for two players) or rolls into today's pot.
