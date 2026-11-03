@@ -53,6 +53,7 @@ const injected = (): Eip1193 | undefined => (window as unknown as { ethereum?: E
 
 const KEY = 'bunkr.wallet';
 const LOADOUT_KEY = 'bunkr.loadout';
+const PLAY_TIER_KEY = 'bunkr.playTier';
 
 let state: WalletState = {
   status: deployment && chain ? 'disconnected' : 'off',
@@ -459,6 +460,33 @@ function friendly(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// ------------------------------------------------------------------ play tier
+
+/**
+ * The Deed a player runs with: any tier from Shed up to the one their balance holds. Unset
+ * (or set to the top) follows the balance, so buying more still upgrades them on its own.
+ */
+export function playTier(s: WalletState = state): number {
+  if (s.tier < 1) return s.tier;
+  let picked = 0;
+  try {
+    picked = Number(localStorage.getItem(PLAY_TIER_KEY)) || 0;
+  } catch {
+    /* ignore */
+  }
+  return picked >= 1 ? Math.min(picked, s.tier) : s.tier;
+}
+
+export function setPlayTier(tier: number): void {
+  try {
+    if (tier >= state.tier) localStorage.removeItem(PLAY_TIER_KEY);
+    else localStorage.setItem(PLAY_TIER_KEY, String(Math.max(1, tier)));
+  } catch {
+    /* ignore */
+  }
+  set({});
+}
+
 // ------------------------------------------------------------------ loadout
 
 /** Forged Bags the player picked to bring, trimmed to what they still own and can equip. */
@@ -470,13 +498,13 @@ export function loadout(s: WalletState = state): BagId[] {
     /* ignore */
   }
   return picked
-    .filter((b) => (s.forged[b] ?? 0) > 0 && (s.recipes[b]?.minTier ?? 9) <= s.tier)
-    .slice(0, LOADOUT_SLOTS[s.tier] ?? 0);
+    .filter((b) => (s.forged[b] ?? 0) > 0 && (s.recipes[b]?.minTier ?? 9) <= playTier(s))
+    .slice(0, LOADOUT_SLOTS[playTier(s)] ?? 0);
 }
 
 export function toggleLoadout(bag: BagId): void {
   const cur = loadout();
-  const next = cur.includes(bag) ? cur.filter((b) => b !== bag) : [...cur, bag].slice(-(LOADOUT_SLOTS[state.tier] || 1));
+  const next = cur.includes(bag) ? cur.filter((b) => b !== bag) : [...cur, bag].slice(-(LOADOUT_SLOTS[playTier()] || 1));
   try {
     localStorage.setItem(LOADOUT_KEY, JSON.stringify(next));
   } catch {

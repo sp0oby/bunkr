@@ -135,7 +135,7 @@ export interface RunRewards {
 
 /** Bank a finished run. Returns what was earned, for the end screen. */
 export function recordRun(m: Meta, e: Ending): RunRewards {
-  const rf = Math.max(1, Math.floor(e.score / 100) + (e.survived ? 5 : 0));
+  const rf = Math.max(1, Math.floor(e.score / 1000) + (e.survived ? 5 : 0));
   m.rf += rf;
   m.runs++;
   const key = e.daily ? 'daily' : `defcon${e.defcon}`;

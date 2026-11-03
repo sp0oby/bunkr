@@ -137,6 +137,15 @@ async function main() {
     check(forged.status === 400, `a run simulated past the days you were given is rejected (${forged.json.error})`);
   }
 
+  // --- Picking a Deed: lower than you hold is fine, higher is capped.
+  {
+    const [held] = await pub.readContract({ address: dep.tickets, abi: ticketsAbi, functionName: 'playerState', args: [alice.account.address] });
+    const high = await api('/run/start', { ...(await enter(alice, false)), defcon: 5, tier: 9 });
+    check(high.json.config.deedTier === held, `asking for a higher Deed is capped at the one held (${held})`);
+    const low = await api('/run/start', { ...(await enter(alice, false)), defcon: 5, tier: 1 });
+    check(low.json.config.deedTier === 1, 'asking for a lower Deed plays as that Deed');
+  }
+
   // --- Forged Bags: locked in the Forge for the run, then shattered or returned.
   {
     const bags = ['lambokeys', 'pickaxe', 'inhaler', 'mrenft'] as const; // commons: Shed tier
@@ -154,8 +163,10 @@ async function main() {
     await bob.write(dep.forge, forgeAbi, 'lockLoadout', [runId, ids]);
     const during = await bagsOf();
     check(during.every((n, i) => n === had[i] - 1n), `carried Bags leave the wallet for the run (${carry.join(', ')})`);
-    const dodge = await bob.write(dep.forge, parseAbi(['function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes data)']), 'safeTransferFrom', [bob.account.address, alice.account.address, ids[0], 1n, '0x']).then(() => false).catch(() => true);
-    check(dodge || had[0] > 1n, 'a locked Bag can\'t be sent away mid-run');
+    // Only the locked copy is stuck: a spare from an earlier test run can still be sent.
+    const sendAll = during[0] + 1n;
+    const dodge = await bob.write(dep.forge, parseAbi(['function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes data)']), 'safeTransferFrom', [bob.account.address, alice.account.address, ids[0], sendAll, '0x']).then(() => false).catch(() => true);
+    check(dodge, 'a locked Bag can\'t be sent away mid-run');
 
     const start = await api('/run/start', { ...t, defcon: 5, loadout: ['moonmap'] });
     const lo = start.json.config.loadout as string[];

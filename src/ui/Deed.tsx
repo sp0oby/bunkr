@@ -3,8 +3,8 @@ import { BAGS } from '../sim/content';
 import type { BagId } from '../sim/types';
 import { LOADOUT_SLOTS, TIERS, TIER_PERKS, deployment, devWalletAllowed, explorerTx, tokenGate } from '../chain/config';
 import {
-  buyTickets, clearPass, connect, disconnect, enterRun, equippedDrip, faucet, forgeBag, forgeDrip, loadout, savePass, switchChain,
-  toggleDrip, toggleLoadout, useWallet, wallet, type WalletState,
+  buyTickets, clearPass, connect, disconnect, enterRun, equippedDrip, faucet, forgeBag, forgeDrip, loadout, playTier, savePass,
+  setPlayTier, switchChain, toggleDrip, toggleLoadout, useWallet, wallet, type WalletState,
 } from '../chain/wallet';
 import { COSMETICS } from '../chain/constants';
 import { audio } from '../audio/audio';
@@ -48,7 +48,7 @@ export async function enterAndGo(query: string, daily: boolean): Promise<boolean
   const entry = await enterRun(daily, daily ? [] : loadout(s));
   if (entry == null) return false;
   const after = wallet();
-  savePass({ ...entry, address: after.address!, chainId: deployment!.chainId, tier: after.tier, daily });
+  savePass({ ...entry, address: after.address!, chainId: deployment!.chainId, tier: daily ? 1 : playTier(after), daily });
   audio.play('bag');
   location.search = query;
   return true;
@@ -67,8 +67,8 @@ export function DeedChip({ onOpen }: { onOpen: () => void }) {
     );
   }
   return (
-    <button class={`btn btn-deed t${s.tier}`} onClick={onOpen}>
-      {TIERS[s.tier]} DEED
+    <button class={`btn btn-deed t${playTier(s)}`} onClick={onOpen}>
+      {TIERS[playTier(s)]} DEED
       <small>{fmtBunkr(s.balance)} $BUNKR · {runsLeft(s)} run{runsLeft(s) === 1 ? '' : 's'}</small>
     </button>
   );
@@ -78,7 +78,8 @@ export function DeedChip({ onOpen }: { onOpen: () => void }) {
 export function DeedModal({ onClose }: { onClose: () => void }) {
   const s = useWallet();
   const connected = s.status === 'connected';
-  const slots = LOADOUT_SLOTS[s.tier] ?? 0;
+  const play = playTier(s);
+  const slots = LOADOUT_SLOTS[play] ?? 0;
   const picked = loadout(s);
   const forged = (Object.keys(s.forged) as BagId[]).sort((a, b) => (s.recipes[a]?.minTier ?? 0) - (s.recipes[b]?.minTier ?? 0));
   const tx = s.lastTx ? explorerTx(s.lastTx) : null;
@@ -88,7 +89,7 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
       <div class="modal deed" onClick={(e) => e.stopPropagation()}>
         <div class="modal-title">
           BUNKER DEED
-          {connected && <span class={`deed-tier t${s.tier}`}>{TIERS[s.tier]}</span>}
+          {connected && <span class={`deed-tier t${play}`}>{TIERS[play]}</span>}
         </div>
         <div class="vault-sub">
           Your $BUNKR balance is your Deed: hold it and you own a bunker. Sell below a tier and it gets foreclosed.
@@ -126,14 +127,31 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
         )}
 
         <div class="deed-ladder">
-          {TIERS.map((t, i) => (
-            <div key={t} class={`deed-rung t${i} ${connected && s.tier === i ? 'on' : ''} ${connected && s.tier > i ? 'past' : ''}`}>
-              <b>{t}</b>
-              <span class="deed-need">{i === 0 ? 'no wallet' : s.thresholds[i - 1] != null ? `${fmtBunkr(s.thresholds[i - 1])}+` : '…'}</span>
-              <span class="deed-perk">{TIER_PERKS[i]}</span>
-            </div>
-          ))}
+          {TIERS.map((t, i) => {
+            // Any Deed from Shed up to the one you hold can be played; higher ones stay locked.
+            const pickable = connected && i >= 1 && i <= s.tier && s.tier > 1;
+            return (
+              <button
+                key={t}
+                type="button"
+                class={`deed-rung t${i} ${connected && play === i ? 'on' : ''} ${connected && play > i ? 'past' : ''} ${pickable ? 'pick' : ''}`}
+                disabled={!pickable}
+                title={pickable ? (play === i ? 'Playing with this Deed' : `Play your runs as a ${t}`) : undefined}
+                onClick={() => setPlayTier(i)}
+              >
+                <b>{t}</b>
+                <span class="deed-need">{i === 0 ? 'no wallet' : s.thresholds[i - 1] != null ? `${fmtBunkr(s.thresholds[i - 1])}+` : '…'}</span>
+                <span class="deed-perk">
+                  {TIER_PERKS[i]}
+                  {connected && i === s.tier && play < s.tier && <em class="deed-yours"> · you hold this</em>}
+                </span>
+              </button>
+            );
+          })}
         </div>
+        {connected && s.tier > 1 && (
+          <div class="deed-note">Tap a Deed at or below yours to play your runs with it. You can't play above what you hold.</div>
+        )}
 
         {connected && s.tier >= 1 && (
           <div class="deed-section">
@@ -163,7 +181,7 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
             <div class="deed-bags">
               {forged.map((b) => {
                 const need = s.recipes[b]?.minTier ?? 1;
-                const locked = need > s.tier;
+                const locked = need > play;
                 const on = picked.includes(b);
                 return (
                   <button
@@ -180,7 +198,7 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
                 );
               })}
             </div>
-            <div class="deed-note">Get liquidated while carrying a forged Bag and it can shatter. Daily Doom always uses standard issue.</div>
+            <div class="deed-note">Bags you bring are locked in for the run. Survive and they come back; get liquidated and each can shatter. Daily Doom always uses standard issue.</div>
           </div>
         )}
 

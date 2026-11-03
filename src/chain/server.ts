@@ -23,7 +23,7 @@ export interface StartReply {
   config: Partial<RunConfig>;
 }
 
-export const serverStart = (body: { txHash: string; secret: string; defcon: number; vault: Partial<RunConfig>; loadout: BagId[] }) =>
+export const serverStart = (body: { txHash: string; secret: string; defcon: number; vault: Partial<RunConfig>; loadout: BagId[]; tier?: number }) =>
   post<StartReply>('/run/start', body);
 
 export const serverDay = (body: { runId: number; secret: string; day: number }) =>

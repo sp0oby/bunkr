@@ -59,7 +59,7 @@ else boot();
 async function officialPass(pass: RunPass, defcon: Defcon): Promise<RunPass | null> {
   if (pass.seed != null && pass.config) return pass;
   try {
-    const reply = await serverStart({ txHash: pass.txHash, secret: pass.secret, defcon, vault: runConfig(meta, defcon, false), loadout: pass.loadout });
+    const reply = await serverStart({ txHash: pass.txHash, secret: pass.secret, defcon, vault: runConfig(meta, defcon, false), loadout: pass.loadout, tier: pass.tier });
     const next = { ...pass, seed: reply.seed, config: reply.config };
     savePass(next);
     return next;

@@ -161,7 +161,7 @@ export function Title({ meta }: { meta: Meta }) {
         )}
       </div>
       <div class="title-foot">
-        Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 100 score ·{' '}
+        Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 1,000 score ·{' '}
         <button class="link-btn" onClick={() => { toggleCrt(); bump((n) => n + 1); }}>CRT effect: {document.body.classList.contains('no-crt') ? 'off' : 'on'}</button>
       </div>
 

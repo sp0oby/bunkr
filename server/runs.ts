@@ -49,6 +49,8 @@ export interface StartBody {
   defcon?: number;
   vault?: Record<string, unknown>;
   loadout?: string[];
+  /** Deed to play with; capped at the one the player holds. */
+  tier?: number;
 }
 
 /** Turn a spent ticket into a seed and an official config. Safe to call twice. */
@@ -73,15 +75,18 @@ export async function startRun(body: StartBody): Promise<{ runId: number; seed: 
     seed = hmac32(`run:${entry.runId}`);
     // The loadout is whatever the player locked into the Forge for this run, not what the
     // client says: locked Bags can't leave the wallet mid-run, so the stakes are real.
+    // Players can run with a lower Deed than they hold, never a higher one.
+    const asked = Math.floor(Number(body.tier));
+    const tier = asked >= 1 && asked <= entry.tier ? asked : entry.tier;
     const lock = await lockedBags(entry.runId);
     if (lock.bags.length && !lock.settled) {
       const minTier = await bagTiers();
-      loadout = lock.bags.filter((b) => (minTier.get(b) ?? 9) <= entry.tier).slice(0, LOADOUT_SLOTS[entry.tier] ?? 0);
+      loadout = lock.bags.filter((b) => (minTier.get(b) ?? 9) <= tier).slice(0, LOADOUT_SLOTS[tier] ?? 0);
     }
     const defcon = Math.max(1, Math.min(5, Math.floor(Number(body.defcon) || 5))) as Defcon;
     const vault = vaultFrom(body.vault);
     config = {
-      ...vault, defcon, daily: false, deedTier: entry.tier, loadout, rocket: vault.rocket || entry.tier >= 3, serverDays: true,
+      ...vault, defcon, daily: false, deedTier: tier, loadout, rocket: vault.rocket || tier >= 3, serverDays: true,
       mutator: mutatorForDay(entry.day),
     };
   }
