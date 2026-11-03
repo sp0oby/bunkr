@@ -143,6 +143,7 @@ async function startRun(): Promise<void> {
     view.setBunkerSkin(drip.bunker ?? null);
     document.body.classList.toggle('drip-goldhatch', drip.hatch === 'goldhatch');
     ui.nukeSkin = drip.nuke ?? null;
+    view.setNukeSkin(ui.nukeSkin);
     // The drop scene's art is big: fetch it during prep so the blast is instant.
     void preload(CALM_ART);
     void preload(blastArt(ui.nukeSkin));

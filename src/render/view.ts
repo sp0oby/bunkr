@@ -221,6 +221,10 @@ export class BunkerView {
   /** Bunker cosmetic (Gold Bunker, Gamer Bunker), from the player's equipped drip. */
   private bunkerSkin: string | null = null;
   private concreteMat: THREE.MeshBasicMaterial | null = null;
+  /** Nuke cosmetic in the sky for the whole run (Good Boy Nuke). */
+  private nukeSkin: string | null = null;
+  private dogCloud: THREE.Mesh | null = null;
+  private dogCloudMat: THREE.MeshBasicMaterial | null = null;
   private hullSize: [number, number] = [1, 1];
   private rooms = new Map<number, RoomView>();
   private dwellers = new Map<number, DwellerView>();
@@ -281,6 +285,17 @@ export class BunkerView {
     const cx = -SHAFT_W / 2 - POTTY_U * w + w / 2;
     bg.position.set(cx, h / 2 - h * SURFACE_GROUND, -8);
     this.scene.add(bg);
+
+    // Good Boy Nuke: a dog-shaped mushroom cloud rising from behind the car dealership, in the
+    // open sky above the middle of the bunker, where it stays visible under the HUD all run.
+    // Its faded stem melts into the dealership's roofline.
+    this.dogCloudMat = new THREE.MeshBasicMaterial({ map: tex('/art/drip/dog-cloud.webp'), transparent: true, depthWrite: false });
+    const dh = 3.97;
+    const dog = new THREE.Mesh(new THREE.PlaneGeometry(dh * (932 / 990), dh), this.dogCloudMat);
+    dog.position.set((COLS * CW) / 2 + 0.6, 5.75, -7.95);
+    dog.visible = this.nukeSkin === 'dog';
+    this.dogCloud = dog;
+    this.scene.add(dog);
     // Sky above the painting, in case a tall screen shows more.
     const sky = new THREE.Mesh(new THREE.PlaneGeometry(200, 40), mat(0x7a6a52));
     sky.position.set(cx, h * (1 - SURFACE_GROUND) + 20, -8.5);
@@ -780,6 +795,8 @@ export class BunkerView {
     // The $BUNKR chart is the weather: green when it pumps, cold blue when it dumps.
     if (g.config.weather === 'bull') this.surface.color.multiply(new THREE.Color(0.86, 1.05, 0.78));
     if (g.config.weather === 'winter') this.surface.color.multiply(new THREE.Color(0.72, 0.84, 1.0));
+    // The dog cloud is part of the painting: same tint as the sky around it.
+    this.dogCloudMat?.color.copy(this.surface.color);
     // Gamer Bunker: every room frame cycles through the rainbow.
     if (this.bunkerSkin === 'rgb') {
       let i = 0;
@@ -923,6 +940,12 @@ export class BunkerView {
     document.body.appendChild(pop);
     gsap.fromTo(pop, { y: 0, scale: crit ? 1.6 : 1, opacity: 1 }, { y: -50, scale: 1, opacity: 0, duration: 0.6, ease: 'power2.out', onComplete: () => pop.remove() });
     this.shake = Math.max(this.shake, crit ? 0.5 : 0.12);
+  }
+
+  /** Apply the player's nuke cosmetic to the sky. */
+  setNukeSkin(skin: string | null): void {
+    this.nukeSkin = skin;
+    if (this.dogCloud) this.dogCloud.visible = skin === 'dog';
   }
 
   /** Apply the player's bunker cosmetic. Rebuilds the hull and rooms so every frame picks it up. */

@@ -31,7 +31,7 @@ export interface CosmeticDef {
 export const COSMETICS: CosmeticDef[] = [
   { id: 100, key: 'gold', slot: 'bunker', name: 'Gold Bunker', desc: 'Solid gold walls. Structurally questionable. Spiritually load-bearing.' },
   { id: 101, key: 'rgb', slot: 'bunker', name: 'Gamer Bunker', desc: 'RGB on every frame. +0 FPS. +100 vibes, spiritually.' },
-  { id: 102, key: 'dog', slot: 'nuke', name: 'Good Boy Nuke', desc: 'Your mushroom cloud is now a dog. He is a good boy. He is also a nuke.' },
+  { id: 102, key: 'dog', slot: 'nuke', name: 'Good Boy Nuke', desc: 'Your mushroom cloud is now a dog, in the drop and in the sky all run. He is a good boy. He is also a nuke.' },
   { id: 103, key: 'goldhatch', slot: 'hatch', name: 'Gold HATCH', desc: 'HATCH, but premium. Still mean. Now mean in gold.' },
 ];
 

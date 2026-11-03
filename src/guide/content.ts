@@ -122,7 +122,7 @@ export const GUIDE: GuideSection[] = [
       { title: 'Daily Doom pot', body: 'Entry is 10,000 $BUNKR, one attempt a day: 80% goes straight into the pot, 20% is burned. When the day ends, the top 3 split it 50/30/20. The more players, the bigger the pot.' },
       { title: 'Forged Bags', body: 'Finish a run holding a Bag and you can forge it: burn $BUNKR and it becomes a token in your wallet (ERC-1155). Bring it into future runs, or trade it. Rarer Bags need higher Deeds.' },
       { title: 'They can break', body: 'Get liquidated while carrying a forged Bag and it has a 35% chance to shatter, gone for good. Daily Doom always uses standard issue.' },
-      { title: 'Drip', body: 'Burn $BUNKR for cosmetics: Gold Bunker, Gamer Bunker, Good Boy Nuke (your mushroom cloud is a dog), Gold HATCH. Looks only. Also ERC-1155, also tradeable.', art: 'drip/dog.png' },
+      { title: 'Drip', body: 'Burn $BUNKR for cosmetics: Gold Bunker, Gamer Bunker, Good Boy Nuke (a dog-shaped mushroom cloud, in the drop and in the sky all run), Gold HATCH. Looks only. Also ERC-1155, also tradeable.', art: 'drip/dog.png' },
       { title: 'The chart is the weather', body: 'When $BUNKR pumps, it is Bull Run Weather: more loot, hotter vibes, more radiation. When it dumps, Nuclear Winter: less loot, weaker raiders, score x1.2. Big moves hit everyone mid-run: WHALE SIGHTED or PAPER HANDS STORM.' },
       { title: 'Fair play', body: 'Every ticketed run is replayed on our results server before it counts, so the leaderboard and the pot only take real runs. Each day\'s randomness is revealed as you reach it, so nobody can simulate ahead.' },
       { title: 'Coming later', body: 'The Wasteland: every bunker on one map, one Doomsday Clock for everyone. Season 1.' },
