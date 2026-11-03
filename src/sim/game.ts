@@ -113,7 +113,8 @@ export class Game {
   rocketProg = 0;
   readonly config: RunConfig;
   readonly prepSeconds: number;
-  nextCardAt = 0;
+  /** When today's event cards are due (sim time): 1-3 a day, at random times. */
+  private cardTimes: number[] = [];
   seenCards = new Set<string>();
 
   hatchMood: HatchMood = 'smug';
@@ -951,7 +952,7 @@ export class Game {
     this.day = 1;
     this.rng.reseed(this.daySeed(1));
     this.rads = this.config.defcon <= 1 ? 40 : 25;
-    this.nextCardAt = 9;
+    this.dealCards(9);
     this.fx.push('landed');
     this.say('drop');
     if (this.config.deedTier >= 4) this.queueSay('silo');
@@ -963,6 +964,7 @@ export class Game {
 
   private onNewDay(): void {
     if (this.day > RUN_DAYS) return;
+    if (this.day > 1) this.dealCards(1.5); // anything a raid blocked yesterday is gone
     if (this.config.tent && this.day === TENT_DAYS) this.queueSay('tentWarn');
     if (this.day > 1) {
       this.say('dayStart');
@@ -1385,9 +1387,17 @@ export class Game {
     this.touch();
   }
 
+  /** Deal today's 1-3 cards at random times, no earlier than `earliest` sim-seconds in. */
+  private dealCards(earliest: number): void {
+    const n = this.rng.int(1, 3);
+    this.cardTimes = Array.from({ length: n }, () => this.time + this.rng.range(earliest, DAY_SECONDS * 0.92)).sort((a, b) => a - b);
+  }
+
   private cardsStep(): void {
-    if (this.raid || this.time < this.nextCardAt) return;
-    this.nextCardAt = this.time + this.rng.range(DAY_SECONDS * 0.55, DAY_SECONDS * 1.1);
+    if (this.raid || !this.cardTimes.length || this.time < this.cardTimes[0]) return;
+    this.cardTimes.shift();
+    // Give the player a breather before the next one, even if two landed close together.
+    this.cardTimes = this.cardTimes.map((t) => Math.max(t, this.time + 4));
     const candidates = CARDS.filter((c) => !c.special && (!c.needs || c.needs(this)) && !(c.once && this.seenCards.has(c.id)));
     const def = this.rng.weighted(candidates, (c) => (this.seenCards.has(c.id) ? 0.25 : 1) * (c.weight ?? 1));
     if (def) this.openCard(def);
