@@ -6,6 +6,7 @@ export const tokenAbi = parseAbi([
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approve(address spender, uint256 value) returns (bool)',
   'function nonces(address owner) view returns (uint256)',
+  'function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)',
   'function faucet()',
   'function lastDrip(address) view returns (uint256)',
   'error FaucetCooldown(uint256 readyAt)',

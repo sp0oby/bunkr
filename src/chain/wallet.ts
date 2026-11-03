@@ -371,17 +371,29 @@ async function maybePermit(spender: Address, value: bigint): Promise<[bigint, nu
   const owner = state.address!;
   const allowance = await pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'allowance', args: [owner, spender] });
   if (allowance >= value) return null;
-  const [name, nonce] = await Promise.all([
-    pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'name' }),
-    pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'nonces', args: [owner] }),
-  ]);
+  const approve = async () => {
+    await send('Approving $BUNKR', deployment!.bunkr, tokenAbi, 'approve', [spender, value]);
+    return null;
+  };
+  // Not every launchpad token has Permit: no nonces() means a plain approve.
+  let name: string, version: string, nonce: bigint;
+  try {
+    nonce = await pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'nonces', args: [owner] });
+    // Sign for the token's real EIP-712 domain (ERC-5267) when it publishes one.
+    [name, version] = await pub!
+      .readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'eip712Domain' })
+      .then((d) => [d[1], d[2]] as [string, string])
+      .catch(async () => [await pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'name' }), '1'] as [string, string]);
+  } catch {
+    return approve();
+  }
   // The chain's clock, not this computer's: a skewed clock would expire the permit.
   const deadline = (await pub!.getBlock()).timestamp + 1800n;
   try {
     set({ busy: 'Sign the approval in your wallet' });
     const sig = await client!.signTypedData({
       account: account!,
-      domain: { name, version: '1', chainId: chain!.id, verifyingContract: deployment!.bunkr },
+      domain: { name, version, chainId: chain!.id, verifyingContract: deployment!.bunkr },
       types: {
         Permit: [
           { name: 'owner', type: 'address' },
@@ -398,8 +410,7 @@ async function maybePermit(spender: Address, value: bigint): Promise<[bigint, nu
     return [deadline, Number(v ?? BigInt(yParity! + 27)), r, s];
   } catch (e) {
     if (rejected(e)) throw e;
-    await send('Approving $BUNKR', deployment!.bunkr, tokenAbi, 'approve', [spender, value]);
-    return null;
+    return approve();
   }
 }
 
