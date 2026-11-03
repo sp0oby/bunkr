@@ -1,0 +1,38 @@
+/* The public guide page scrolls like a normal page (the game locks the viewport). */
+html, body.guide-site {
+  height: auto;
+  overflow: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: auto;
+  overscroll-behavior: auto;
+  background: #120e0b;
+}
+body.guide-site { font: 700 15px var(--body); }
+
+.gs-hero { position: relative; min-height: 380px; display: grid; place-items: center; overflow: hidden; border-bottom: 4px solid var(--ink); }
+.gs-hero-art { position: absolute; inset: 0; background: center 30% / cover no-repeat url(/art/title.webp); filter: brightness(0.55); }
+.gs-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(#0b0b1000 40%, #120e0b); }
+.gs-hero-inner { position: relative; z-index: 1; text-align: center; padding: 40px 16px 32px; }
+.gs-logo { font: clamp(64px, 14vw, 140px)/0.9 var(--display); color: var(--rad); -webkit-text-stroke: 4px var(--ink); text-shadow: 0 8px 0 var(--ink), 0 0 50px #8cff4f66; transform: rotate(-3deg); }
+.gs-tag { margin-top: 12px; font: 20px var(--display); color: var(--text); -webkit-text-stroke: 1px var(--ink); text-shadow: 0 3px 0 var(--ink); }
+.gs-hero h1 { margin: 18px 0 14px; font: 38px var(--display); color: var(--amber); -webkit-text-stroke: 1px var(--ink); text-shadow: 0 4px 0 var(--ink); }
+.gs-play { display: inline-block; font-size: 22px; padding: 10px 26px; text-decoration: none; }
+
+.gs-nav { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px; background: #120e0bf0; border-bottom: 3px solid var(--ink); scrollbar-width: none; }
+.gs-nav a { flex: none; font: 14px var(--display); letter-spacing: 0.04em; color: var(--dim); text-decoration: none; background: var(--panel-2); border: 2px solid var(--ink); border-radius: 999px; padding: 5px 12px; }
+.gs-nav a:hover { color: var(--ink); background: var(--rad); }
+
+.gs-main { max-width: 1080px; margin: 0 auto; padding: 8px 16px 40px; }
+.gs-section { padding-top: 36px; scroll-margin-top: 56px; }
+.gs-kicker { font: 13px var(--display); letter-spacing: 0.12em; color: var(--amber); }
+.gs-section h2 { font: clamp(26px, 4vw, 36px) var(--display); color: var(--rad); -webkit-text-stroke: 1px var(--ink); margin: 2px 0 6px; }
+.guide-site .guide-card p, .guide-site .guide-q p { font-size: 14px; }
+.guide-site .guide-art { height: 130px; }
+
+.gs-foot { text-align: center; padding: 30px 16px 40px; border-top: 3px solid var(--ink); color: var(--dim); font-size: 12px; }
+.gs-foot .btn { display: inline-block; text-decoration: none; font-size: 20px; padding: 8px 22px; margin-bottom: 10px; }
+
+@media (max-width: 600px) {
+  .guide-site .guide-cards { grid-template-columns: 1fr; }
+}

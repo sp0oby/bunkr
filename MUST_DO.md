@@ -33,6 +33,7 @@ Slot: after the token layer, before the tutorial — most crypto players will op
 - HATCH walks a new player through: build a reactor, drag a degen in, keep the vibes in the middle, survive day 1
 
 ## Done recently
+- How to Play: in-game guide (title screen) + public guide page at /guide.html, one source (src/guide/content.ts)
 - Minigames: F-to-revive (50 Fs in 15s), raid smashing, expedition return choices
 - Degen traits, room mods, Shill Tower radio stations, Missile Silo, weekly mutators
 - Endings: Exit Liquidity, Rugged Your Own Bunker, Became the Raiders

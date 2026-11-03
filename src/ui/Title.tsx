@@ -7,6 +7,7 @@ import { audio } from '../audio/audio';
 import { Icon } from './icons';
 import { DeedChip, DeedModal, enterAndGo, fmtBunkr, hasDeed } from './Deed';
 import { DailyModal } from './Daily';
+import { HowToPlay } from './HowToPlay';
 import { tokenGate } from '../chain/config';
 import { useWallet } from '../chain/wallet';
 
@@ -60,6 +61,7 @@ export function Title({ meta }: { meta: Meta }) {
   const [deedOpen, setDeedOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [wastelandOpen, setWastelandOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const w = useWallet();
   const deed = hasDeed(w);
   const tent = tokenGate && !deed;
@@ -83,6 +85,7 @@ export function Title({ meta }: { meta: Meta }) {
       <div class="title-logo">
         <div class="tl-word">BUNKR</div>
         <div class="tl-tag">the world is ending. the chart is green. get in.</div>
+        <button class={`btn btn-dark htp-btn ${meta.runs === 0 ? 'fresh' : ''}`} onClick={() => setGuideOpen(true)}>HOW TO PLAY</button>
       </div>
 
       <div class="title-bar">
@@ -163,6 +166,7 @@ export function Title({ meta }: { meta: Meta }) {
       </div>
 
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
+      {guideOpen && <HowToPlay onClose={() => setGuideOpen(false)} />}
       {wastelandOpen && (
         <div class="modal-bg" onClick={() => setWastelandOpen(false)}>
           <div class="modal wasteland" onClick={(e) => e.stopPropagation()}>

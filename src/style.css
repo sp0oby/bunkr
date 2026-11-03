@@ -724,3 +724,28 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 
 .build-cap { display: block; font-style: normal; font-size: 11px; color: var(--amber); margin-top: 2px; }
 .brand-confirm span { flex-basis: 100%; }
+
+/* ---------- How to play ---------- */
+.htp-btn { margin-top: 14px; font-size: 16px; padding: 6px 18px; pointer-events: auto; }
+.htp-btn.fresh { animation: pulseScale 1.4s infinite; background: var(--amber); color: var(--ink); text-shadow: none; }
+.guide { width: min(980px, 95vw); height: min(680px, 90vh); display: flex; flex-direction: column; padding: 16px 18px; }
+.guide-head { display: flex; align-items: center; gap: 12px; }
+.guide-head .modal-title { margin: 0; }
+.guide-full { margin-left: auto; color: var(--amber); font-size: 12px; }
+.guide-body { flex: 1; min-height: 0; display: flex; gap: 14px; margin-top: 10px; }
+.guide-tabs { flex: none; width: 168px; display: flex; flex-direction: column; gap: 6px; }
+.guide-tabs button { text-align: left; font: 15px var(--display); letter-spacing: 0.04em; color: var(--dim); background: var(--panel-2); border: 2px solid var(--ink); border-radius: 10px; padding: 8px 10px; }
+.guide-tabs button.on { color: var(--ink); background: var(--rad); box-shadow: 0 3px 0 var(--ink); }
+.guide-page { flex: 1; min-height: 0; overflow-y: auto; padding-right: 6px; animation: pop 0.2s ease-out; }
+.guide-page h2 { font: 30px var(--display); color: var(--rad); -webkit-text-stroke: 1px var(--ink); margin: 0 0 4px; }
+.guide-intro { color: var(--dim); margin: 0 0 12px; font-size: 14px; }
+.guide-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.guide-card { position: relative; background: var(--panel-2); border: 3px solid var(--ink); border-radius: 14px; padding: 10px 12px; box-shadow: 0 3px 0 var(--ink); }
+.guide-card b { display: block; font: 18px var(--display); margin-bottom: 4px; }
+.guide-card p { margin: 0; font-size: 13px; line-height: 1.4; color: #e9e3f7; }
+.guide-art { display: block; height: 96px; margin: -4px -6px 8px; border-radius: 8px; border: 2px solid var(--ink); background: center / cover no-repeat #0b0b10; }
+.guide-faq { display: grid; gap: 8px; }
+.guide-q { background: var(--panel-2); border: 2px solid var(--ink); border-radius: 12px; padding: 10px 12px; }
+.guide-q b { font: 17px var(--display); }
+.guide-q p { margin: 4px 0 0; font-size: 13px; color: #e9e3f7; line-height: 1.4; }
+.guide-art.fit { background-size: contain; background-color: #1a1626; }
