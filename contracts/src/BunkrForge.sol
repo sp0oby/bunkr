@@ -7,6 +7,7 @@ import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC2
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {BunkrTickets} from "./BunkrTickets.sol";
 
 /// @title BunkrForge
@@ -18,6 +19,13 @@ contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
+    /// @notice Collection name and symbol, for explorers and wallets.
+    string public constant name = "BUNKR Forge";
+    string public constant symbol = "BKRF";
+
+    /// @dev Metadata lives at `<base><id>.json` (e.g. https://bunkr.game/meta/5.json).
+    string private _base;
+    string private _contractURI;
 
     struct Recipe {
         uint128 cost;
@@ -37,20 +45,40 @@ contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
     event Shattered(address indexed player, uint256 indexed bagId, uint256 indexed runId);
     event RecipeSet(uint256 indexed bagId, uint128 cost, uint8 minTier, bool enabled);
     event OracleChanged(address oracle);
+    /// @dev ERC-7572: tells marketplaces the collection metadata changed.
+    event ContractURIUpdated();
 
     error UnknownBag();
     error TierTooLow(uint8 need, uint8 have);
     error NotOracle();
     error AlreadyShattered();
 
-    constructor(IERC20 bunkr_, BunkrTickets deeds_, address owner_, address oracle_, string memory uri_)
-        ERC1155(uri_)
-        Ownable(owner_)
-    {
+    /// @param base_ metadata base URL, ending in a slash: item `id` is at `<base_><id>.json`
+    /// @param contractURI_ collection metadata (ERC-7572)
+    constructor(
+        IERC20 bunkr_,
+        BunkrTickets deeds_,
+        address owner_,
+        address oracle_,
+        string memory base_,
+        string memory contractURI_
+    ) ERC1155("") Ownable(owner_) {
         bunkr = bunkr_;
         deeds = deeds_;
         oracle = oracle_;
+        _base = base_;
+        _contractURI = contractURI_;
         emit OracleChanged(oracle_);
+    }
+
+    /// @notice Full metadata URL for one item.
+    function uri(uint256 id) public view override returns (string memory) {
+        return string.concat(_base, Strings.toString(id), ".json");
+    }
+
+    /// @notice Collection metadata (name, description, image) for marketplaces.
+    function contractURI() external view returns (string memory) {
+        return _contractURI;
     }
 
     function forge(uint256 bagId) external nonReentrant {
@@ -95,8 +123,12 @@ contract BunkrForge is ERC1155, Ownable2Step, ReentrancyGuard {
         emit OracleChanged(oracle_);
     }
 
-    function setURI(string calldata uri_) external onlyOwner {
-        _setURI(uri_);
+    /// @notice Move the metadata (e.g. once the game has its real domain).
+    function setMetadata(string calldata base_, string calldata contractURI_) external onlyOwner {
+        _base = base_;
+        _contractURI = contractURI_;
+        emit ContractURIUpdated();
+        emit URI(base_, type(uint256).max); // hint for indexers that all item URIs moved
     }
 
     function _forge(uint256 bagId) internal {

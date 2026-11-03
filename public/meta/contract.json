@@ -1,0 +1,7 @@
+{
+  "name": "BUNKR Forge",
+  "description": "Forged Bags and cosmetics from BUNKR, the nuclear-apocalypse bunker game for degens. Every item was made by burning $BUNKR. Bags go into runs and can shatter when you get liquidated. Cosmetics are pure drip.",
+  "image": "http://localhost:5173/art/drip/goldhatch.png",
+  "banner_image": "http://localhost:5173/art/title.webp",
+  "external_link": "http://localhost:5173"
+}

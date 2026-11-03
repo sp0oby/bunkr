@@ -24,7 +24,7 @@ contract BunkrTest is Test {
         token = new MockBUNKR(owner);
         uint256[4] memory th = [uint256(10_000e18), 100_000e18, 1_000_000e18, 8_000_000e18];
         tickets = new BunkrTickets(IERC20(address(token)), owner, oracle, th, 2_500e18, 5_000, 10_000e18, 8_000);
-        forge = new BunkrForge(IERC20(address(token)), tickets, owner, oracle, "");
+        forge = new BunkrForge(IERC20(address(token)), tickets, owner, oracle, "https://bunkr.test/meta/", "https://bunkr.test/meta/contract.json");
         uint256[] memory ids = new uint256[](3);
         uint128[] memory costs = new uint128[](3);
         uint8[] memory tiers = new uint8[](3);
@@ -308,6 +308,22 @@ contract BunkrTest is Test {
         vm.prank(oracle);
         vm.expectRevert(BunkrForge.AlreadyShattered.selector);
         forge.shatter(alice, 0, 1);
+    }
+
+    function test_metadata() public {
+        assertEq(forge.name(), "BUNKR Forge");
+        assertEq(forge.symbol(), "BKRF");
+        assertEq(forge.uri(5), "https://bunkr.test/meta/5.json");
+        assertEq(forge.uri(103), "https://bunkr.test/meta/103.json");
+        assertEq(forge.contractURI(), "https://bunkr.test/meta/contract.json");
+        assertTrue(forge.supportsInterface(0xd9b67a26)); // ERC-1155
+        assertTrue(forge.supportsInterface(0x0e89341c)); // ERC-1155 metadata URI
+        vm.prank(bob);
+        vm.expectRevert();
+        forge.setMetadata("x", "y");
+        vm.prank(owner);
+        forge.setMetadata("https://bunkr.game/meta/", "https://bunkr.game/meta/contract.json");
+        assertEq(forge.uri(0), "https://bunkr.game/meta/0.json");
     }
 
     function test_bagsAreTradeable() public {

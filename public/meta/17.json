@@ -1,0 +1,29 @@
+{
+  "name": "Map to the Moon",
+  "description": "Unlocks the Rocket Room this run. It is mostly arrows pointing up. A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
+  "image": "http://localhost:5173/art/bags/moonmap.webp",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Deed to forge",
+      "value": "BUNKER"
+    },
+    {
+      "trait_type": "Burned to forge",
+      "display_type": "number",
+      "value": 100000
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Unlocks the Rocket Room this run."
+    }
+  ]
+}

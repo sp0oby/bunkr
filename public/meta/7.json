@@ -1,0 +1,29 @@
+{
+  "name": "Expired MRE NFT",
+  "description": "Eat it for +60 ramen. Eats itself if ramen hits 0. Right-click, save as, eat. A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
+  "image": "http://localhost:5173/art/bags/mrenft.webp",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Common"
+    },
+    {
+      "trait_type": "Deed to forge",
+      "value": "SHED"
+    },
+    {
+      "trait_type": "Burned to forge",
+      "display_type": "number",
+      "value": 5000
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Eat it for +60 ramen. Eats itself if ramen hits 0."
+    }
+  ]
+}

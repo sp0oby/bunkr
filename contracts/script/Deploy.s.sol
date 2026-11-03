@@ -12,6 +12,7 @@ import {BunkrForge} from "../src/BunkrForge.sol";
 ///
 ///   BUNKR_TOKEN  optional: the real $BUNKR address. Omit it to deploy MockBUNKR.
 ///   ORACLE       optional: results oracle. Defaults to the deployer (testnet only).
+///   META_BASE    optional: where item metadata lives, e.g. https://bunkr.game/meta/
 contract Deploy is Script {
     // Must match FORGE_ORDER in src/chain/forge.ts. 0 = common, 1 = rare, 2 = legendary.
     uint8[20] internal RARITY = [2, 1, 0, 1, 0, 1, 2, 0, 0, 1, 0, 0, 1, 0, 2, 1, 0, 2, 1, 0];
@@ -28,7 +29,10 @@ contract Deploy is Script {
         uint256[4] memory thresholds = [uint256(10_000e18), 100_000e18, 1_000_000e18, 8_000_000e18];
         // Tickets: 2,500 (half burned, half to the Daily pot). Daily Doom: 10,000, 80% to the pot.
         BunkrTickets tickets = new BunkrTickets(IERC20(token), deployer, oracle, thresholds, 2_500e18, 5_000, 10_000e18, 8_000);
-        BunkrForge forge = new BunkrForge(IERC20(token), tickets, deployer, oracle, "https://bunkr.game/api/bag/{id}.json");
+        // Item metadata is served by the game site: META_BASE is "<site>/meta/".
+        string memory metaBase = vm.envOr("META_BASE", string("http://localhost:5173/meta/"));
+        BunkrForge forge =
+            new BunkrForge(IERC20(token), tickets, deployer, oracle, metaBase, string.concat(metaBase, "contract.json"));
 
         bagRecipes(forge);
         cosmeticRecipes(forge);

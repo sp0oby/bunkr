@@ -1132,7 +1132,7 @@ export class Game {
           break;
         case 'silo':
           if (this.underground && this.missiles < MAX_MISSILES) {
-            this.siloProg += 0.3 * eff * dt;
+            this.siloProg += 0.45 * eff * dt; // ~4-5 days a missile with two decent workers
             if (this.siloProg >= 100) {
               this.siloProg = 0;
               this.missiles++;

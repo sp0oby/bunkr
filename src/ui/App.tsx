@@ -153,7 +153,7 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
   rollCandles(game);
   return (
     <div class="topbar">
-      <div class="brand">BUNKR</div>
+      <HomeButton game={game} />
       <div class="res-row">
         {RES.map(({ k, name }) => {
           const r = game.rates[k];
@@ -224,6 +224,32 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** The BUNKR logo goes back to the title screen. Mid-run it asks first: leaving ends the run. */
+function HomeButton({ game }: { game: Game }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const id = setTimeout(() => setArmed(false), 6000);
+    return () => clearTimeout(id);
+  }, [armed]);
+  const home = () => {
+    location.search = '';
+  };
+  const ended = game.phase === 'ended';
+  return (
+    <div class="brand-wrap">
+      <button class="brand" title="Back to the title screen" onClick={() => (ended || armed ? home() : setArmed(true))}>BUNKR</button>
+      {armed && (
+        <div class="brand-confirm">
+          <span>Leave this run? It ends here{game.config.loadout.length ? ', and your forged Bags may shatter' : ''}.</span>
+          <button class="btn btn-red" onClick={home}>LEAVE</button>
+          <button class="btn btn-dark" onClick={() => setArmed(false)}>STAY</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -935,6 +961,8 @@ function BuildMenu({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
           {ROOM_ORDER.filter((t) => game.canBuildType(t)).map((t) => {
             const def = ROOMS[t];
             const cost = game.buildCost(t);
+            // A price above the ramen cap can never be paid: say so, and say how to fix it.
+            const overCap = cost > game.caps().ramen;
             return (
               <button key={t} disabled={game.res.ramen < cost} onClick={() => set(() => { if (game.build(t, at.floor, at.col)) ui.buildAt = null; })}>
                 <span class="build-thumb" style={{ backgroundImage: `url(/art/rooms/${t}.webp)` }} />
@@ -942,6 +970,7 @@ function BuildMenu({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
                   <b>{def.name}</b>
                   <small>{def.desc}</small>
                   <span>{cost} <Icon name="ramen" size={16} class="inline" /></span>
+                  {overCap && <em class="build-cap">Costs more than you can store ({game.caps().ramen} ramen). Build Cold Storage first.</em>}
                 </span>
               </button>
             );

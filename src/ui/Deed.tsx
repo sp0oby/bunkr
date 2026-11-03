@@ -205,10 +205,7 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
 /** Burn-to-drip cosmetics: looks only, never gameplay. */
 function DripSection({ s }: { s: WalletState }) {
   const on = equippedDrip(s);
-  const preview = (key: string) =>
-    key === 'dog' ? <span class="drip-thumb" style={{ backgroundImage: 'url(/art/drop-dog.webp)' }} />
-      : key === 'goldhatch' ? <span class="drip-thumb hatchy"><img src="/art/hatch/smug.webp" alt="" /></span>
-        : <span class={`drip-thumb swatch-${key}`} />;
+  const preview = (key: string) => <span class="drip-thumb" style={{ backgroundImage: `url(/art/drip/${key}.png)` }} />;
   return (
     <div class="deed-section">
       <div class="deed-h">DRIP <small>burn $BUNKR for looks. Zero gameplay. Maximum flex.</small></div>

@@ -1,0 +1,25 @@
+{
+  "name": "Gold HATCH",
+  "description": "HATCH, but premium. Still mean. Now mean in gold. A BUNKR cosmetic: looks only, zero gameplay, maximum flex.",
+  "image": "http://localhost:5173/art/drip/goldhatch.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Cosmetic"
+    },
+    {
+      "trait_type": "Slot",
+      "value": "HATCH"
+    },
+    {
+      "trait_type": "Deed to forge",
+      "value": "SHED"
+    },
+    {
+      "trait_type": "Burned to forge",
+      "display_type": "number",
+      "value": 30000
+    }
+  ]
+}

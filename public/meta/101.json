@@ -1,0 +1,25 @@
+{
+  "name": "Gamer Bunker",
+  "description": "RGB on every frame. +0 FPS. +100 vibes, spiritually. A BUNKR cosmetic: looks only, zero gameplay, maximum flex.",
+  "image": "http://localhost:5173/art/drip/rgb.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Cosmetic"
+    },
+    {
+      "trait_type": "Slot",
+      "value": "Bunker"
+    },
+    {
+      "trait_type": "Deed to forge",
+      "value": "SHED"
+    },
+    {
+      "trait_type": "Burned to forge",
+      "display_type": "number",
+      "value": 50000
+    }
+  ]
+}

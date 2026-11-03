@@ -1,0 +1,29 @@
+{
+  "name": "Emotional Support Pickaxe",
+  "description": "Digging new floors costs 40% less. It believes in you. It is a pickaxe. A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
+  "image": "http://localhost:5173/art/bags/pickaxe.webp",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Common"
+    },
+    {
+      "trait_type": "Deed to forge",
+      "value": "SHED"
+    },
+    {
+      "trait_type": "Burned to forge",
+      "display_type": "number",
+      "value": 5000
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Digging new floors costs 40% less."
+    }
+  ]
+}

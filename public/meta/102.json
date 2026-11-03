@@ -1,0 +1,25 @@
+{
+  "name": "Good Boy Nuke",
+  "description": "Your mushroom cloud is now a dog. He is a good boy. He is also a nuke. A BUNKR cosmetic: looks only, zero gameplay, maximum flex.",
+  "image": "http://localhost:5173/art/drip/dog.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Cosmetic"
+    },
+    {
+      "trait_type": "Slot",
+      "value": "Nuke"
+    },
+    {
+      "trait_type": "Deed to forge",
+      "value": "SHED"
+    },
+    {
+      "trait_type": "Burned to forge",
+      "display_type": "number",
+      "value": 75000
+    }
+  ]
+}

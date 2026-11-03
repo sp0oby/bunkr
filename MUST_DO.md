@@ -5,7 +5,8 @@ Things that have to happen before launch. Not optional.
 ## 1. $BUNKR token layer (Robinhood Chain testnet first) — IN PROGRESS
 - [x] Contracts: MockBUNKR, BunkrTickets (Deeds, Ration Tickets, Daily Doom pot), BunkrForge (forged Bags) + tests
 - [x] Wallet connect, Deed panel, ticket per run, Tent Mode, forged-Bag loadout, forge from the end screen
-- [ ] Deploy to Robinhood Chain testnet (needs a funded deployer key: `npm run deploy:testnet`)
+- [ ] Deploy to Robinhood Chain testnet (needs a funded deployer key: `npm run deploy:testnet`, with `META_BASE=<site>/meta/` and `SITE_URL=<site> npm run meta` first)
+- [x] ERC-1155 metadata: name/symbol, per-item JSON (name, image, traits), collection contractURI
 - [x] Results server: verifies every ticketed run by replaying its inputs, settles Daily Doom pots, rolls Bag shatters, Daily leaderboard
 - [x] No simulating ahead: each underground day's seed comes from the server, in order, at human pace
 - [ ] Host the results server (needs ORACLE_KEY + SERVER_SECRET) and a real database before mainnet traffic

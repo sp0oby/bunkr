@@ -454,7 +454,9 @@ export class BunkerView {
       t.repeat.set(aspect / ROOM_ART_ASPECT, 1);
       t.offset.set((1 - t.repeat.x) / 2, 0);
     }
-    const ink = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.12, h + 0.12), mat(this.bunkerSkin === 'gold' ? 0xb07a10 : INK));
+    // Gamer Bunker gets a fat RGB rim; everything else a thin ink line.
+    const rim = this.bunkerSkin === 'rgb' ? 0.34 : 0.12;
+    const ink = new THREE.Mesh(new THREE.PlaneGeometry(w + rim, h + rim), mat(this.bunkerSkin === 'gold' ? 0xb07a10 : INK));
     ink.position.z = -0.05;
     ink.userData.frame = true;
     const art = new THREE.MeshBasicMaterial({ map: t });

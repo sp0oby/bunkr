@@ -67,6 +67,11 @@ img { -webkit-user-drag: none; }
 .topbar { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; gap: 10px; align-items: center; pointer-events: none; }
 .topbar > * { pointer-events: auto; }
 .brand { font: 34px var(--display); color: var(--rad); -webkit-text-stroke: 2px var(--ink); text-shadow: 0 4px 0 var(--ink); padding: 0 4px; transform: rotate(-4deg); }
+button.brand { background: none; border: none; cursor: pointer; transition: transform 0.12s; }
+button.brand:hover { transform: rotate(-4deg) scale(1.08); }
+.brand-wrap { position: relative; }
+.brand-confirm { position: absolute; top: 46px; left: 0; z-index: 20; width: 250px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: var(--panel); border: 3px solid var(--ink); border-radius: 12px; padding: 8px 10px; box-shadow: var(--pop); font-size: 12px; }
+.brand-confirm .btn { flex: 1; font-size: 13px; padding: 4px 8px; }
 .res-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .ticker { position: relative; overflow: hidden; display: flex; align-items: center; gap: 8px; background: var(--panel); border: 3px solid var(--ink); border-radius: 999px; padding: 3px 14px 3px 3px; box-shadow: var(--pop); min-width: 128px; }
 .t-fill { position: absolute; left: 0; bottom: 0; height: 4px; background: #ffffff30; }
@@ -660,7 +665,7 @@ body.drip-goldhatch .hatch-img { filter: sepia(1) saturate(3.2) hue-rotate(-12de
 .drip-card b { font: 14px var(--display); }
 .drip-card small { color: var(--dim); font-size: 10px; line-height: 1.25; flex: 1; }
 .drip-card .btn { font-size: 12px; padding: 4px 8px; }
-.drip-thumb { height: 54px; border: 2px solid var(--ink); border-radius: 8px; background: center / cover no-repeat var(--panel-2); display: grid; place-items: center; overflow: hidden; }
+.drip-thumb { height: 96px; border: 2px solid var(--ink); border-radius: 8px; background: center / cover no-repeat var(--panel-2); display: grid; place-items: center; overflow: hidden; }
 .drip-thumb.hatchy img { height: 50px; filter: sepia(1) saturate(3.2) hue-rotate(-12deg) brightness(1.08); }
 .swatch-gold { background: repeating-linear-gradient(45deg, #ffd36b 0 12px, #e2a92b 12px 24px); }
 .swatch-rgb { background: linear-gradient(90deg, #ff3b3b, #ffbe3d, #3ee06f, #3ff0ff, #a463ff, #ff6fbf); animation: rgbspin 3s linear infinite; background-size: 200% 100%; }
@@ -716,3 +721,6 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 .wl-list b { color: var(--text); }
 
 @media (max-width: 1500px) { .t-candles { display: none; } }
+
+.build-cap { display: block; font-style: normal; font-size: 11px; color: var(--amber); margin-top: 2px; }
+.brand-confirm span { flex-basis: 100%; }

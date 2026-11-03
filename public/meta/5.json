@@ -1,0 +1,29 @@
+{
+  "name": "Funds Are SAFU Lockbox",
+  "description": "Raiders can't steal ramen. Three padlocks. Nobody remembers any of the codes. A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.",
+  "image": "http://localhost:5173/art/bags/safu.webp",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Rare"
+    },
+    {
+      "trait_type": "Deed to forge",
+      "value": "BASEMENT"
+    },
+    {
+      "trait_type": "Burned to forge",
+      "display_type": "number",
+      "value": 25000
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Raiders can't steal ramen."
+    }
+  ]
+}

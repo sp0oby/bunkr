@@ -310,9 +310,16 @@ class AudioEngine {
       } else {
         // Hopium FM: doo-wop "shoo-bop" on the off-beats. Blues: a lazy bent lead.
         if (radio === 'hopium' && (inBar === 3 || inBar === 7)) this.tone({ t, f: NOTE(chord[2] + 12), dur: step * 0.7, type: 'square', vol: 0.03, out });
-        if (radio === 'blues' && inBar === 5 && Math.random() < 0.7) {
-          const n = chord[1] + 12;
-          this.tone({ t, f: NOTE(n + 1), f2: NOTE(n), dur: step * 2.5, type: 'sawtooth', vol: 0.03, vibrato: 5, out });
+        if (radio === 'blues') {
+          // Walking bass on every beat (root, third, fifth, sixth), and a bent "harmonica" lick.
+          if (inBar % 2 === 0) {
+            const walk = [0, 4, 7, 9][inBar / 2];
+            this.tone({ t, f: NOTE(chord[0] - 12 + walk), dur: step * 1.6, type: 'triangle', vol: 0.16, out });
+          }
+          if (inBar === 3 || (inBar === 6 && Math.random() < 0.6)) {
+            const n = chord[inBar === 3 ? 1 : 2] + 12;
+            this.tone({ t, f: NOTE(n + 1), f2: NOTE(n), dur: step * 2.2, type: 'sawtooth', vol: 0.035, vibrato: 5, out });
+          }
         }
         // Lazy arpeggio, a little swung.
         if (radio !== 'blues' && (inBar % 2 === 1 || Math.random() < 0.3)) {
