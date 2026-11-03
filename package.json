@@ -21,14 +21,17 @@
     "gsap": "^3.12.5",
     "preact": "^10.25.4",
     "three": "^0.170.0",
+    "tsx": "^4.19.2",
     "viem": "^2.21.54"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.9.4",
     "@types/node": "^22.10.2",
     "@types/three": "^0.170.0",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

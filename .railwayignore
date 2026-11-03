@@ -1,0 +1,8 @@
+# The Railway service is only the results server: skip the art, site and contract builds.
+art/
+public/
+dist/
+contracts/
+.tmp/
+node_modules/
+server/data/
