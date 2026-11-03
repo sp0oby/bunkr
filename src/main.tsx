@@ -12,6 +12,7 @@ import { tokenGate } from './chain/config';
 import { clearPass, equippedDrip, readPass, refresh, restore, savePass, type RunPass } from './chain/wallet';
 import { fetchWeather, serverDay, serverFinish, serverStart } from './chain/server';
 import { ServerProblem } from './ui/ServerProblem';
+import { CALM_ART, blastArt, preload } from './ui/preload';
 import './style.css';
 
 const params = new URLSearchParams(location.search);
@@ -142,6 +143,9 @@ async function startRun(): Promise<void> {
     view.setBunkerSkin(drip.bunker ?? null);
     document.body.classList.toggle('drip-goldhatch', drip.hatch === 'goldhatch');
     ui.nukeSkin = drip.nuke ?? null;
+    // The drop scene's art is big: fetch it during prep so the blast is instant.
+    void preload(CALM_ART);
+    void preload(blastArt(ui.nukeSkin));
     game.touch();
   });
 

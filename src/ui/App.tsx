@@ -11,6 +11,7 @@ import { Icon, Rich, type IconName } from './icons';
 import { DeedModal, ForgePanel, enterAndGo } from './Deed';
 import { DailyEndBoard } from './Daily';
 import { PnlModal } from './PnlCard';
+import { CALM_ART, blastArt, preload } from './preload';
 import type { FinishReply } from '../chain/server';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
@@ -806,9 +807,19 @@ function Cinematic({ game, ui }: { game: Game; ui: UiState }) {
     const el = root.current;
     if (!el) return;
     const q = (s: string) => el.querySelector(s) as HTMLElement;
-    audio.play('nuke'); // siren ~1.1s, then the boom lands on the flash
     const shards = [...el.querySelectorAll<HTMLElement>('.shard')];
-    const tl = gsap.timeline({ onComplete: () => game.skipDrop() });
+    // Wait (briefly) for the art, so the blast never shows an empty frame.
+    const tl = gsap.timeline({ paused: true, onComplete: () => game.skipDrop() });
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      audio.play('nuke'); // siren ~1.1s, then the boom lands on the flash
+      tl.play();
+      shake.play();
+    };
+    void Promise.all([preload(CALM_ART), preload(blastArt(ui.nukeSkin))]).then(start);
+    const fallback = setTimeout(start, 3000);
     tl.fromTo(q('.cine-calm'), { scale: 1 }, { scale: 1.06, duration: 1.1, ease: 'power1.in' }, 0)
       .to(q('.cine-sky'), { opacity: 0.6, duration: 1.1 }, 0)
       .set(q('.cine-flash'), { opacity: 1 }, 1.1)
@@ -829,15 +840,15 @@ function Cinematic({ game, ui }: { game: Game; ui: UiState }) {
         1.15 + Math.random() * 0.3);
     });
     // Screen shake: hard on impact, rumbling after.
-    const shake = gsap.to(q('.cine-shake'), { x: () => (Math.random() - 0.5) * 40, y: () => (Math.random() - 0.5) * 30, duration: 0.05, repeat: 70, repeatRefresh: true, delay: 1.1, ease: 'none' });
-    return () => { tl.kill(); shake.kill(); };
+    const shake = gsap.to(q('.cine-shake'), { x: () => (Math.random() - 0.5) * 40, y: () => (Math.random() - 0.5) * 30, duration: 0.05, repeat: 70, repeatRefresh: true, delay: 1.1, ease: 'none', paused: true });
+    return () => { clearTimeout(fallback); tl.kill(); shake.kill(); };
   }, []);
   return (
     <div class="cinematic" ref={root}>
       <div class="cine-shake">
-        <div class="cine-img cine-calm" style={{ backgroundImage: 'url(/art/cine-calm.webp)' }} />
+        <div class="cine-img cine-calm" style={{ backgroundImage: `url(${CALM_ART})` }} />
         <div class="cine-sky" />
-        <div class="cine-img cine-blast" style={{ backgroundImage: `url(/art/${ui.nukeSkin === 'dog' ? 'drop-dog' : 'drop-end'}.webp)` }} />
+        <div class="cine-img cine-blast" style={{ backgroundImage: `url(${blastArt(ui.nukeSkin)})` }} />
         <div class="cine-ring" />
         <div class="cine-ring2" />
         <div class="cine-debris">{Array.from({ length: 36 }).map((_, i) => <span class={`shard s${i % 4}`} key={i} />)}</div>
