@@ -194,7 +194,7 @@ export function Title({ meta }: { meta: Meta }) {
         <small>{MUTATORS[weekMut].desc}</small>
         {weather && (
           <div class={`title-weather wx-${weather.kind}`}>
-            <span>WEATHER · $BUNKR {weather.change24h == null ? 'chart' : `${weather.change24h > 0 ? '+' : ''}${weather.change24h.toFixed(1)}% 24h`}</span>
+            <span>WEATHER · $BUNKR {weather.change24h == null ? 'price action' : `${weather.change24h > 0 ? '+' : ''}${weather.change24h.toFixed(1)}% 24h`}</span>
             <b>{WEATHER[weather.kind].name}</b>
             <small>{WEATHER[weather.kind].desc}</small>
           </div>
