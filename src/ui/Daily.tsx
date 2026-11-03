@@ -2,7 +2,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { explorerTx } from '../chain/config';
 import { fetchBoard, type Board, type BoardRow } from '../chain/server';
 import { useWallet, type WalletState } from '../chain/wallet';
-import { fmtBunkr, hasDeed } from './Deed';
+import { TIERS } from '../chain/constants';
+import { fmtBunkr, hasDeed, tierAfter } from './Deed';
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 const same = (a?: string | null, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
@@ -57,17 +58,16 @@ export function BoardTable({ board, limit = 10, me }: { board: Board; limit?: nu
   );
 }
 
-function playLabel(w: WalletState, playedHere: boolean): string {
+function playLabel(w: WalletState): string {
   if (!hasDeed(w)) return 'GET A DEED TO PLAY';
-  if (playedHere || !w.dailyAvailable) return 'PLAYED TODAY';
-  if (w.busy === 'Spending a Ration Ticket') return 'SPENDING TICKET…';
-  if (!w.freeAvailable && w.tickets === 0) return 'BUY A TICKET TO PLAY';
-  return w.freeAvailable ? 'PLAY · FREE RUN' : 'PLAY · 1 TICKET';
+  if (!w.dailyAvailable) return 'PLAYED TODAY';
+  if (w.busy === 'Paying the Daily Doom entry') return 'PAYING ENTRY…';
+  if (w.balance < w.dailyFee) return `NEED ${fmtBunkr(w.dailyFee)} $BUNKR`;
+  return `PLAY · ${fmtBunkr(w.dailyFee)} ENTRY`;
 }
 
 /** Daily Doom: the pot, the board, yesterday's payout, and the one attempt you get. */
-export function DailyModal({ playedHere, onPlay, onDeed, onClose }: {
-  playedHere: boolean;
+export function DailyModal({ onPlay, onDeed, onClose }: {
   onPlay: () => void;
   onDeed: () => void;
   onClose: () => void;
@@ -87,9 +87,11 @@ export function DailyModal({ playedHere, onPlay, onDeed, onClose }: {
 
   const pot = board ? BigInt(board.pot) : 0n;
   const deed = hasDeed(w);
-  const played = playedHere || !w.dailyAvailable;
-  const hasRun = w.freeAvailable || w.tickets > 0;
-  const canPlay = deed && !played && !w.busy && hasRun;
+  const played = !w.dailyAvailable;
+  const canPay = w.balance >= w.dailyFee;
+  const canPlay = deed && !played && !w.busy && canPay;
+  const dropTo = deed && canPay ? tierAfter(w, w.dailyFee) : w.tier;
+  const toPot = (w.dailyFee * BigInt(w.dailyPotBps)) / 10_000n;
   const paid = yesterday?.settlement;
   const paidTx = paid ? explorerTx(paid.tx) : null;
 
@@ -100,6 +102,12 @@ export function DailyModal({ playedHere, onPlay, onDeed, onClose }: {
           <div>
             <div class="modal-title">DAILY DOOM</div>
             <div class="vault-sub">Same start for everyone. DEFCON 3, standard issue, one attempt. Top 3 split the pot.</div>
+            {w.dailyFee > 0n && (
+              <div class="daily-entry">
+                Entry <b>{fmtBunkr(w.dailyFee)}</b> $BUNKR: <b>{fmtBunkr(toPot)}</b> goes into the pot, the rest is burned.
+                The pot grows with every player.
+              </div>
+            )}
           </div>
           <div class="daily-pot">
             <span>TODAY'S POT</span>
@@ -138,12 +146,15 @@ export function DailyModal({ playedHere, onPlay, onDeed, onClose }: {
           </div>
         )}
 
+        {canPlay && dropTo < w.tier && (
+          <div class="deed-status err">Paying the entry drops your Deed to {TIERS[dropTo]}. Your next normal run would be Tent Mode.</div>
+        )}
         {w.error && w.busy == null && <div class="deed-status err">{w.error}</div>}
 
         <div class="end-row">
           <button class="btn btn-dark" onClick={onClose}>CLOSE</button>
           <button class="btn btn-amber" disabled={deed && (played || !!w.busy)} onClick={canPlay ? onPlay : onDeed}>
-            {playLabel(w, playedHere)}
+            {playLabel(w)}
           </button>
         </div>
       </div>

@@ -23,7 +23,7 @@ contract BunkrTest is Test {
         (alice, aliceKey) = makeAddrAndKey("alice");
         token = new MockBUNKR(owner);
         uint256[4] memory th = [uint256(10_000e18), 100_000e18, 1_000_000e18, 8_000_000e18];
-        tickets = new BunkrTickets(IERC20(address(token)), owner, oracle, th, 2_500e18, 5_000);
+        tickets = new BunkrTickets(IERC20(address(token)), owner, oracle, th, 2_500e18, 5_000, 10_000e18, 8_000);
         forge = new BunkrForge(IERC20(address(token)), tickets, owner, oracle, "");
         uint256[] memory ids = new uint256[](3);
         uint128[] memory costs = new uint128[](3);
@@ -94,17 +94,17 @@ contract BunkrTest is Test {
         vm.warp(block.timestamp + 1 days);
         assertTrue(tickets.freeTicketAvailable(alice));
         vm.prank(alice);
-        tickets.enterRun(true, bytes32(0));
+        tickets.enterRun(false, bytes32(0));
     }
 
     function test_dailyOncePerDayAndCommitEmitted() public {
-        fund(alice, 20_000e18);
+        fund(alice, 60_000e18);
         vm.startPrank(alice);
         token.approve(address(tickets), type(uint256).max);
         tickets.buyTickets(2);
         bytes32 commit = keccak256("secret");
         vm.expectEmit(true, true, true, true);
-        emit BunkrTickets.RunEntered(alice, 1, tickets.today(), true, true, 1, commit);
+        emit BunkrTickets.RunEntered(alice, 1, tickets.today(), true, false, 1, commit);
         tickets.enterRun(true, commit);
         assertFalse(tickets.dailyAvailable(alice));
         vm.expectRevert(BunkrTickets.DailyAlreadyPlayed.selector);
@@ -113,6 +113,64 @@ contract BunkrTest is Test {
         vm.warp(block.timestamp + 1 days);
         tickets.enterRun(true, commit);
         vm.stopPrank();
+    }
+
+    function test_dailyFeeFillsThePot() public {
+        fund(alice, 30_000e18);
+        fund(bob, 30_000e18);
+        uint256 day = tickets.today();
+        for (uint256 i; i < 2; i++) {
+            address p = i == 0 ? alice : bob;
+            vm.startPrank(p);
+            token.approve(address(tickets), type(uint256).max);
+            tickets.enterRun(true, bytes32(0));
+            vm.stopPrank();
+        }
+        // 80% of each 10,000 entry to the pot, 20% burned; free tickets untouched.
+        assertEq(tickets.pot(day), 16_000e18);
+        assertEq(token.balanceOf(DEAD), 4_000e18);
+        assertTrue(tickets.freeTicketAvailable(alice));
+    }
+
+    function test_dailyNeedsTheFee() public {
+        fund(alice, 12_000e18); // a Shed Deed, and a free ticket, but no allowance for the fee
+        vm.prank(alice);
+        vm.expectRevert();
+        tickets.enterRun(true, bytes32(0));
+        assertTrue(tickets.dailyAvailable(alice)); // the failed attempt doesn't use up today's try
+    }
+
+    function test_dailyWithPermit() public {
+        fund(alice, 20_000e18);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                token.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                        alice, address(tickets), 10_000e18, token.nonces(alice), deadline
+                    )
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(aliceKey, digest);
+        vm.prank(alice);
+        tickets.enterDailyWithPermit(bytes32(0), deadline, v, r, s);
+        assertEq(tickets.pot(tickets.today()), 8_000e18);
+    }
+
+    function test_fundPot() public {
+        fund(bob, 50_000e18);
+        uint256 day = tickets.today();
+        vm.startPrank(bob);
+        token.approve(address(tickets), type(uint256).max);
+        tickets.fundPot(day, 50_000e18);
+        vm.expectRevert(BunkrTickets.DayNotOver.selector);
+        tickets.fundPot(day - 1, 1);
+        vm.stopPrank();
+        assertEq(tickets.pot(day), 50_000e18);
     }
 
     function test_buySplitsBurnAndPot() public {

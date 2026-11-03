@@ -6,7 +6,7 @@ import { createPublicClient, createWalletClient, http, keccak256, parseAbi, toHe
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { forgeAbi, ticketsAbi, tokenAbi } from '../../src/chain/abi';
-import { FORGE_ORDER } from '../../src/chain/constants';
+import { FORGE_ORDER, LOADOUT_SLOTS } from '../../src/chain/constants';
 import { Game } from '../../src/sim/game';
 import type { RunConfig } from '../../src/sim/types';
 
@@ -139,7 +139,8 @@ async function main() {
     const t = await enter(bob, false);
     const start = await api('/run/start', { ...t, defcon: 5, loadout: [...bags, 'moonmap'] });
     const lo = start.json.config.loadout as string[];
-    check(lo.length === 2 && !lo.includes('moonmap'), `loadout trimmed to owned + slots for the tier (${lo.join(', ')})`);
+    const slots = LOADOUT_SLOTS[start.json.config.deedTier];
+    check(lo.length === slots && !lo.includes('moonmap'), `loadout trimmed to owned + ${slots} slot(s) for the tier (${lo.join(', ')})`);
     const ids = lo.map((b) => BigInt(FORGE_ORDER.indexOf(b as any)));
     const bagsOf = () => pub.readContract({ address: dep.forge, abi: forgeAbi, functionName: 'bagsOf', args: [bob.account.address, ids] });
     const had = await bagsOf();

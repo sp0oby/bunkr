@@ -31,6 +31,9 @@ export interface WalletState {
   forged: Partial<Record<BagId, number>>;
   thresholds: bigint[];
   ticketPrice: bigint;
+  /** One Daily Doom attempt, and the share of it that goes to the pot (basis points). */
+  dailyFee: bigint;
+  dailyPotBps: number;
   recipes: Partial<Record<BagId, Recipe>>;
   /** Label of the transaction in flight, if any. */
   busy: string | null;
@@ -51,7 +54,7 @@ let state: WalletState = {
   status: deployment && chain ? 'disconnected' : 'off',
   kind: null, address: null, wrongChain: false,
   tier: 0, balance: 0n, tickets: 0, freeAvailable: false, dailyAvailable: true, pot: 0n, forged: {},
-  thresholds: [], ticketPrice: 0n, recipes: {},
+  thresholds: [], ticketPrice: 0n, dailyFee: 0n, dailyPotBps: 0, recipes: {},
   busy: null, error: null, lastTx: null,
 };
 const subs = new Set<() => void>();
@@ -171,17 +174,19 @@ export async function restore(): Promise<void> {
 
 // ------------------------------------------------------------------ reads
 
-/** Tier thresholds, ticket price and forge recipes: the same for everyone, read once. */
+/** Tier thresholds, prices and forge recipes: the same for everyone, read once. */
 let config: Promise<void> | null = null;
 export function loadConfig(): Promise<void> {
   if (!pub || !deployment) return Promise.resolve();
   config ??= (async () => {
-    const [thresholds, ticketPrice, recipes] = await Promise.all([
+    const [thresholds, ticketPrice, dailyFee, dailyPotBps, recipes] = await Promise.all([
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'getTierThresholds' }),
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'ticketPrice' }),
+      pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'dailyFee' }),
+      pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'dailyPotBps' }),
       readRecipes(),
     ]);
-    set({ thresholds: [...thresholds], ticketPrice, recipes });
+    set({ thresholds: [...thresholds], ticketPrice, dailyFee, dailyPotBps, recipes });
   })().catch((e) => {
     config = null; // try again next time
     set({ error: friendly(e) });
@@ -274,13 +279,19 @@ export const forgeBag = (bag: BagId) =>
   });
 
 /**
- * Spends a Ration Ticket (today's free one first). The transaction carries the hash of a
- * fresh secret; only this browser knows the secret, so only it can report the result.
+ * Starts a run: a normal run spends a Ration Ticket (today's free one first); Daily Doom pays
+ * its entry fee into the pot. The transaction carries the hash of a fresh secret; only this
+ * browser knows the secret, so only it can report the result.
  */
 export const enterRun = (daily: boolean) =>
-  run('Spending a Ration Ticket', async () => {
+  run(daily ? 'Paying the Daily Doom entry' : 'Spending a Ration Ticket', async () => {
     const secret = toHex(crypto.getRandomValues(new Uint8Array(32)));
-    const hash = await send('Spending a Ration Ticket', deployment!.tickets, ticketsAbi, 'enterRun', [daily, keccak256(secret)]);
+    const commit = keccak256(secret);
+    const permit = daily ? await maybePermit(deployment!.tickets, state.dailyFee) : null;
+    const label = daily ? 'Paying the Daily Doom entry' : 'Spending a Ration Ticket';
+    const hash = permit
+      ? await send(label, deployment!.tickets, ticketsAbi, 'enterDailyWithPermit', [commit, ...permit])
+      : await send(label, deployment!.tickets, ticketsAbi, 'enterRun', [daily, commit]);
     const receipt = await pub!.getTransactionReceipt({ hash });
     for (const log of receipt.logs) {
       try {

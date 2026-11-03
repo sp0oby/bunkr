@@ -26,7 +26,8 @@ export const isLocal = chainId === LOCAL;
 
 export const RPC_URL = env.RPC_URL ?? (isLocal ? 'http://127.0.0.1:8545' : 'https://rpc.testnet.chain.robinhood.com');
 export const PORT = Number(env.PORT ?? 8787);
-export const DATA_FILE = env.DATA_FILE ?? join(root, 'server/data', `runs-${chainId}.json`);
+// One file per tickets contract: a redeploy restarts run ids, so old records must not collide.
+export const DATA_FILE = env.DATA_FILE ?? join(root, 'server/data', `runs-${chainId}-${deployment.tickets.slice(2, 10).toLowerCase()}.json`);
 
 /** Anvil account #0, which the local deploy script makes the oracle. Never used off the local chain. */
 const ANVIL_DEPLOYER = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';

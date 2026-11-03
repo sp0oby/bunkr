@@ -4,7 +4,7 @@ import type { Defcon } from '../sim/types';
 import { VAULT, buyVault, dailyPlayed, todayKey, vaultLevel, type Meta } from '../meta';
 import { audio } from '../audio/audio';
 import { Icon } from './icons';
-import { DeedChip, DeedModal, enterAndGo, hasDeed } from './Deed';
+import { DeedChip, DeedModal, enterAndGo, fmtBunkr, hasDeed } from './Deed';
 import { DailyModal } from './Daily';
 import { tokenGate } from '../chain/config';
 import { useWallet } from '../chain/wallet';
@@ -73,7 +73,11 @@ export function Title({ meta }: { meta: Meta }) {
             title="Same start for everyone today. One attempt. DEFCON 3. No Vault perks."
           >
             DAILY DOOM
-            <small>{playedToday ? `done · ${meta.daily!.score.toLocaleString()}` : tokenGate ? 'pot + board' : todayKey()}</small>
+            <small>
+              {tokenGate
+                ? `${deed && !w.dailyAvailable ? 'played · ' : ''}${w.pot ? `pot ${fmtBunkr(w.pot)}` : 'pot + board'}`
+                : playedToday ? `done · ${meta.daily!.score.toLocaleString()}` : todayKey()}
+            </small>
           </button>
           <DeedChip onOpen={() => setDeedOpen(true)} />
           <button class="btn btn-pink" onClick={() => setVaultOpen(true)}>
@@ -88,7 +92,6 @@ export function Title({ meta }: { meta: Meta }) {
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
       {dailyOpen && (
         <DailyModal
-          playedHere={playedToday}
           onPlay={() => void enterAndGo('?daily=1', true)}
           onDeed={() => {
             setDailyOpen(false);

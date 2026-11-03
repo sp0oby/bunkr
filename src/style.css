@@ -600,3 +600,4 @@ body.silo .brand { color: var(--amber); text-shadow: 0 4px 0 var(--ink), 0 0 18p
 .daily-yesterday { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--dim); background: #0b0b1055; border-radius: 10px; padding: 7px 10px; margin-bottom: 10px; }
 .daily-yesterday a { color: var(--cyan); }
 .daily-end { text-align: left; margin-bottom: 12px; }
+.daily-entry { font-size: 12px; color: var(--dim); margin: -4px 0 10px; max-width: 300px; } .daily-entry b { color: var(--amber); }

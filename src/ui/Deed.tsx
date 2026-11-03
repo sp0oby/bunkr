@@ -8,6 +8,13 @@ import {
 } from '../chain/wallet';
 import { audio } from '../audio/audio';
 
+/** The Deed tier left after spending `cost`, so the UI can warn before it happens. */
+export function tierAfter(s: WalletState, cost: bigint): number {
+  let t = s.tier;
+  while (t > 0 && s.balance - cost < (s.thresholds[t - 1] ?? 0n)) t--;
+  return t;
+}
+
 /** 120000 * 1e18 -> "120K". */
 export function fmtBunkr(v: bigint): string {
   const n = Number(formatUnits(v, 18));
@@ -36,7 +43,7 @@ export async function enterAndGo(query: string, daily: boolean): Promise<boolean
     location.search = query;
     return true;
   }
-  if (runsLeft(s) === 0) return false;
+  if (daily ? s.balance < s.dailyFee : runsLeft(s) === 0) return false;
   const entry = await enterRun(daily);
   if (entry == null) return false;
   const after = wallet();

@@ -26,7 +26,8 @@ contract Deploy is Script {
         address oracle = vm.envOr("ORACLE", deployer);
 
         uint256[4] memory thresholds = [uint256(10_000e18), 100_000e18, 1_000_000e18, 8_000_000e18];
-        BunkrTickets tickets = new BunkrTickets(IERC20(token), deployer, oracle, thresholds, 2_500e18, 5_000);
+        // Tickets: 2,500 (half burned, half to the Daily pot). Daily Doom: 10,000, 80% to the pot.
+        BunkrTickets tickets = new BunkrTickets(IERC20(token), deployer, oracle, thresholds, 2_500e18, 5_000, 10_000e18, 8_000);
         BunkrForge forge = new BunkrForge(IERC20(token), tickets, deployer, oracle, "https://bunkr.game/api/bag/{id}.json");
 
         uint256[] memory ids = new uint256[](20);

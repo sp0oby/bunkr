@@ -13,6 +13,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 ///         - Every run costs one Ration Ticket. Each Deed gets one free ticket per UTC day.
 ///         - Bought tickets are paid in $BUNKR: part is burned, the rest goes to that day's
 ///           Daily Doom pot, which the results oracle pays out to the leaderboard.
+///         - Daily Doom has its own entry fee, mostly into the pot, so the prize grows with
+///           every player. Anyone (the creator-fee wallet, sponsors) can top up a day's pot.
 contract BunkrTickets is Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -31,6 +33,9 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
     uint256[4] public tierThresholds;
     uint256 public ticketPrice;
     uint16 public burnBps;
+    /// @notice What one Daily Doom attempt costs, and the share of it that goes to the pot.
+    uint256 public dailyFee;
+    uint16 public dailyPotBps;
     /// @notice Signs off game results and settles pots. The game server, eventually.
     address public oracle;
 
@@ -50,6 +55,9 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
     event DaySettled(uint256 indexed day, uint256 amount, address[] winners, uint16[] shareBps);
     event PotRolled(uint256 indexed fromDay, uint256 indexed toDay, uint256 amount);
     event ConfigChanged(uint256[4] tierThresholds, uint256 ticketPrice, uint16 burnBps);
+    event DailyConfigChanged(uint256 dailyFee, uint16 dailyPotBps);
+    event DailyEntered(address indexed player, uint256 indexed day, uint256 burned, uint256 toPot);
+    event PotFunded(address indexed from, uint256 indexed day, uint256 amount);
     event OracleChanged(address oracle);
 
     error NoDeed();
@@ -73,11 +81,14 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
         address oracle_,
         uint256[4] memory thresholds,
         uint256 price,
-        uint16 burnBps_
+        uint16 burnBps_,
+        uint256 dailyFee_,
+        uint16 dailyPotBps_
     ) Ownable(owner_) {
         bunkr = bunkr_;
         oracle = oracle_;
         _setConfig(thresholds, price, burnBps_);
+        _setDaily(dailyFee_, dailyPotBps_);
         emit OracleChanged(oracle_);
     }
 
@@ -129,15 +140,47 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
         _buy(qty);
     }
 
-    /// @notice Spend a ticket to start a run. Uses today's free ticket first.
+    /// @notice Start a run. A normal run spends a ticket (today's free one first); Daily Doom
+    ///         charges dailyFee instead, most of it straight into today's pot.
     /// @param commit keccak256 of a secret only the player's game client knows. The results
     ///        server only accepts this run's result from whoever can reveal it.
-    function enterRun(bool daily, bytes32 commit) external returns (uint256 runId) {
+    function enterRun(bool daily, bytes32 commit) external nonReentrant returns (uint256 runId) {
+        return _enter(daily, commit);
+    }
+
+    /// @notice Daily Doom with one signature instead of an approve transaction.
+    function enterDailyWithPermit(bytes32 commit, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external
+        nonReentrant
+        returns (uint256 runId)
+    {
+        try IERC20Permit(address(bunkr)).permit(msg.sender, address(this), dailyFee, deadline, v, r, s) {} catch {}
+        return _enter(true, commit);
+    }
+
+    /// @notice Add to a day's Daily Doom pot: creator fees, sponsors, anyone.
+    function fundPot(uint256 day, uint256 amount) external nonReentrant {
+        if (day < today() || settled[day]) revert DayNotOver();
+        bunkr.safeTransferFrom(msg.sender, address(this), amount);
+        pot[day] += amount;
+        emit PotFunded(msg.sender, day, amount);
+    }
+
+    function _enter(bool daily, bytes32 commit) internal returns (uint256 runId) {
         uint8 tier = tierOf(msg.sender);
         if (tier == TIER_NONE) revert NoDeed();
         if (daily) {
             if (_lastDailyDay[msg.sender] == today() + 1) revert DailyAlreadyPlayed();
             _lastDailyDay[msg.sender] = today() + 1;
+            uint256 toPot = (dailyFee * dailyPotBps) / BPS;
+            uint256 burned = dailyFee - toPot;
+            bunkr.safeTransferFrom(msg.sender, address(this), dailyFee);
+            if (burned > 0) bunkr.safeTransfer(DEAD, burned);
+            pot[today()] += toPot;
+            emit DailyEntered(msg.sender, today(), burned, toPot);
+            runId = ++runCount;
+            emit RunEntered(msg.sender, runId, today(), true, false, tier, commit);
+            return runId;
         }
         bool free = _lastFreeDay[msg.sender] != today() + 1;
         if (free) {
@@ -147,7 +190,7 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
             tickets[msg.sender]--;
         }
         runId = ++runCount;
-        emit RunEntered(msg.sender, runId, today(), daily, free, tier, commit);
+        emit RunEntered(msg.sender, runId, today(), false, free, tier, commit);
     }
 
     // ---------------------------------------------------------------- oracle
@@ -194,6 +237,10 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
         _setConfig(thresholds, price, burnBps_);
     }
 
+    function setDaily(uint256 fee, uint16 potBps) external onlyOwner {
+        _setDaily(fee, potBps);
+    }
+
     function setOracle(address oracle_) external onlyOwner {
         oracle = oracle_;
         emit OracleChanged(oracle_);
@@ -212,6 +259,13 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
         pot[day] += toPot;
         tickets[msg.sender] += qty;
         emit TicketsBought(msg.sender, qty, burned, toPot, day);
+    }
+
+    function _setDaily(uint256 fee, uint16 potBps) internal {
+        if (potBps > BPS) revert BadConfig();
+        dailyFee = fee;
+        dailyPotBps = potBps;
+        emit DailyConfigChanged(fee, potBps);
     }
 
     function _setConfig(uint256[4] memory thresholds, uint256 price, uint16 burnBps_) internal {

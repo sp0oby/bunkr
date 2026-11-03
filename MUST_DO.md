@@ -10,6 +10,8 @@ Things that have to happen before launch. Not optional.
 - [x] No simulating ahead: each underground day's seed comes from the server, in order, at human pace
 - [ ] Host the results server (needs ORACLE_KEY + SERVER_SECRET) and a real database before mainnet traffic
 - [x] Daily Doom panel: pot, prizes, top 10 with your rank, yesterday's payout; board on the Daily end screen
+- [x] Daily Doom pot scales with players: 10K entry, 80% to the pot; anyone can top it up (`fundPot`)
+- [ ] At launch: set the Daily entry fee from the coin's price (`setDaily`), and send creator fees into the pot
 - [ ] Chart-as-weather (needs a live price, so after the Urufu launch)
 - [ ] The Wasteland season mode
 - [ ] Outside audit before mainnet

@@ -183,7 +183,7 @@ Every loop either **locks** tokens (Deeds, Subs, Treaties), **burns** them (Bags
 ### 4.3 Ration Tickets: $BUNKR fuels every run
 - Each run (outside Tent Mode) costs **1 Ration Ticket.** You buy tickets with $BUNKR, and **a share is burned and a share feeds the pots.**
 - You get **1 free ticket per day per Deed**, so holders can always play daily. Grinders and sweats buy more.
-- **Daily Doom:** a fixed ticket price; the ticket pool is paid out to the top of that day's leaderboard.
+- **Daily Doom:** its own entry fee (10,000 $BUNKR to start: 80% to the day's pot, 20% burned), one attempt a day, so the pot grows with every player. Bought tickets add their pot share too, and anyone can top it up: the 1% creator fee goes here. The top 3 split it 50/30/20.
 
 ### 4.4 Forged Bags: burn to power up, lose them when you die
 - Every run drops **Bag blueprints.** To make a Bag permanent, **forge it by burning $BUNKR.** Forged Bags are on-chain items (ERC-1155) you can bring into future runs and trade.
