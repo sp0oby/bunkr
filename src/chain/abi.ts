@@ -1,0 +1,43 @@
+import { parseAbi } from 'viem';
+
+export const tokenAbi = parseAbi([
+  'function name() view returns (string)',
+  'function balanceOf(address) view returns (uint256)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function approve(address spender, uint256 value) returns (bool)',
+  'function nonces(address owner) view returns (uint256)',
+  'function faucet()',
+  'function lastDrip(address) view returns (uint256)',
+  'error FaucetCooldown(uint256 readyAt)',
+  'error FaucetEmpty()',
+  'error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)',
+  'error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)',
+]);
+
+export const ticketsAbi = parseAbi([
+  'function playerState(address player) view returns (uint8 tier, uint256 balance, uint256 ticketCount, bool freeAvailable, uint256 todaysPot)',
+  'function getTierThresholds() view returns (uint256[4])',
+  'function ticketPrice() view returns (uint256)',
+  'function burnBps() view returns (uint16)',
+  'function buyTickets(uint256 qty)',
+  'function buyTicketsWithPermit(uint256 qty, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
+  'function enterRun(bool daily, bytes32 commit) returns (uint256 runId)',
+  'event RunEntered(address indexed player, uint256 indexed runId, uint256 indexed day, bool daily, bool free, uint8 tier, bytes32 commit)',
+  'error NoDeed()',
+  'error NoTicket()',
+  'error DailyAlreadyPlayed()',
+  'function dailyAvailable(address player) view returns (bool)',
+  'error BadQty()',
+  'error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)',
+]);
+
+export const forgeAbi = parseAbi([
+  'function recipes(uint256 id) view returns (uint128 cost, uint8 minTier, bool enabled)',
+  'function bagsOf(address player, uint256[] ids) view returns (uint256[])',
+  'function forge(uint256 bagId)',
+  'function forgeWithPermit(uint256 bagId, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
+  'event Forged(address indexed player, uint256 indexed bagId, uint256 burned)',
+  'error UnknownBag()',
+  'error TierTooLow(uint8 need, uint8 have)',
+  'error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)',
+]);

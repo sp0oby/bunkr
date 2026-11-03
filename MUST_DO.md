@@ -2,9 +2,17 @@
 
 Things that have to happen before launch. Not optional.
 
-## 1. $BUNKR token layer (Robinhood Chain testnet first) — NEXT
-- Wallet connect, Bunker Deed tiers, Ration Tickets, Forged Bags, chart-as-weather
-- Game contracts on testnet with a mock $BUNKR; outside audit before mainnet
+## 1. $BUNKR token layer (Robinhood Chain testnet first) — IN PROGRESS
+- [x] Contracts: MockBUNKR, BunkrTickets (Deeds, Ration Tickets, Daily Doom pot), BunkrForge (forged Bags) + tests
+- [x] Wallet connect, Deed panel, ticket per run, Tent Mode, forged-Bag loadout, forge from the end screen
+- [ ] Deploy to Robinhood Chain testnet (needs a funded deployer key: `npm run deploy:testnet`)
+- [x] Results server: verifies every ticketed run by replaying its inputs, settles Daily Doom pots, rolls Bag shatters, Daily leaderboard
+- [x] No simulating ahead: each underground day's seed comes from the server, in order, at human pace
+- [ ] Host the results server (needs ORACLE_KEY + SERVER_SECRET) and a real database before mainnet traffic
+- [ ] Daily Doom leaderboard screen in the game (the API is there: GET /leaderboard)
+- [ ] Chart-as-weather (needs a live price, so after the Urufu launch)
+- [ ] The Wasteland season mode
+- [ ] Outside audit before mainnet
 
 ## 2. Real mobile version
 Today the title screen works on phones, but in-game is broken. Phones currently get a "play it on PC" screen instead.
@@ -21,5 +29,5 @@ Slot: after the token layer, before the tutorial — most crypto players will op
 - HATCH walks a new player through: build a reactor, drag a degen in, keep the vibes in the middle, survive day 1
 
 ## Done recently
-- One-minute in-game days (was 24s) so runs have room for wallet transactions; boss fights stay full speed
+- 36-second in-game days (was 24s; a minute felt stagnant); boss fights stay full speed
 - Phones get HATCH's "this bunker is PC-only" screen (with an "i like pain" override)

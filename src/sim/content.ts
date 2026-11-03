@@ -4,8 +4,8 @@ import type { ArchId, BagId, HatchMood, ResKey, RoomType, StatKey } from './type
 /** A day in sim-seconds. All economy rates are tuned against this. */
 export const DAY_SECONDS = 24;
 /** Real seconds a day takes at 1x speed. Slower than sim time so runs leave room
- *  for reading, room pop-outs and (later) wallet transactions. */
-export const REAL_SECONDS_PER_DAY = 60;
+ *  for reading and room pop-outs. Wallet transactions happen before and after a run, never mid-run. */
+export const REAL_SECONDS_PER_DAY = 36;
 /** Sim-seconds per real second while underground (outside boss fights). */
 export const UNDERGROUND_PACE = DAY_SECONDS / REAL_SECONDS_PER_DAY;
 export const RUN_DAYS = 30;
@@ -16,6 +16,8 @@ export const COLS = 6;
 export const MAX_FLOORS = 6;
 export const POP_CAP = 14;
 export const BAG_SOFT_CAP = 5;
+/** Underground days a Tent Mode (no Deed) run gets before the tent gives out. */
+export const TENT_DAYS = 3;
 
 export const BASE_CAPS: Record<ResKey, number> = { ramen: 220, water: 160, power: 120, copium: 60 };
 
@@ -225,7 +227,8 @@ export const LOCATIONS: LocDef[] = [
 // ---------- HATCH ----------
 export type HatchTrigger =
   | 'start' | 'drop' | 'nopower' | 'starving' | 'thirsty' | 'over' | 'back' | 'balanced'
-  | 'death' | 'raid' | 'whale' | 'audit' | 'raidwon' | 'raidlost' | 'bag' | 'recruit' | 'cope' | 'idle' | 'quit' | 'yolo' | 'dayStart';
+  | 'death' | 'raid' | 'whale' | 'audit' | 'raidwon' | 'raidlost' | 'bag' | 'recruit' | 'cope' | 'idle' | 'quit' | 'yolo' | 'dayStart'
+  | 'tent' | 'tentWarn' | 'silo' | 'forged';
 
 export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   start: [
@@ -278,6 +281,18 @@ export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   ],
   bag: [
     ['smug', 'New Bag acquired. You are now holding bags. Congratulations.'],
+  ],
+  tentWarn: [
+    ['panic', 'Tent detected. Structural integrity: vibes. I give it one more day.'],
+  ],
+  tent: [
+    ['dead', 'The tent has collapsed. Real bunkers need a Deed, and a Deed needs $BUNKR. You have a sleeping bag.'],
+  ],
+  silo: [
+    ['laugh', 'Silo-tier Deed detected. Gold nameplate installed. I will now laugh at your jokes.'],
+  ],
+  forged: [
+    ['smug', 'Forged Bags on board. If we get liquidated, they might not make it. No pressure.'],
   ],
   recruit: [
     ['neutral', 'A new survivor crawled out of the porta-potty. Do not ask how they found us.'],

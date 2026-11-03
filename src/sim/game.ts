@@ -1,6 +1,6 @@
 import { Rng } from './rng';
 import {
-  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, TENT_DAYS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
   LOOK_PRESENTATION, NAMES, POP_CAP, archTitle, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
@@ -25,6 +25,19 @@ const HATCH_COOLDOWN: Partial<Record<HatchTrigger, number>> = {
 };
 const HATCH_URGENT = new Set<HatchTrigger>(['start', 'drop', 'raid', 'whale', 'audit', 'death']);
 export const COPE_COST = 6;
+
+/**
+ * Every player action. The game records each call with the sim tick it happened on, so
+ * the results server can replay the run from its seed and get the real result instead
+ * of trusting the browser's score.
+ */
+export const ACTIONS = [
+  'build', 'digFloor', 'recruit', 'assign', 'cope', 'sendExpedition', 'payRespects', 'skipPrep', 'launch',
+  'answerAudit', 'dismissAudit', 'skipDrop', 'chooseCard', 'dismissCard', 'pokeHotspot', 'useBag',
+] as const;
+export type ActionName = (typeof ACTIONS)[number];
+/** [tick, action, args]: the action ran after `tick` calls to step(). */
+export type Input = [number, ActionName, unknown[]];
 /** Seconds to stamp each S.E.C. audit form. */
 export const AUDIT_FORM_SECONDS = 4.5;
 
@@ -85,6 +98,7 @@ export class Game {
   hatchLine = '';
   /** Voice clip id for the current line (null for ad-hoc lines with no recording). */
   hatchVoice: string | null = null;
+  private hatchQueue: HatchTrigger[] = [];
   private hatchLast = new Map<HatchTrigger, number>();
   private hatchLastAny = -Infinity;
   private hatchSpoken = new Set<string>();
@@ -99,6 +113,15 @@ export class Game {
   /** Output produced per room since the renderer last drained it (for popups). */
   roomOut = new Map<number, number>();
 
+  /** Calls to step() so far, paused or not. */
+  tick = 0;
+  /** Seeds for underground days, filled in by the results server as the run reaches them. */
+  readonly daySeeds = new Map<number, number>();
+  /** Player actions so far, for replay. */
+  readonly inputs: Input[] = [];
+  /** >0 while the sim (or an action) is running, so nested calls aren't recorded. */
+  private depth = 0;
+
   private nextId = 1;
   private logId = 1;
   private warned = new Set<string>();
@@ -106,7 +129,10 @@ export class Game {
   constructor(seed = (Math.random() * 2 ** 31) | 0, config: Partial<RunConfig> = {}) {
     this.seed = seed;
     this.rng = new Rng(seed);
-    this.config = { defcon: 5, daily: false, startRamen: 0, extraDegen: false, startBag: false, legendLuck: false, rocket: false, ...config };
+    this.config = {
+      defcon: 5, daily: false, startRamen: 0, extraDegen: false, startBag: false, legendLuck: false, rocket: false,
+      tent: false, deedTier: 0, loadout: [], serverDays: false, ...config,
+    };
     this.prepSeconds = this.config.defcon <= 2 ? 55 : PREP_SECONDS;
     this.res.ramen += this.config.startRamen;
     // Starting crew: different non-legendary degens.
@@ -116,6 +142,12 @@ export class Game {
       this.addDweller(a, undefined, true);
     }
     if (this.config.startBag) this.giveBag();
+    for (const b of this.config.loadout) {
+      if (this.bags.includes(b)) continue;
+      this.bags.push(b);
+      this.post(`Forged Bag on board: ${BAGS[b].name}. ${BAGS[b].desc}`, 'good');
+    }
+    this.recordActions();
     this.say('start');
     this.post('The bombs drop when the T-MINUS clock hits zero. Build your bunker before then. Prices go up as panic sets in.', 'info');
   }
@@ -403,7 +435,7 @@ export class Game {
     const key = `${roomId}:${index}`;
     const ready = this.hotspotCd.get(key) ?? 0;
     if (this.time < ready) return `${spot.label}: recharging. Like your portfolio. (${Math.ceil(ready - this.time)}s)`;
-    this.hotspotCd.set(key, this.time + 8); // ~20 real seconds at the underground pace
+    this.hotspotCd.set(key, this.time + 13); // ~20 real seconds at the underground pace
     const text = spot.poke(this, room, this.workersIn(room));
     this.touch();
     return text;
@@ -510,6 +542,11 @@ export class Game {
     return d;
   }
 
+  /** Bags you can carry before Bagholder kicks in. A Basement Deed or better adds a slot. */
+  get bagCap(): number {
+    return BAG_SOFT_CAP + (this.config.deedTier >= 2 ? 1 : 0);
+  }
+
   giveBag(id?: BagId): BagId | null {
     const pool = (Object.keys(BAGS) as BagId[]).filter((b) => !this.bags.includes(b));
     const bag = id ?? (pool.length ? this.rng.pick(pool) : null);
@@ -517,7 +554,7 @@ export class Game {
     this.bags.push(bag);
     this.newBag = bag;
     this.post(`New Bag: ${BAGS[bag].name}. ${BAGS[bag].desc}`, 'good');
-    if (this.bags.length > BAG_SOFT_CAP) this.post('Bagholder: you are carrying too many bags. Output -10%.', 'bad');
+    if (this.bags.length > this.bagCap) this.post('Bagholder: you are carrying too many bags. Output -10%.', 'bad');
     this.say('bag');
     this.fx.push('bag');
     return bag;
@@ -619,8 +656,57 @@ export class Game {
   // Simulation
   // ======================================================================
 
+  /** Wrap each player action so top-level calls are logged with the current tick. */
+  private recordActions(): void {
+    const self = this as unknown as Record<ActionName, (...a: unknown[]) => unknown>;
+    for (const name of ACTIONS) {
+      const fn = self[name].bind(this);
+      self[name] = (...args: unknown[]) => {
+        if (this.depth === 0 && this.phase !== 'ended') this.inputs.push([this.tick, name, args]);
+        this.depth++;
+        try {
+          return fn(...args);
+        } finally {
+          this.depth--;
+        }
+      };
+    }
+  }
+
+  /**
+   * The underground day whose seed the next step needs but doesn't have yet. While this is
+   * set, step() does nothing (and doesn't count a tick), so waiting never changes the run.
+   */
+  awaitingDay(): number | null {
+    if (!this.config.serverDays || this.phase === 'ended' || this.card || this.audit) return null;
+    const next = this.phaseTime + STEP;
+    let day: number | null = null;
+    if (this.phase === 'drop' && next >= DROP_SECONDS) day = 1;
+    else if (this.phase === 'underground') {
+      const d = 1 + Math.floor(next / DAY_SECONDS);
+      if (d !== this.day && d <= RUN_DAYS) day = d;
+    }
+    return day != null && !this.daySeeds.has(day) ? day : null;
+  }
+
+  private daySeed(day: number): number {
+    if (this.config.serverDays) return this.daySeeds.get(day)!;
+    return new Rng(this.seed ^ Math.imul(day, 0x9e3779b1)).int(0, 2 ** 31);
+  }
+
   /** Advance by exactly one fixed step. Paused while a card is open. */
   step(): void {
+    if (this.awaitingDay() != null) return;
+    this.tick++;
+    this.depth++;
+    try {
+      this.stepInner();
+    } finally {
+      this.depth--;
+    }
+  }
+
+  private stepInner(): void {
     if (this.phase === 'ended' || this.card) return;
     if (this.audit) {
       // The audit pauses the bunker; only its form timer runs.
@@ -643,9 +729,16 @@ export class Game {
     } else {
       const prevDay = this.day;
       this.day = 1 + Math.floor(this.phaseTime / DAY_SECONDS);
-      if (this.day !== prevDay) this.onNewDay();
+      if (this.day !== prevDay) {
+        if (this.day <= RUN_DAYS) this.rng.reseed(this.daySeed(this.day));
+        this.onNewDay();
+      }
       if (this.day > RUN_DAYS) {
         this.finish(true);
+        return;
+      }
+      if (this.config.tent && this.day > TENT_DAYS) {
+        this.finish(false, true);
         return;
       }
       this.produce(dt);
@@ -655,6 +748,7 @@ export class Game {
       this.expeditions();
       this.raidStep(dt);
       this.cardsStep();
+      if (this.hatchQueue.length && this.time - this.hatchLastAny >= HATCH_GAP) this.say(this.hatchQueue.shift()!);
     }
 
     for (const k of ['ramen', 'water', 'power', 'copium'] as ResKey[]) {
@@ -678,16 +772,21 @@ export class Game {
     this.phase = 'underground';
     this.phaseTime = 0;
     this.day = 1;
+    this.rng.reseed(this.daySeed(1));
     this.rads = this.config.defcon <= 1 ? 40 : 25;
     this.nextCardAt = 9;
     this.fx.push('landed');
     this.say('drop');
+    if (this.config.deedTier >= 4) this.queueSay('silo');
+    else if (this.config.loadout.length) this.queueSay('forged');
+    if (this.config.tent) this.post(`Tent Mode: no Bunker Deed, so this tent lasts ${TENT_DAYS} days. Hold $BUNKR to get a real bunker.`, 'bad');
     this.post('Day 1 underground. Keep ramen, water and power above zero. Keep the vibes in the middle.', 'info');
     this.touch();
   }
 
   private onNewDay(): void {
     if (this.day > RUN_DAYS) return;
+    if (this.config.tent && this.day === TENT_DAYS) this.queueSay('tentWarn');
     if (this.day > 1) {
       this.say('dayStart');
       this.fx.push('day');
@@ -733,7 +832,7 @@ export class Game {
 
   /** Global output multiplier from vibes, bagholding and wifi distraction. */
   outputMult(): number {
-    return this.vibeMult() * (this.bags.length > BAG_SOFT_CAP ? 0.9 : 1) * (this.time < this.wifiUntil ? 0.5 : 1);
+    return this.vibeMult() * (this.bags.length > this.bagCap ? 0.9 : 1) * (this.time < this.wifiUntil ? 0.5 : 1);
   }
 
   /** How hard a room is working right now (0 = idle / unpowered). */
@@ -1111,7 +1210,12 @@ export class Game {
     check('back', z === 'manic', 'back');
   }
 
-  private finish(survived: boolean): void {
+  /** HATCH says this as soon as the current line has had its moment. */
+  private queueSay(trigger: HatchTrigger): void {
+    this.hatchQueue.push(trigger);
+  }
+
+  private finish(survived: boolean, tent = false): void {
     this.phase = 'ended';
     const alive = this.alive.length;
     const breakdown: [string, number][] = [
@@ -1132,6 +1236,14 @@ export class Game {
     const score = Math.round(base * mult);
     let title = 'LIQUIDATED';
     let blurb = `Everyone died by day ${this.day}. The bunker is now a very sad NFT.`;
+    if (tent) {
+      title = 'TENT COLLAPSED';
+      blurb = 'Three days in a tent during nuclear winter. Respectable. Hold $BUNKR for a Bunker Deed and play the full 30 days.';
+      this.hatchQueue = [];
+      this.hatchLast.delete('tent');
+      this.hatchLastAny = -Infinity;
+      this.say('tent');
+    }
     if (survived) {
       if (this.stats.launched) { title = 'MOON MISSION'; blurb = 'You strapped a porta-potty to a water heater and left the planet. Literally to the moon. Few understand.'; }
       else if (alive >= 8) { title = 'BUNKER DAO'; blurb = 'You surfaced with a whole community. Governance proposal #1: never go back down there.'; }
@@ -1140,8 +1252,31 @@ export class Game {
       else if (alive <= 2) { title = 'LAST DEGENS STANDING'; blurb = 'Two survivors. Zero friends. Infinite trauma. Still bullish.'; }
       else { title = 'TOUCHED GRASS'; blurb = 'You climbed out of the porta-potty and touched grass. It was radioactive grass. Still counts.'; }
     }
-    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily };
+    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily, tent };
     this.fx.push('end');
     this.touch();
   }
+}
+
+/**
+ * Re-run a recorded game from its seed: apply each input at its tick, step in between.
+ * Same seed + config + inputs = the same game, so this is the server's source of truth.
+ */
+export function replay(seed: number, config: Partial<RunConfig>, inputs: Input[], ticks: number, daySeeds?: Map<number, number>): Game {
+  const g = new Game(seed, config);
+  for (const [d, s] of daySeeds ?? []) g.daySeeds.set(d, s);
+  const run = g as unknown as Record<ActionName, (...a: unknown[]) => unknown>;
+  let i = 0;
+  for (let t = 0; t <= ticks && !g.ending; t++) {
+    while (i < inputs.length && inputs[i][0] === t) {
+      const [, name, args] = inputs[i++];
+      if (!ACTIONS.includes(name)) throw new Error(`Unknown action ${String(name)}`);
+      run[name](...args);
+    }
+    if (t < ticks) {
+      if (g.awaitingDay() != null) throw new Error(`Day ${g.awaitingDay()} seed missing`);
+      g.step();
+    }
+  }
+  return g;
 }

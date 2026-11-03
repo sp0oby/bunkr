@@ -502,3 +502,71 @@ img { -webkit-user-drag: none; }
 .pg-foot { font: 12px var(--display); color: #a33; letter-spacing: 0.06em; margin-top: 12px; }
 .pg-anyway { margin-top: 6px; background: none; border: none; color: #888; font: 700 12px var(--body); text-decoration: underline; }
 .nowrap { white-space: nowrap; }
+
+/* ---------- $BUNKR: Deed, tickets, forge ---------- */
+.tp-play { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; }
+.tp-play small { font: 900 11px var(--body); opacity: 0.85; text-shadow: none; }
+.btn-deed { background: linear-gradient(#4b4566, #312d48); }
+.btn-deed.t1 { background: linear-gradient(#8a6a48, #5e452c); }
+.btn-deed.t2 { background: linear-gradient(#5a7d8f, #36515e); }
+.btn-deed.t3 { background: linear-gradient(#4f8a4f, #2f5a30); }
+.btn-deed.t4 { background: linear-gradient(#ffd46b, #c9901c); color: #3a2400; text-shadow: none; }
+.deed { width: min(640px, 94vw); max-height: 92vh; overflow-y: auto; }
+.deed .modal-title { display: flex; align-items: center; gap: 10px; }
+.deed-tier { font: 15px var(--display); -webkit-text-stroke: 0; color: var(--ink); background: var(--dim); border: 2px solid var(--ink); border-radius: 999px; padding: 1px 12px; }
+.deed-tier.t1 { background: #d9a877; } .deed-tier.t2 { background: #8fd0ea; } .deed-tier.t3 { background: var(--green); } .deed-tier.t4 { background: var(--amber); box-shadow: 0 0 12px var(--amber); }
+.deed-connect { display: flex; gap: 10px; margin-bottom: 12px; }
+.deed-connect .btn { flex: 1; font-size: 18px; padding: 10px; }
+.deed-warn, .deed-who { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 2px solid var(--ink); border-radius: 14px; padding: 8px 12px; margin-bottom: 10px; }
+.deed-warn { border-color: var(--amber); color: var(--amber); justify-content: space-between; }
+.deed-who span { color: var(--dim); font-family: ui-monospace, monospace; }
+.deed-who b { font: 20px var(--display); flex: 1; }
+.deed-ladder { display: grid; gap: 4px; margin-bottom: 12px; }
+.deed-rung { display: grid; grid-template-columns: 92px 72px 1fr; align-items: center; gap: 10px; padding: 6px 10px; border: 2px solid #ffffff14; border-radius: 10px; color: var(--dim); font-size: 12px; }
+.deed-rung b { font: 15px var(--display); color: var(--text); letter-spacing: 0.04em; }
+.deed-rung .deed-need { font-family: var(--display); color: var(--amber); }
+.deed-rung.past { opacity: 0.55; }
+.deed-rung.on { background: var(--panel-2); border-color: var(--green); color: var(--text); box-shadow: inset 4px 0 0 var(--green); }
+.deed-rung.t4 b { color: var(--amber); }
+.deed-section { background: var(--panel-2); border: 2px solid var(--ink); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; }
+.deed-h { font: 16px var(--display); letter-spacing: 0.04em; margin-bottom: 8px; }
+.deed-h small { font: 800 11px var(--body); color: var(--dim); letter-spacing: 0; margin-left: 6px; }
+.deed-tickets { display: flex; gap: 8px; align-items: stretch; }
+.deed-free { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 96px; background: var(--panel); border: 2px solid var(--ink); border-radius: 10px; padding: 6px 8px; }
+.deed-free b { font: 20px var(--display); }
+.deed-free.ready b { color: var(--green); }
+.deed-free span { font-size: 11px; color: var(--dim); }
+.deed-buy { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.deed-note { color: var(--dim); font-size: 12px; margin-top: 8px; }
+.deed-note b { color: var(--amber); }
+.deed-bags { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.deed-bag { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; font-size: 11px; line-height: 1.15; text-align: center; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rar) 25%, transparent), var(--panel) 70%); border: 3px solid var(--ink); border-radius: 12px; }
+.deed-bag img { width: 54px; height: 54px; object-fit: contain; }
+.deed-bag.on { border-color: var(--green); box-shadow: 0 0 0 2px var(--green); }
+.deed-bag.on::after { content: 'EQUIPPED'; position: absolute; top: -9px; font: 10px var(--display); background: var(--green); color: var(--ink); border: 2px solid var(--ink); border-radius: 6px; padding: 0 5px; }
+.deed-bag i { position: absolute; top: 4px; right: 6px; font: normal 12px var(--display); color: var(--amber); }
+.deed-status { display: flex; justify-content: space-between; gap: 10px; background: #0b0b1066; border: 2px dashed var(--cyan); border-radius: 10px; padding: 7px 10px; margin-bottom: 10px; color: var(--cyan); }
+.deed-status.err { border-color: var(--red); color: #ffb3ad; }
+.deed-status a { color: var(--cyan); }
+.end-tent { display: flex; align-items: center; gap: 12px; text-align: left; background: var(--panel-2); border: 2px solid var(--amber); border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+.end-tent b { color: var(--amber); }
+.end-tent .btn { flex: none; }
+.forge-panel { text-align: left; background: var(--panel-2); border: 2px solid var(--ink); border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; }
+.forge-list { display: grid; gap: 6px; max-height: 190px; overflow-y: auto; }
+.forge-row { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 2px solid var(--ink); border-radius: 10px; padding: 4px 8px; box-shadow: inset 4px 0 0 var(--rar); }
+.forge-row img { width: 38px; height: 38px; object-fit: contain; }
+.forge-row div { flex: 1; display: flex; flex-direction: column; }
+.forge-row b { font: 14px var(--display); }
+.forge-row span { font-size: 11px; color: var(--dim); }
+.forge-row span::first-letter { text-transform: uppercase; }
+.forge-row .btn { font-size: 13px; padding: 5px 10px; }
+body.silo .brand { color: var(--amber); text-shadow: 0 4px 0 var(--ink), 0 0 18px #ffbe3d99; }
+.modal.end { max-height: 94vh; overflow-y: auto; }
+.forge-row em { color: var(--red); font-style: normal; text-transform: none; }
+.verdict { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 10px; border-radius: 12px; padding: 7px 10px; margin: -4px 0 12px; font-size: 13px; }
+.verdict.pending { color: var(--cyan); border: 2px dashed var(--cyan); }
+.verdict.err { color: #ffb3ad; border: 2px dashed var(--red); }
+.verdict.ok { background: var(--panel-2); border: 2px solid var(--green); }
+.verdict-badge { font: 13px var(--display); letter-spacing: 0.08em; background: var(--green); color: var(--ink); border: 2px solid var(--ink); border-radius: 8px; padding: 0 8px; }
+.verdict-shatter { flex-basis: 100%; color: var(--red); font-family: var(--display); letter-spacing: 0.02em; }
+.seed-wait { position: absolute; top: 74px; left: 50%; transform: translateX(-50%); z-index: 6; font: 14px var(--display); letter-spacing: 0.04em; color: var(--cyan); background: var(--panel); border: 3px solid var(--ink); border-radius: 999px; padding: 5px 14px; box-shadow: var(--pop); animation: pulseScale 1s infinite; }
