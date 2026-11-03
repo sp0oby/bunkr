@@ -62,7 +62,7 @@ export const GUIDE: GuideSection[] = [
     title: 'Dig, build, staff.',
     intro: 'Each room needs workers, and each one uses a different stat.',
     cards: [
-      { title: 'Rooms', body: 'Reactor (power) and Kitchen (ramen) use GRIND. Liquidity Pool (water) and Meme Lab (Bags) use BRAIN. Copium Den, Touch Grass Hydroponics and the Shill Tower (new degens) use VIBES. The Rug Detector (raid defense) uses HANDS. Cold Storage raises your ramen and water storage.', art: 'rooms/reactor.webp' },
+      { title: 'Rooms', body: 'Reactor (power) and Kitchen (ramen) use GRIND. Liquidity Pool (water) and Meme Lab (Bags, one per bunker, each slower than the last) use BRAIN. Copium Den, Touch Grass Hydroponics and the Shill Tower (new degens) use VIBES. The Rug Detector (raid defense) uses HANDS. Cold Storage raises your ramen and water storage.', art: 'rooms/reactor.webp' },
       { title: 'Merge rooms', body: 'Build the same room next to itself to merge it, up to 3 wide, for bonus output. Every room you build makes the next one 8% pricier.' },
       { title: 'Room mods', body: 'Open a room to install its mod. Each one is strong and comes with a catch. The Leverage Coil triples power but can melt down. Instant Noodle Futures charge interest.' },
       { title: 'The radio', body: 'The Shill Tower picks the station. Hopium FM pushes the vibes up. Bear Market Blues pushes them down, but everyone grinds harder. Doomer Wave steadies the swings.', art: 'rooms/shill.webp' },

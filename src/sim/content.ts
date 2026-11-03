@@ -39,7 +39,7 @@ export const ROOMS: Record<RoomType, RoomDef> = {
   copium: { id: 'copium', name: 'Copium Den', short: 'COPIUM', color: 0xff5fb0, cost: 40, stat: 'vibes', desc: 'Brews copium. Spend it to calm the vibe swings.' },
   rugdetector: { id: 'rugdetector', name: 'Rug Detector', short: 'RUG DET.', color: 0xff3b3b, cost: 45, stat: 'hands', desc: 'Raid defense. Beeps at Dave.' },
   shill: { id: 'shill', name: 'Shill Tower', short: 'SHILL', color: 0xffe14d, cost: 50, stat: 'vibes', desc: 'Broadcasts to survivors. Recruits new degens.' },
-  memelab: { id: 'memelab', name: 'Meme Lab', short: 'MEME LAB', color: 0x9b4dff, cost: 60, stat: 'brain', desc: 'Research. Produces Bags.' },
+  memelab: { id: 'memelab', name: 'Meme Lab', short: 'MEME LAB', color: 0x9b4dff, cost: 140, stat: 'brain', desc: 'Research. Slowly produces Bags. One per bunker.' },
   storage: { id: 'storage', name: 'Cold Storage', short: 'STORAGE', color: 0x8fa3b8, cost: 30, stat: null, desc: '+ramen and +water capacity. No workers.' },
   grass: { id: 'grass', name: 'Touch Grass Hydroponics', short: 'GRASS', color: 0x2bd96b, cost: 45, stat: 'vibes', desc: 'Dampens the vibe pendulum.' },
   rocket: { id: 'rocket', name: 'Rocket Room', short: 'ROCKET', color: 0xffffff, cost: 150, stat: 'grind', desc: 'Build a rocket out of a water heater and a porta-potty. Leave Earth.' },

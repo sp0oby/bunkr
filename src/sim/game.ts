@@ -84,6 +84,8 @@ export class Game {
 
   recruitProg = 0;
   researchProg = 0;
+  /** Bags the Meme Lab has made this run. Each one makes the next take longer. */
+  labBags = 0;
   recruitsBought = 0;
   roomsBuilt = 0;
 
@@ -305,8 +307,14 @@ export class Game {
   /** Whether a room type can be built at all this run (the Rocket Room is a secret). */
   canBuildType(type: RoomType): boolean {
     if (type === 'silo') return this.underground && this.day >= SILO_DAY && !this.rooms.some((r) => r.type === 'silo');
+    if (type === 'memelab') return !this.rooms.some((r) => r.type === 'memelab'); // one per bunker
     if (type !== 'rocket') return true;
     return (this.config.rocket || this.bags.includes('moonmap')) && !this.rooms.some((r) => r.type === 'rocket');
+  }
+
+  /** Meme Lab research per unit of room output. Every Bag it has made makes the next 50% slower. */
+  researchRate(): number {
+    return (0.25 / (1 + 0.5 * this.labBags)) * (this.bags.includes('whitepaper') ? 2 : 1);
   }
 
   copeCost(): number {
@@ -1070,7 +1078,7 @@ export class Game {
       case 'pool': return `+${(0.14 * e).toFixed(0)} 💧 per day, scrubbing rads`;
       case 'copium': return `+${(0.07 * e).toFixed(0)} 💊 per day`;
       case 'shill': return `new degen every ~${Math.ceil(100 / (0.55 * e))} days`;
-      case 'memelab': return `new Bag every ~${Math.ceil(100 / (0.45 * e * (this.bags.includes('whitepaper') ? 2 : 1)))} days`;
+      case 'memelab': return `next Bag in ~${Math.max(1, Math.ceil((100 - this.researchProg) / (this.researchRate() * e)))} days`;
       case 'grass': return 'calming the vibe swings';
       case 'rocket': return this.rocketProg >= 100 ? 'READY FOR LAUNCH' : `rocket ${Math.floor(this.rocketProg)}% built`;
       case 'rugdetector': return `+${Math.round(30 * this.workersIn(room).reduce((s, w) => s + 1 + 0.12 * this.stat(w, 'hands'), 0))}% raid defense`;
@@ -1123,9 +1131,10 @@ export class Game {
           }
           break;
         case 'memelab':
-          this.researchProg += 0.45 * eff * dt * (this.bags.includes('whitepaper') ? 2 : 1);
+          this.researchProg += this.researchRate() * eff * dt;
           if (this.researchProg >= 100) {
             this.researchProg = 0;
+            this.labBags++;
             if (!this.giveBag()) this.addRes('copium', 20);
           }
           break;
