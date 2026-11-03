@@ -223,6 +223,9 @@ export class BunkerView {
   private concreteMat: THREE.MeshBasicMaterial | null = null;
   /** Nuke cosmetic: Good Boy Nuke swaps in a street painting with the dog cloud on the horizon. */
   private nukeSkin: string | null = null;
+  /** Street painting on screen now, and the one waiting to load. */
+  private streetShown = '';
+  private streetWanted: string | null = null;
   private hullSize: [number, number] = [1, 1];
   private rooms = new Map<number, RoomView>();
   private dwellers = new Map<number, DwellerView>();
@@ -276,6 +279,7 @@ export class BunkerView {
     const h = w / SURFACE_ASPECT;
     const POTTY_U = 1 - 0.905; // potty position in the mirrored painting
     this.surface = new THREE.MeshBasicMaterial({ map: this.streetTexture() });
+    texEntry('/art/surface.webp'); // the ruined street, ready for when the bombs land
     const bg = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.surface);
     const cx = -SHAFT_W / 2 - POTTY_U * w + w / 2;
     bg.position.set(cx, h / 2 - h * SURFACE_GROUND, -8);
@@ -769,6 +773,7 @@ export class BunkerView {
     this.popups(dt);
     this.updateCamera(dt);
 
+    this.syncStreet();
     // Before the drop the street is merely doomed; after, it's scorched.
     if (g.phase === 'prep') {
       const t = 1 - g.prepLeft / 75;
@@ -925,28 +930,45 @@ export class BunkerView {
     this.shake = Math.max(this.shake, crit ? 0.5 : 0.12);
   }
 
+  /** Before the drop the street is intact; after it, ruined (with the dog cloud, if equipped). */
+  private streetUrl(): string {
+    if (this.game.phase === 'prep') return '/art/surface-clean.webp';
+    return this.nukeSkin === 'dog' ? '/art/surface-dog.webp' : '/art/surface.webp';
+  }
+
   /** The street painting, mirrored so its porta-potty sits on the shaft. */
   private streetTexture(): THREE.Texture {
-    const t = tex(this.nukeSkin === 'dog' ? '/art/surface-dog.webp' : '/art/surface.webp');
+    this.streetShown = this.streetUrl();
+    const t = tex(this.streetShown);
     t.wrapS = THREE.RepeatWrapping;
     t.repeat.set(-1, 1);
     return t;
+  }
+
+  /** Point the street at the painting it should show now, once that painting has loaded, so
+   *  the sky never flashes black. The ruined one is fetched early so it's ready for the drop. */
+  private syncStreet(): void {
+    if (!this.surface) return;
+    const url = this.streetUrl();
+    if (url === this.streetShown || url === this.streetWanted) return;
+    this.streetWanted = url;
+    const entry = texEntry(url);
+    const swap = () => {
+      if (this.streetUrl() !== url) return;
+      this.streetWanted = null;
+      this.surface.map = this.streetTexture();
+      this.surface.needsUpdate = true;
+    };
+    if (entry.ready) swap();
+    else entry.waiters.push(swap);
   }
 
   /** Apply the player's nuke cosmetic to the sky: the dog replaces the far-off mushroom cloud. */
   setNukeSkin(skin: string | null): void {
     if (skin === this.nukeSkin) return;
     this.nukeSkin = skin;
-    if (!this.surface) return;
-    // Swap only once the new painting has loaded, so the sky never flashes black.
-    const entry = texEntry(skin === 'dog' ? '/art/surface-dog.webp' : '/art/surface.webp');
-    const swap = () => {
-      if (this.nukeSkin !== skin) return;
-      this.surface.map = this.streetTexture();
-      this.surface.needsUpdate = true;
-    };
-    if (entry.ready) swap();
-    else entry.waiters.push(swap);
+    texEntry(skin === 'dog' ? '/art/surface-dog.webp' : '/art/surface.webp');
+    this.syncStreet();
   }
 
   /** Apply the player's bunker cosmetic. Rebuilds the hull and rooms so every frame picks it up. */

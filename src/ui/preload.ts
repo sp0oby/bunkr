@@ -14,4 +14,4 @@ export function preload(url: string): Promise<void> {
 }
 
 export const blastArt = (nukeSkin: string | null | undefined) => `/art/${nukeSkin === 'dog' ? 'drop-dog' : 'drop-end'}.webp`;
-export const CALM_ART = '/art/cine-calm.webp';
+export const CALM_ART = '/art/cine-calm-clean.webp';
