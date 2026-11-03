@@ -339,9 +339,12 @@ export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   starving: [
     ['cry', 'We are out of ramen. Ramen is food. Ramen is also money. We are poor AND hungry.'],
     ['panic', 'Dwellers report the ramen tastes like nothing, because there is none.'],
+    ['angry', 'Ramen at zero. I have started rationing the ramen smell.'],
   ],
   thirsty: [
     ['panic', 'Water reserves: zero. Please do not drink from the reactor.'],
+    ['cry', 'The Liquidity Pool has no liquidity. Like every pool I have ever loved.'],
+    ['panic', 'Water is gone. Someone suggested drinking the copium. Please do not drink the copium.'],
   ],
   over: [
     ['cry', 'It is so over. Three dwellers are drafting farewell threads.'],
@@ -353,28 +356,40 @@ export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   ],
   balanced: [
     ['neutral', 'Vibes stable. Suspiciously stable.'],
+    ['smug', 'Vibes balanced. Output up. Do not touch anything.'],
+    ['laugh', 'Vibes perfectly balanced. Nobody breathe on the chart.'],
   ],
   death: [
     ['cry', 'A degen got liquidated. Press F.'],
     ['dead', 'Another one gone. Their portfolio outlived them.'],
+    ['cry', 'Liquidated. They were early. Too early.'],
+    ['dead', 'We lost one. HATCH is updating the group chat. HATCH is not crying. HATCH is a monitor.'],
   ],
   raid: [
     ['angry', 'RAID. The Liquidators are at the porta-potty. Everyone to your stations.'],
+    ['angry', 'Raiders at the porta-potty. They have leverage. We have ramen. Defend the ramen.'],
   ],
   whale: [
     ['panic', 'There is a whale in the bunker. I repeat: a whale. It is eating the furniture.'],
+    ['panic', 'Mutant whale incoming. It is one giant sell wall with teeth.'],
   ],
   audit: [
     ['smug', 'The S.E.C. is here. Act natural. Hide the Lambo receipts.'],
+    ['panic', 'Agents from the S.E.C. Say nothing. Say "it is a utility token."'],
   ],
   raidwon: [
     ['laugh', 'Raiders liquidated. Their loot is our loot now. Number go up.'],
+    ['laugh', 'They came for our ramen. They left as exit liquidity.'],
+    ['smug', 'Raid repelled. Write that down. Actually, I will write that down. I am a monitor.'],
   ],
   raidlost: [
     ['angry', 'They left with our ramen. Rebuild. Cope. Repeat.'],
+    ['cry', 'They took the ramen. They took the vibes. They left the porta-potty. Small mercies.'],
   ],
   bag: [
     ['smug', 'New Bag acquired. You are now holding bags. Congratulations.'],
+    ['laugh', 'Another Bag. You now hold more bags than a grocery store.'],
+    ['smug', 'Bag secured. Diamond hands it. Or do not. I am not your advisor.'],
   ],
   tentWarn: [
     ['panic', 'Tent detected. Structural integrity: vibes. I give it one more day.'],
@@ -390,23 +405,34 @@ export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   ],
   recruit: [
     ['neutral', 'A new survivor crawled out of the porta-potty. Do not ask how they found us.'],
+    ['laugh', 'New degen in the bunker. They say they were early. Everyone says that.'],
+    ['neutral', 'Population up one. Ramen consumption up one. The math is undefeated.'],
   ],
   cope: [
     ['sleep', 'Copium deployed. Everyone is breathing slowly into paper bags.'],
+    ['sleep', 'Copium administered. Vibes descending gently. Like a memecoin.'],
+    ['smug', 'One hit of copium. Everyone agrees: we are still early.'],
   ],
   idle: [
     ['smug', 'Unemployed degens detected. They are watching charts that no longer exist.'],
+    ['angry', 'Idle degens detected. They are refreshing a dead block explorer.'],
+    ['smug', 'Some of you are not working. I can see you. I can see everything.'],
   ],
   quit: [
     ['cry', 'A degen rage-quit the bunker. Last words: "this is financial advice."'],
+    ['cry', 'A degen left. They took their bunk and their bags. Mostly the bags.'],
   ],
   yolo: [
     ['panic', 'A euphoric degen went outside without a suit. They said "zoom out." They are now zoomed out.'],
+    ['panic', 'Someone went outside to buy the dip. The dip bought them.'],
   ],
   dayStart: [
     ['neutral', 'New day. Same apocalypse.'],
     ['smug', 'Good morning. The sky is still on fire. That is not a bullish signal.'],
     ['neutral', 'Day report: we are alive. Barely. Like most portfolios.'],
+    ['laugh', 'gm. Still alive. Bullish.'],
+    ['neutral', 'Another sunrise. Probably. I cannot see the sun. I am underground.'],
+    ['smug', 'Morning briefing: everything is fine. That was a joke. Nothing is fine.'],
   ],
 };
 

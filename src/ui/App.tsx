@@ -288,7 +288,7 @@ function Hatch({ game }: { game: Game }) {
       clearInterval(type);
       clearTimeout(hide);
     };
-  }, [line]);
+  }, [game.hatchSeq]);
 
   return (
     <div class={`hatch mood-${game.hatchMood}`} onClick={() => setOpen((o) => !o)}>

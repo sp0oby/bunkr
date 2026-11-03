@@ -114,6 +114,8 @@ export class Game {
 
   hatchMood: HatchMood = 'smug';
   hatchLine = '';
+  /** Bumps every time HATCH speaks, so a repeated line still pops the bubble. */
+  hatchSeq = 0;
   /** Voice clip id for the current line (null for ad-hoc lines with no recording). */
   hatchVoice: string | null = null;
   private hatchQueue: HatchTrigger[] = [];
@@ -800,6 +802,7 @@ export class Game {
     const [mood, line] = lines[i];
     this.hatchMood = mood;
     this.hatchLine = line;
+    this.hatchSeq++;
     // Voice each line only the first time; repeats are text-only.
     this.hatchVoice = this.hatchSpoken.has(key) ? null : key;
     this.hatchSpoken.add(key);
