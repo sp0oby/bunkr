@@ -86,6 +86,8 @@ export type DwellerStatus = 'active' | 'expedition' | 'dead' | 'gone';
 export interface Expedition {
   locId: string;
   returnAt: number;
+  /** When they climbed out (sim time), for the surface walk. */
+  leftAt?: number;
 }
 
 export interface Dweller {

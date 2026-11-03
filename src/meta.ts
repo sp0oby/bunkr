@@ -54,6 +54,39 @@ export function saveMeta(m: Meta): void {
 
 export const vaultLevel = (m: Meta, id: VaultId) => m.vault[id] ?? 0;
 
+// ---------- Save codes ----------
+// Progress lives in this browser. A save code carries it to another one.
+// The checksum catches typos; it isn't security (it's your own progress).
+
+function fnv(text: string): string {
+  let h = 2166136261;
+  for (const ch of text) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+export function exportCode(m: Meta): string {
+  const body = btoa(unescape(encodeURIComponent(JSON.stringify(m)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `BUNKR1.${body}.${fnv(body)}`;
+}
+
+/** Replaces this browser's progress with the code's. Returns an error message, or null. */
+export function importCode(m: Meta, code: string): string | null {
+  const parts = code.trim().split('.');
+  if (parts.length !== 3 || parts[0] !== 'BUNKR1') return 'That is not a BUNKR save code.';
+  const [, body, sum] = parts;
+  if (fnv(body) !== sum) return 'That code is damaged. Copy the whole thing.';
+  let data: Partial<Meta>;
+  try {
+    data = JSON.parse(decodeURIComponent(escape(atob(body.replace(/-/g, '+').replace(/_/g, '/')))));
+  } catch {
+    return 'That code is damaged. Copy the whole thing.';
+  }
+  if (typeof data.rf !== 'number' || typeof data.unlocked !== 'number' || typeof data.runs !== 'number') return 'That code is missing progress data.';
+  Object.assign(m, fresh(), data);
+  saveMeta(m);
+  return null;
+}
+
 export function buyVault(m: Meta, id: VaultId): boolean {
   const item = VAULT.find((v) => v.id === id)!;
   const lvl = vaultLevel(m, id);

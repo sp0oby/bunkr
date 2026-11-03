@@ -46,12 +46,16 @@ async function playIdle(seed: number, config: Partial<RunConfig>, runId: number,
   for (let i = 0; i < 100_000 && !g.ending; i++) {
     if (g.card) g.card.result == null ? g.chooseCard(0) : g.dismissCard();
     if (g.audit) g.audit.done ? g.dismissAudit() : g.answerAudit(true);
+    if (g.revive) g.revive.done ? g.dismissRevive() : g.pressF();
     if (g.phase === 'drop') g.skipDrop();
     const need = g.awaitingDay();
     if (need != null) {
       const r = await api('/run/day', { runId, secret, day: need });
       if (r.status === 429) await new Promise((ok) => setTimeout(ok, 300));
-      else if (r.status === 200) g.daySeeds.set(r.json.day, r.json.seed);
+      else if (r.status === 200) {
+        g.daySeeds.set(r.json.day, r.json.seed);
+        if (r.json.event) g.dayEvents.set(r.json.day, r.json.event);
+      }
       else throw new Error(`day ${need}: ${r.json.error}`);
       continue;
     }
@@ -123,6 +127,7 @@ async function main() {
     for (let i = 0; i < 100_000 && !fake.ending; i++) {
       if (fake.card) fake.card.result == null ? fake.chooseCard(0) : fake.dismissCard();
       if (fake.audit) fake.audit.done ? fake.dismissAudit() : fake.answerAudit(true);
+      if (fake.revive) fake.revive.done ? fake.dismissRevive() : fake.pressF();
       if (fake.phase === 'drop') fake.skipDrop();
       const need = fake.awaitingDay();
       if (need != null) fake.daySeeds.set(need, need === 1 ? d1.json.seed : 12345 + need);

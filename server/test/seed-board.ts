@@ -51,11 +51,15 @@ async function play(key: Hex, skill: number) {
   for (let i = 0; i < 200_000 && !g.ending; i++) {
     if (g.card) g.card.result == null ? g.chooseCard(skill % 2) : g.dismissCard();
     if (g.audit) g.audit.done ? g.dismissAudit() : g.answerAudit(g.audit.forms[g.audit.idx]?.legit ?? true);
+    if (g.revive) g.revive.done ? g.dismissRevive() : g.pressF();
     if (g.phase === 'drop') g.skipDrop();
     const need = g.awaitingDay();
     if (need != null) {
       const r = await api('/run/day', { runId, secret, day: need });
-      if (r.status === 200) g.daySeeds.set(r.json.day, r.json.seed);
+      if (r.status === 200) {
+        g.daySeeds.set(r.json.day, r.json.seed);
+        if (r.json.event) g.dayEvents.set(r.json.day, r.json.event);
+      }
       else await new Promise((ok) => setTimeout(ok, 350));
       continue;
     }

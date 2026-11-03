@@ -340,7 +340,7 @@ export class Game {
         if (keep.width > 1) this.post(`${ROOMS[type].name} merged (x${keep.width}). Bigger room, better output.`, 'good');
       }
     }
-    this.post(`Built ${ROOMS[type].name} for ${cost} ramen.`, 'info');
+    this.post(`ORDER FILLED · BUY 1 ${ROOMS[type].name.toUpperCase()} @ ${cost} 🍜 · slippage: your dignity`, 'info');
     this.fx.push('build');
     this.touch();
     return true;
@@ -405,7 +405,7 @@ export class Game {
     const dur = loc.dur * (this.bags.includes('lambokeys') ? 0.7 : 1);
     d.status = 'expedition';
     d.roomId = null;
-    d.exp = { locId, returnAt: this.time + dur };
+    d.exp = { locId, returnAt: this.time + dur, leftAt: this.time };
     this.stats.expeditions++;
     this.post(`${d.name} climbed out the porta-potty toward ${loc.name}.`, 'info');
     this.touch();
@@ -613,7 +613,7 @@ export class Game {
     if (!room || !mod || room.mod || this.res.ramen < mod.cost || this.phase === 'ended') return false;
     this.res.ramen -= mod.cost;
     room.mod = true;
-    this.post(`Installed ${mod.name} in the ${ROOMS[room.type].name}. ${mod.desc}`, 'good');
+    this.post(`ORDER FILLED · ${mod.name.toUpperCase()} @ ${mod.cost} 🍜 · ${mod.desc}`, 'good');
     this.fx.push('build');
     this.touch();
     return true;

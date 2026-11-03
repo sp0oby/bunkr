@@ -10,6 +10,7 @@ import { audio } from '../audio/audio';
 import { Icon, Rich, type IconName } from './icons';
 import { DeedModal, ForgePanel, enterAndGo } from './Deed';
 import { DailyEndBoard } from './Daily';
+import { PnlModal } from './PnlCard';
 import type { FinishReply } from '../chain/server';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
@@ -70,7 +71,8 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
   };
 
   return (
-    <div class={`ui ${game.phase === 'prep' ? 'prep-on' : ''}`}>
+    <div class={`ui ${game.phase === 'prep' ? 'prep-on' : ''} ${game.underground && (game.vibeZone() === 'cooked' || game.vibeZone() === 'manic') ? 'crt-panic' : ''}`}>
+      <div class="crt" />
       <TopBar game={game} ui={ui} set={set} />
       <Toasts game={game} />
       {game.awaitingDay() != null && <div class="seed-wait">Syncing with the results server…</div>}
@@ -93,8 +95,62 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
   );
 }
 
+/** Short HUD labels for the week's mutator. */
+const MUTATOR_SHORT: Record<string, string> = { bear: 'BEAR MKT', bull: 'BULL RUN', airdrop: 'AIRDROPS', rugseason: 'RUG SZN', halving: 'HALVING' };
+
+/** OHLC candles per resource, sampled from the sim (display only). */
+interface Candle { o: number; h: number; l: number; c: number }
+const CANDLE_SECONDS = 4;
+const CANDLES = 8;
+const candleBook = new WeakMap<Game, { at: number; series: Record<string, Candle[]> }>();
+
+function candlesFor(game: Game, key: string, v: number): Candle[] {
+  let book = candleBook.get(game);
+  if (!book) candleBook.set(game, (book = { at: game.time, series: {} }));
+  const s = (book.series[key] ??= [{ o: v, h: v, l: v, c: v }]);
+  const cur = s[s.length - 1];
+  cur.h = Math.max(cur.h, v);
+  cur.l = Math.min(cur.l, v);
+  cur.c = v;
+  return s;
+}
+
+function rollCandles(game: Game): void {
+  const book = candleBook.get(game);
+  if (!book || game.time - book.at < CANDLE_SECONDS) return;
+  book.at = game.time;
+  for (const s of Object.values(book.series)) {
+    const c = s[s.length - 1].c;
+    s.push({ o: c, h: c, l: c, c });
+    if (s.length > CANDLES) s.shift();
+  }
+}
+
+/** A tiny candlestick chart, like every resource is a ticker. Because it is. */
+function Candles({ series }: { series: Candle[] }) {
+  const W = 34, H = 20, cw = W / CANDLES;
+  const lo = Math.min(...series.map((c) => c.l));
+  const hi = Math.max(...series.map((c) => c.h));
+  const y = (v: number) => H - 1 - ((v - lo) / Math.max(1, hi - lo)) * (H - 2);
+  return (
+    <svg class="t-candles" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+      {series.map((c, i) => {
+        const up = c.c >= c.o;
+        const x = i * cw + cw / 2;
+        return (
+          <g key={i} class={up ? 'up' : 'down'}>
+            <line x1={x} x2={x} y1={y(c.h)} y2={y(c.l)} />
+            <rect x={x - cw * 0.32} width={cw * 0.64} y={Math.min(y(c.o), y(c.c))} height={Math.max(1, Math.abs(y(c.o) - y(c.c)))} />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
   const caps = game.caps();
+  rollCandles(game);
   return (
     <div class="topbar">
       <div class="brand">BUNKR</div>
@@ -109,6 +165,7 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
                 <span class="t-val">{Math.floor(v)}<small>/{caps[k]}</small></span>
                 <span class={`t-rate ${r >= 0 ? 'up' : 'down'}`}>{r >= 0 ? '+' : '−'}{Math.abs(r * 24).toFixed(0)}/day</span>
               </span>
+              <Candles series={candlesFor(game, k, v)} />
               <span class="t-fill" style={{ width: `${Math.min(100, (v / caps[k]) * 100)}%` }} />
             </div>
           );
@@ -144,12 +201,16 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
             <span class="t-icon t-day">D</span>
             <span class="t-main">
               <span class="t-val">DAY {Math.min(game.day, RUN_DAYS)}<small>/{game.config.tent ? `${TENT_DAYS} TENT` : RUN_DAYS}</small></span>
-              {game.config.mutator && <span class="mutator-tag" title={MUTATORS[game.config.mutator].desc}>{MUTATORS[game.config.mutator].name.toUpperCase()}</span>}
-              {game.config.weather && game.config.weather !== 'calm' && (
-                <span class={`mutator-tag wx-${game.config.weather}`} title={WEATHER[game.config.weather].desc}>{WEATHER[game.config.weather].name.toUpperCase()}</span>
-              )}
               <span class="daybar"><span style={{ width: `${game.dayProgress * 100}%` }} /></span>
             </span>
+            {(game.config.mutator || (game.config.weather && game.config.weather !== 'calm')) && (
+              <span class="clock-tags">
+                {game.config.mutator && <span class="mutator-tag" title={`${MUTATORS[game.config.mutator].name}: ${MUTATORS[game.config.mutator].desc}`}>{MUTATOR_SHORT[game.config.mutator]}</span>}
+                {game.config.weather && game.config.weather !== 'calm' && (
+                  <span class={`mutator-tag wx-${game.config.weather}`} title={`${WEATHER[game.config.weather].name}: ${WEATHER[game.config.weather].desc}`}>{game.config.weather === 'bull' ? 'PUMPING' : 'DUMPING'}</span>
+                )}
+              </span>
+            )}
           </>
         )}
       </div>
@@ -193,7 +254,7 @@ function Toasts({ game }: { game: Game }) {
   return (
     <div class="toasts">
       {items.map((l) => (
-        <div class={`toast toast-${l.kind}`} key={l.id}><Rich text={l.text} /></div>
+        <div class={`toast toast-${l.kind} ${l.text.startsWith('ORDER FILLED') ? 'toast-order' : ''}`} key={l.id}><Rich text={l.text} /></div>
       ))}
     </div>
   );
@@ -868,7 +929,8 @@ function BuildMenu({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
   return (
     <div class="modal-bg" onClick={() => set(() => (ui.buildAt = null))}>
       <div class="modal build" onClick={(e) => e.stopPropagation()}>
-        <div class="modal-title">BUILD · FLOOR {at.floor + 1}</div>
+        <div class="modal-title">PLACE ORDER · FLOOR {at.floor + 1}</div>
+        <div class="order-sub">Market order. Price impact: every room you build makes the next one 8% pricier.{game.phase === 'prep' ? ` Panic premium: ${game.panicMult.toFixed(2)}x.` : ''}{game.priceMult > 1 ? ' Bear Market: 2x.' : ''}</div>
         <div class="build-grid">
           {ROOM_ORDER.filter((t) => game.canBuildType(t)).map((t) => {
             const def = ROOMS[t];
@@ -925,6 +987,7 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
   const e = game.ending!;
   const r = ui.rewards;
   const [deedOpen, setDeedOpen] = useState(false);
+  const [pnlOpen, setPnlOpen] = useState(false);
   const again = async () => {
     const q = new URLSearchParams(location.search);
     q.delete('seed');
@@ -938,6 +1001,7 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
         <div class="end-title">{e.title}</div>
         <p>{e.blurb}</p>
         <div class="end-score">{e.score.toLocaleString()}</div>
+        <button class="btn btn-amber end-share" onClick={() => setPnlOpen(true)}>SHARE PNL CARD</button>
         {r && (
           <div class="end-rewards">
             <span class="rf">+{r.rf} RF</span>
@@ -970,6 +1034,7 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
         </div>
       </div>
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
+      {pnlOpen && <PnlModal game={game} nukeSkin={ui.nukeSkin ?? null} onClose={() => setPnlOpen(false)} />}
     </div>
   );
 }

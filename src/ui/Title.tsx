@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { fetchWeather, type WeatherReport } from '../chain/server';
 import { DEFCONS, MUTATORS, WEATHER, mutatorForDay, utcDayNow } from '../sim/content';
 import type { Defcon } from '../sim/types';
-import { VAULT, buyVault, dailyPlayed, todayKey, vaultLevel, type Meta } from '../meta';
+import { VAULT, buyVault, dailyPlayed, exportCode, importCode, todayKey, vaultLevel, type Meta } from '../meta';
 import { audio } from '../audio/audio';
 import { Icon } from './icons';
 import { DeedChip, DeedModal, enterAndGo, fmtBunkr, hasDeed } from './Deed';
@@ -10,12 +10,56 @@ import { DailyModal } from './Daily';
 import { tokenGate } from '../chain/config';
 import { useWallet } from '../chain/wallet';
 
+/** Back up progress as a code, or bring it over from another browser. */
+function SaveCodes({ meta, onImported }: { meta: Meta; onImported: () => void }) {
+  const [code, setCode] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(exportCode(meta));
+      setMsg({ ok: true, text: 'Save code copied. Paste it somewhere safe.' });
+    } catch {
+      setCode(exportCode(meta));
+      setMsg({ ok: true, text: 'Copy the code from the box.' });
+    }
+  };
+  const load = () => {
+    const err = importCode(meta, code);
+    setMsg(err ? { ok: false, text: err } : { ok: true, text: 'Progress loaded.' });
+    if (!err) {
+      setCode('');
+      onImported();
+    }
+  };
+  return (
+    <div class="save-codes">
+      <div class="deed-h">BACKUP <small>your progress lives in this browser only</small></div>
+      <div class="save-row">
+        <button class="btn btn-green" onClick={() => void copy()}>COPY SAVE CODE</button>
+        <input class="save-input" placeholder="Paste a save code to load it here" value={code} onInput={(e) => setCode((e.target as HTMLInputElement).value)} />
+        <button class="btn btn-amber" disabled={!code.trim()} onClick={load}>LOAD</button>
+      </div>
+      {msg && <div class={`save-msg ${msg.ok ? '' : 'err'}`}>{msg.text}</div>}
+    </div>
+  );
+}
+
+function toggleCrt(): void {
+  const off = document.body.classList.toggle('no-crt');
+  try {
+    localStorage.setItem('bunkr.crt', off ? 'off' : 'on');
+  } catch {
+    /* ignore */
+  }
+}
+
 /** The front door: pick a DEFCON, play Daily Doom, or spend Ramen Futures in the Vault. */
 export function Title({ meta }: { meta: Meta }) {
   const [defcon, setDefcon] = useState<Defcon>(meta.unlocked);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [deedOpen, setDeedOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
+  const [wastelandOpen, setWastelandOpen] = useState(false);
   const w = useWallet();
   const deed = hasDeed(w);
   const tent = tokenGate && !deed;
@@ -93,6 +137,14 @@ export function Title({ meta }: { meta: Meta }) {
           <button class="btn btn-dark tp-sound" onClick={() => { audio.toggleMute(); bump((n) => n + 1); }} title="Sound (M)"><Icon name={audio.muted ? 'mute' : 'sound'} size={26} /></button>
         </div>
       </div>
+      <button class="wasteland-tease" onClick={() => setWastelandOpen(true)}>
+        <span class="lock" />
+        <span>
+          <b>THE WASTELAND</b>
+          <small>Season 1 · coming soon</small>
+        </span>
+        <span class="wl-clock">11:30</span>
+      </button>
       <div class="title-mutator">
         <span>THIS WEEK</span>
         <b>{MUTATORS[weekMut].name}</b>
@@ -105,9 +157,29 @@ export function Title({ meta }: { meta: Meta }) {
           </div>
         )}
       </div>
-      <div class="title-foot">Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 100 score</div>
+      <div class="title-foot">
+        Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 100 score ·{' '}
+        <button class="link-btn" onClick={() => { toggleCrt(); bump((n) => n + 1); }}>CRT effect: {document.body.classList.contains('no-crt') ? 'off' : 'on'}</button>
+      </div>
 
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
+      {wastelandOpen && (
+        <div class="modal-bg" onClick={() => setWastelandOpen(false)}>
+          <div class="modal wasteland" onClick={(e) => e.stopPropagation()}>
+            <div class="wl-big-clock">11:30</div>
+            <div class="modal-title">THE WASTELAND</div>
+            <div class="vault-sub">Season 1. Every bunker on one map. One Doomsday Clock for everyone.</div>
+            <ul class="wl-list">
+              <li><b>The Doomsday Clock.</b> Escalate and it ticks toward midnight. Make peace and it ticks back. Guess which way the crowd goes.</li>
+              <li><b>Mutually Assured Destruction.</b> Your Silo grows up. So does everyone else's.</li>
+              <li><b>Treaties.</b> Sign one. Honor it. Or don't, and wear the TRAITOR badge for the rest of the season.</li>
+              <li><b>Bounties.</b> Put $BUNKR on a bunker's head.</li>
+            </ul>
+            <div class="deed-note">Bunker-tier Deeds get in first. HATCH is already nervous.</div>
+            <button class="btn btn-dark card-ok" onClick={() => setWastelandOpen(false)}>CLOSE</button>
+          </div>
+        </div>
+      )}
       {dailyOpen && (
         <DailyModal
           onPlay={() => void enterAndGo('?daily=1', true)}
@@ -143,6 +215,7 @@ export function Title({ meta }: { meta: Meta }) {
                 </div>
               );
             })}
+            <SaveCodes meta={meta} onImported={() => bump((n) => n + 1)} />
             <button class="btn btn-dark card-ok" onClick={() => setVaultOpen(false)}>CLOSE</button>
           </div>
         </div>

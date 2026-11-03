@@ -30,28 +30,8 @@ contract Deploy is Script {
         BunkrTickets tickets = new BunkrTickets(IERC20(token), deployer, oracle, thresholds, 2_500e18, 5_000, 10_000e18, 8_000);
         BunkrForge forge = new BunkrForge(IERC20(token), tickets, deployer, oracle, "https://bunkr.game/api/bag/{id}.json");
 
-        uint256[] memory ids = new uint256[](20);
-        uint128[] memory costs = new uint128[](20);
-        uint8[] memory minTiers = new uint8[](20);
-        uint128[3] memory COST = [uint128(5_000e18), 25_000e18, 100_000e18];
-        for (uint256 i; i < 20; i++) {
-            ids[i] = i;
-            costs[i] = COST[RARITY[i]];
-            minTiers[i] = RARITY[i] + 1; // common: Shed, rare: Basement, legendary: Bunker
-        }
-        forge.setRecipes(ids, costs, minTiers);
-
-        // Cosmetics (ids 100+, must match COSMETICS in src/chain/constants.ts). Shed tier.
-        uint256[] memory cIds = new uint256[](4);
-        uint128[] memory cCosts = new uint128[](4);
-        uint8[] memory cTiers = new uint8[](4);
-        uint128[4] memory C_COST = [uint128(50_000e18), 50_000e18, 75_000e18, 30_000e18];
-        for (uint256 i; i < 4; i++) {
-            cIds[i] = 100 + i;
-            cCosts[i] = C_COST[i];
-            cTiers[i] = 1;
-        }
-        forge.setRecipes(cIds, cCosts, cTiers);
+        bagRecipes(forge);
+        cosmeticRecipes(forge);
         vm.stopBroadcast();
 
         string memory o = "deploy";
@@ -67,5 +47,32 @@ contract Deploy is Script {
         console.log("Tickets", address(tickets));
         console.log("Forge  ", address(forge));
         console.log("Wrote  ", path);
+    }
+
+    function bagRecipes(BunkrForge forge) internal {
+        uint256[] memory ids = new uint256[](20);
+        uint128[] memory costs = new uint128[](20);
+        uint8[] memory minTiers = new uint8[](20);
+        uint128[3] memory COST = [uint128(5_000e18), 25_000e18, 100_000e18];
+        for (uint256 i; i < 20; i++) {
+            ids[i] = i;
+            costs[i] = COST[RARITY[i]];
+            minTiers[i] = RARITY[i] + 1; // common: Shed, rare: Basement, legendary: Bunker
+        }
+        forge.setRecipes(ids, costs, minTiers);
+    }
+
+    /// Cosmetics (ids 100+, must match COSMETICS in src/chain/constants.ts). Shed tier.
+    function cosmeticRecipes(BunkrForge forge) internal {
+        uint256[] memory ids = new uint256[](4);
+        uint128[] memory costs = new uint128[](4);
+        uint8[] memory tiers = new uint8[](4);
+        uint128[4] memory COST = [uint128(50_000e18), 50_000e18, 75_000e18, 30_000e18];
+        for (uint256 i; i < 4; i++) {
+            ids[i] = 100 + i;
+            costs[i] = COST[i];
+            tiers[i] = 1;
+        }
+        forge.setRecipes(ids, costs, tiers);
     }
 }

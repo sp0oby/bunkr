@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import gsap from 'gsap';
-import { COLS, MAX_FLOORS, ROOMS, spriteFile } from '../sim/content';
+import { LOCATIONS, COLS, MAX_FLOORS, ROOMS, spriteFile } from '../sim/content';
 import type { Game } from '../sim/game';
 import type { Dweller, Room, RoomType } from '../sim/types';
 import { audio, type Sfx } from '../audio/audio';
@@ -118,6 +118,51 @@ function raiderMesh(url: string, height: number): THREE.Mesh {
   return m;
 }
 
+/** Gold Bunker plating: riveted gold panels, drawn in code so it tiles cleanly. */
+let goldTex: THREE.CanvasTexture | null = null;
+function goldPlate(repeatX: number, repeatY: number): THREE.CanvasTexture {
+  if (!goldTex) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const x = c.getContext('2d')!;
+    const g = x.createLinearGradient(0, 0, 256, 256);
+    g.addColorStop(0, '#ffe08a');
+    g.addColorStop(0.45, '#d9a52b');
+    g.addColorStop(0.55, '#f6c94d');
+    g.addColorStop(1, '#a8761a');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 256, 256);
+    // Panel seams and rivets.
+    x.strokeStyle = '#7a5210';
+    x.lineWidth = 4;
+    x.strokeRect(2, 2, 252, 252);
+    x.beginPath();
+    x.moveTo(128, 0);
+    x.lineTo(128, 256);
+    x.stroke();
+    x.fillStyle = '#fff2c4';
+    for (const [rx, ry] of [[14, 14], [114, 14], [142, 14], [242, 14], [14, 242], [114, 242], [142, 242], [242, 242]]) {
+      x.beginPath();
+      x.arc(rx, ry, 5, 0, Math.PI * 2);
+      x.fill();
+    }
+    // A sheen stripe so it reads as metal, not mustard.
+    const s = x.createLinearGradient(0, 0, 256, 0);
+    s.addColorStop(0.3, '#ffffff00');
+    s.addColorStop(0.42, '#ffffff55');
+    s.addColorStop(0.5, '#ffffff00');
+    x.fillStyle = s;
+    x.fillRect(0, 0, 256, 256);
+    goldTex = new THREE.CanvasTexture(c);
+    goldTex.colorSpace = THREE.SRGBColorSpace;
+    goldTex.wrapS = goldTex.wrapT = THREE.RepeatWrapping;
+  }
+  const t = goldTex.clone();
+  t.needsUpdate = true;
+  t.repeat.set(repeatX, repeatY);
+  return t;
+}
+
 function spriteMesh(url: string, height: number): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(1, 1);
   geo.translate(0, 0.5, 0);
@@ -176,6 +221,7 @@ export class BunkerView {
   /** Bunker cosmetic (Gold Bunker, Gamer Bunker), from the player's equipped drip. */
   private bunkerSkin: string | null = null;
   private concreteMat: THREE.MeshBasicMaterial | null = null;
+  private hullSize: [number, number] = [1, 1];
   private rooms = new Map<number, RoomView>();
   private dwellers = new Map<number, DwellerView>();
   private hull = new THREE.Group();
@@ -282,8 +328,10 @@ export class BunkerView {
     // Ink outline, concrete body, hazard roof band.
     const ink = new THREE.Mesh(new THREE.PlaneGeometry(hw + 0.16, hh + 0.16), mat(INK));
     ink.position.set(hx, hy, -3.1);
-    this.concreteMat = new THREE.MeshBasicMaterial({ map: tiled('/art/env/concrete.webp', hw, hh, 3.2) });
-    if (this.bunkerSkin === 'gold') this.concreteMat.color.setHex(0xffd36b);
+    this.concreteMat = new THREE.MeshBasicMaterial({
+      map: this.bunkerSkin === 'gold' ? goldPlate(hw / 2.4, hh / 2.4) : tiled('/art/env/concrete.webp', hw, hh, 3.2),
+    });
+    this.hullSize = [hw, hh];
     const concrete = new THREE.Mesh(new THREE.PlaneGeometry(hw, hh), this.concreteMat);
     concrete.position.set(hx, hy, -3);
     const hz = hazardTexture();
@@ -495,7 +543,7 @@ export class BunkerView {
     const sel = this.cb.selected();
     const visible = new Set<number>();
     for (const d of g.dwellers) {
-      if (d.status !== 'active') continue;
+      if (d.status !== 'active' && d.status !== 'expedition') continue;
       visible.add(d.id);
       let v = this.dwellers.get(d.id);
       if (!v) {
@@ -509,6 +557,31 @@ export class BunkerView {
         v.x = Math.min(spot.maxX, Math.max(spot.minX, v.x));
         v.targetX = spot.minX + Math.random() * (spot.maxX - spot.minX);
         gsap.fromTo(v.group.scale, { y: 0.6 }, { y: 1, duration: 0.4, ease: 'elastic.out(1.2, 0.4)' });
+      }
+      if (d.status === 'expedition' && d.exp) {
+        // Out on the surface: walk out past the ruins, then back to the porta-potty.
+        const leftAt = d.exp.leftAt ?? d.exp.returnAt - 30;
+        const p = Math.min(1, Math.max(0, (g.time - leftAt) / Math.max(1, d.exp.returnAt - leftAt)));
+        const out = p < 0.5;
+        const far = COLS * CW - 0.6;
+        const x = 0.9 + (far - 0.9) * (out ? p * 2 : (1 - p) * 2);
+        v.facing = out ? 1 : -1;
+        v.x = x;
+        v.bob += dt * 9;
+        v.group.position.set(x, -0.15, 0.25);
+        v.sprite.position.y = Math.abs(Math.sin(v.bob)) * 0.08;
+        v.sprite.scale.x = Math.abs(v.sprite.scale.x) * v.facing;
+        v.ring.visible = false;
+        const loc = LOCATIONS.find((l) => l.id === d.exp!.locId);
+        const left = Math.max(0, Math.ceil(d.exp.returnAt - g.time));
+        const label = `${d.name} · ${out ? 'to' : 'back from'} ${loc?.name ?? 'the surface'} · ${left}s`;
+        if (v.tag.textContent !== label) v.tag.textContent = label;
+        v.tag.classList.add('on-surface');
+        continue;
+      }
+      if (v.tag.classList.contains('on-surface')) {
+        v.tag.classList.remove('on-surface');
+        v.tag.textContent = d.name;
       }
       if (this.dragDweller?.active && this.dragDweller.id === d.id) {
         // Picked up: dangle under the cursor, flailing.
@@ -556,6 +629,7 @@ export class BunkerView {
   }
 
   private raidKind: string | null = null;
+  private smashing = false;
 
   private syncRaid(): void {
     const raid = this.game.raid;
@@ -768,6 +842,7 @@ export class BunkerView {
       const hit = this.hitTest(e.clientX, e.clientY);
       if (hit.raider) {
         this.smashAt(e.clientX, e.clientY);
+        this.smashing = true;
         return;
       }
       if (hit.dweller != null) this.dragDweller = { id: hit.dweller, startX: e.clientX, startY: e.clientY, active: false };
@@ -788,6 +863,11 @@ export class BunkerView {
     });
 
     const end = (e: PointerEvent) => {
+      // A smash is its own click: don't also open the room behind the raider.
+      if (this.smashing) {
+        this.smashing = false;
+        return;
+      }
       const dd = this.dragDweller;
       this.dragDweller = null;
       if (dd) {
@@ -847,7 +927,11 @@ export class BunkerView {
   setBunkerSkin(skin: string | null): void {
     if (skin === this.bunkerSkin) return;
     this.bunkerSkin = skin;
-    if (this.concreteMat) this.concreteMat.color.setHex(skin === 'gold' ? 0xffd36b : 0xffffff);
+    if (this.concreteMat) {
+      const [hw, hh] = this.hullSize;
+      this.concreteMat.map = skin === 'gold' ? goldPlate(hw / 2.4, hh / 2.4) : tiled('/art/env/concrete.webp', hw, hh, 3.2);
+      this.concreteMat.needsUpdate = true;
+    }
     for (const id of [...this.rooms.keys()]) this.removeRoom(id);
     this.syncRooms();
   }

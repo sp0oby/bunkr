@@ -6,7 +6,7 @@ Foundry project for the $BUNKR token layer. The real $BUNKR is a standard ERC-20
 |---|---|
 | `MockBUNKR` | Testnet stand-in: 800M fixed supply, Permit, a 120K/day faucet. Never deploy to mainnet. |
 | `BunkrTickets` | Deed tier from balance (Shed 10K, Basement 100K, Bunker 1M, Silo 8M). One free run ticket per Deed per UTC day. Bought tickets cost 2,500: 50% burned to `0x…dEaD`, 50% to the day's Daily Doom pot. Daily Doom has its own entry fee (10,000: 80% to the pot, 20% burned), one attempt per player per day, so the pot grows with every player. `fundPot(day, amount)` lets anyone top up a day's pot: route the 1% Urufu creator fee here. The oracle settles or rolls pots. Prices are in tokens; retune with `setConfig` / `setDaily` as the coin's price moves. |
-| `BunkrForge` | ERC-1155 forged Bags. Forging burns $BUNKR; rare needs Basement, legendary needs Bunker. Only the oracle can shatter a Bag, once per run. |
+| `BunkrForge` | ERC-1155 forged Bags (ids 0-19) and cosmetics (ids 100-103: Gold Bunker, Gamer Bunker, Good Boy Nuke, Gold HATCH; looks only). Forging burns $BUNKR; rare needs Basement, legendary needs Bunker. Only the oracle can shatter a Bag, once per run. |
 
 Token ids follow `FORGE_ORDER` in `src/chain/config.ts`; rarities are in `script/Deploy.s.sol`.
 

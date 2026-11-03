@@ -12,8 +12,9 @@ Things that have to happen before launch. Not optional.
 - [x] Daily Doom panel: pot, prizes, top 10 with your rank, yesterday's payout; board on the Daily end screen
 - [x] Daily Doom pot scales with players: 10K entry, 80% to the pot; anyone can top it up (`fundPot`)
 - [ ] At launch: set the Daily entry fee from the coin's price (`setDaily`), and send creator fees into the pot
-- [ ] Chart-as-weather (needs a live price, so after the Urufu launch)
-- [ ] The Wasteland season mode
+- [x] Chart-as-weather + WHALE SIGHTED / PAPER HANDS STORM events (reads DEX Screener once $BUNKR trades: set WEATHER_TOKEN on the server)
+- [x] Burn-to-drip cosmetics: Gold Bunker, Gamer Bunker, Good Boy Nuke, Gold HATCH
+- [ ] The Wasteland season mode — LATER update; only a teaser on the title screen for now
 - [ ] Outside audit before mainnet
 
 ## 2. Real mobile version
@@ -31,5 +32,10 @@ Slot: after the token layer, before the tutorial — most crypto players will op
 - HATCH walks a new player through: build a reactor, drag a degen in, keep the vibes in the middle, survive day 1
 
 ## Done recently
+- Minigames: F-to-revive (50 Fs in 15s), raid smashing, expedition return choices
+- Degen traits, room mods, Shill Tower radio stations, Missile Silo, weekly mutators
+- Endings: Exit Liquidity, Rugged Your Own Bunker, Became the Raiders
+- 82 event cards, trading-terminal HUD (candles, order receipts, CRT), surface expeditions
+- Shareable PnL card, save codes (Vault > Backup)
 - 36-second in-game days (was 24s; a minute felt stagnant); boss fights stay full speed
 - Phones get HATCH's "this bunker is PC-only" screen (with an "i like pain" override)

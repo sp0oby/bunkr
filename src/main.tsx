@@ -19,6 +19,12 @@ const meta = loadMeta();
 
 // Audio needs a user gesture before it can start.
 for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => audio.unlock(), { capture: true });
+// The CRT screen effect: on unless the player turned it off.
+try {
+  if (localStorage.getItem('bunkr.crt') === 'off') document.body.classList.add('no-crt');
+} catch {
+  /* ignore */
+}
 // Every HUD button gets a click.
 document.addEventListener('click', (e) => {
   const b = (e.target as HTMLElement).closest('button');
