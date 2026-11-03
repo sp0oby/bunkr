@@ -137,23 +137,36 @@ async function main() {
     check(forged.status === 400, `a run simulated past the days you were given is rejected (${forged.json.error})`);
   }
 
-  // --- Forged Bags: liquidated while carrying them. Each has a 35% shatter chance.
+  // --- Forged Bags: locked in the Forge for the run, then shattered or returned.
   {
     const bags = ['lambokeys', 'pickaxe', 'inhaler', 'mrenft'] as const; // commons: Shed tier
     for (const b of bags) await bob.write(dep.forge, forgeAbi, 'forge', [BigInt(FORGE_ORDER.indexOf(b))]);
-    const t = await enter(bob, false);
-    const start = await api('/run/start', { ...t, defcon: 5, loadout: [...bags, 'moonmap'] });
-    const lo = start.json.config.loadout as string[];
-    const slots = LOADOUT_SLOTS[start.json.config.deedTier];
-    check(lo.length === slots && !lo.includes('moonmap'), `loadout trimmed to owned + ${slots} slot(s) for the tier (${lo.join(', ')})`);
-    const ids = lo.map((b) => BigInt(FORGE_ORDER.indexOf(b as any)));
+    const [tier] = await pub.readContract({ address: dep.tickets, abi: ticketsAbi, functionName: 'playerState', args: [bob.account.address] });
+    const slots = LOADOUT_SLOTS[tier];
+    const carry = bags.slice(0, slots);
+    const ids = carry.map((b) => BigInt(FORGE_ORDER.indexOf(b)));
     const bagsOf = () => pub.readContract({ address: dep.forge, abi: forgeAbi, functionName: 'bagsOf', args: [bob.account.address, ids] });
     const had = await bagsOf();
+
+    const t = await enter(bob, false);
+    const receipt = await pub.getTransactionReceipt({ hash: t.txHash });
+    const runId = BigInt(receipt.logs.find((l) => l.address.toLowerCase() === dep.tickets.toLowerCase())!.topics[2]!);
+    await bob.write(dep.forge, forgeAbi, 'lockLoadout', [runId, ids]);
+    const during = await bagsOf();
+    check(during.every((n, i) => n === had[i] - 1n), `carried Bags leave the wallet for the run (${carry.join(', ')})`);
+    const dodge = await bob.write(dep.forge, parseAbi(['function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes data)']), 'safeTransferFrom', [bob.account.address, alice.account.address, ids[0], 1n, '0x']).then(() => false).catch(() => true);
+    check(dodge || had[0] > 1n, 'a locked Bag can\'t be sent away mid-run');
+
+    const start = await api('/run/start', { ...t, defcon: 5, loadout: ['moonmap'] });
+    const lo = start.json.config.loadout as string[];
+    check(JSON.stringify(lo) === JSON.stringify(carry), `loadout comes from the Forge lock, not the client (${lo.join(', ')})`);
     const g = await playIdle(start.json.seed, start.json.config, start.json.runId, t.secret);
     const fin = await api('/run/finish', { runId: start.json.runId, secret: t.secret, ticks: g.tick, inputs: g.inputs });
     check(fin.status === 200 && !fin.json.survived, `bob got liquidated (${fin.json.title})`);
-    const owned = await bagsOf();
-    const gone = lo.filter((_, i) => owned[i] === had[i] - 1n);
+    const after = await bagsOf();
+    const gone = carry.filter((_, i) => after[i] === had[i] - 1n);
+    const back = carry.filter((_, i) => after[i] === had[i]);
+    check(gone.length + back.length === carry.length, 'every carried Bag was either shattered or returned');
     check(JSON.stringify(gone.sort()) === JSON.stringify([...fin.json.shattered].sort()), `on-chain balances match the shatter roll (shattered: ${fin.json.shattered.join(', ') || 'none'})`);
   }
 

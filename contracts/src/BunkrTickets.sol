@@ -47,6 +47,8 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
     mapping(uint256 => uint256) public pot;
     mapping(uint256 => bool) public settled;
     uint256 public runCount;
+    /// @notice Who started each run, so the Forge can check who may lock Bags into it.
+    mapping(uint256 => address) public runPlayer;
 
     event TicketsBought(address indexed player, uint256 qty, uint256 burned, uint256 toPot, uint256 indexed day);
     event RunEntered(
@@ -179,6 +181,7 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
             pot[today()] += toPot;
             emit DailyEntered(msg.sender, today(), burned, toPot);
             runId = ++runCount;
+            runPlayer[runId] = msg.sender;
             emit RunEntered(msg.sender, runId, today(), true, false, tier, commit);
             return runId;
         }
@@ -190,6 +193,7 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
             tickets[msg.sender]--;
         }
         runId = ++runCount;
+        runPlayer[runId] = msg.sender;
         emit RunEntered(msg.sender, runId, today(), false, free, tier, commit);
     }
 

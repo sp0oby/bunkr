@@ -3,11 +3,11 @@
 import { createHmac } from 'node:crypto';
 import { keccak256, type Hash, type Hex } from 'viem';
 import { ACTIONS, replay, type Input } from '../src/sim/game';
-import { BAGS, mutatorForDay } from '../src/sim/content';
+import { mutatorForDay } from '../src/sim/content';
 import { LOADOUT_SLOTS, SHATTER_CHANCE } from '../src/chain/constants';
 import { dailySeed } from '../src/meta';
 import type { BagId, Defcon, MarketEvent, RunConfig } from '../src/sim/types';
-import { ownedBags, runFromTx, shatter } from './chain';
+import { bagTiers, lockedBags, runFromTx, settleRun } from './chain';
 import { MIN_DAY_GAP_MS, SERVER_SECRET, deployment } from './env';
 import { getWeather, marketEventNow } from './weather';
 import { db, dailyBoard, type RunRecord } from './store';
@@ -71,12 +71,12 @@ export async function startRun(body: StartBody): Promise<{ runId: number; seed: 
     config = { defcon: 3, daily: true, deedTier: 1, serverDays: true, mutator: mutatorForDay(entry.day) };
   } else {
     seed = hmac32(`run:${entry.runId}`);
-    const wanted = Array.isArray(body.loadout) ? body.loadout.filter((b): b is BagId => typeof b === 'string' && b in BAGS) : [];
-    if (wanted.length) {
-      const { owned, minTier } = await ownedBags(entry.player);
-      loadout = [...new Set(wanted)]
-        .filter((b) => owned.has(b) && (minTier.get(b) ?? 9) <= entry.tier)
-        .slice(0, LOADOUT_SLOTS[entry.tier] ?? 0);
+    // The loadout is whatever the player locked into the Forge for this run, not what the
+    // client says: locked Bags can't leave the wallet mid-run, so the stakes are real.
+    const lock = await lockedBags(entry.runId);
+    if (lock.bags.length && !lock.settled) {
+      const minTier = await bagTiers();
+      loadout = lock.bags.filter((b) => (minTier.get(b) ?? 9) <= entry.tier).slice(0, LOADOUT_SLOTS[entry.tier] ?? 0);
     }
     const defcon = Math.max(1, Math.min(5, Math.floor(Number(body.defcon) || 5))) as Defcon;
     const vault = vaultFrom(body.vault);
@@ -181,24 +181,27 @@ export async function finishRun(body: FinishBody): Promise<FinishResult> {
   rec.finishedAt = Date.now();
   rec.result = { score: e.score, title: e.title, survived: e.survived, day: g.day, tent: !!e.tent, ticks, inputs: inputs.length };
   db.putRun(rec);
-  if (!e.survived) await rollShatters(rec);
+  await settleBags(rec);
   return summary(rec);
 }
 
-/** Liquidated (or abandoned) while carrying forged Bags: each one might break. */
-export async function rollShatters(rec: RunRecord): Promise<void> {
-  if (!rec.loadout.length || rec.shattered) return;
-  const broken = rec.loadout.filter((b) => hmac32(`shatter:${rec.runId}:${b}`) / 2 ** 32 < SHATTER_CHANCE);
-  rec.shattered = [];
-  rec.shatterTxs = [];
-  for (const b of broken) {
-    try {
-      rec.shatterTxs.push(await shatter(rec.player, b, rec.runId));
-      rec.shattered.push(b);
-    } catch (err) {
-      // Usually the Bag already left the wallet. Nothing to break.
-      console.warn(`shatter ${b} for run ${rec.runId} failed:`, (err as Error).message.split('\n')[0]);
-    }
+/**
+ * Close the run's lock in the Forge. Survived: every Bag goes home. Liquidated or abandoned:
+ * each carried Bag has a SHATTER_CHANCE of being burned, the rest go home.
+ */
+export async function settleBags(rec: RunRecord): Promise<void> {
+  if (rec.daily || rec.shattered) return;
+  const lock = await lockedBags(rec.runId).catch(() => null);
+  if (!lock || !lock.bags.length || lock.settled) return;
+  const lost = rec.status === 'abandoned' || !rec.result?.survived;
+  // Only Bags that counted as carried at the start can break; anything locked later just goes home.
+  const broken = lost ? rec.loadout.filter((b) => lock.bags.includes(b) && hmac32(`shatter:${rec.runId}:${b}`) / 2 ** 32 < SHATTER_CHANCE) : [];
+  try {
+    rec.shatterTxs = [await settleRun(rec.runId, broken)];
+    rec.shattered = broken;
+  } catch (err) {
+    // Left unsettled: the next sweep retries, and the player can reclaim after a week.
+    console.warn(`settling Bags for run ${rec.runId} failed:`, (err as Error).message.split('\n')[0]);
   }
   db.putRun(rec);
 }
@@ -219,7 +222,7 @@ export async function sweepAbandoned(now = Date.now(), abandonMs: number): Promi
     if (rec.status !== 'started' || now - rec.startedAt < abandonMs) continue;
     rec.status = 'abandoned';
     db.putRun(rec);
-    await rollShatters(rec);
+    await settleBags(rec);
     n++;
   }
   return n;

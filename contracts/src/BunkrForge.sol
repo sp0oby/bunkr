@@ -16,8 +16,10 @@ import {BunkrTickets} from "./BunkrTickets.sol";
 /// @title BunkrForge
 /// @notice Forged Bags (ERC-1155). Forging burns $BUNKR and makes a Bag permanent, so you
 ///         can bring it into future runs or trade it. Rarer Bags need a higher Deed tier.
-///         Get liquidated while carrying one and it can shatter: only the results oracle
-///         can do that, once per run per Bag.
+///         Bags you carry into a run are held here until the run is settled, so they can't
+///         be moved out from under the stakes. Lose the run and the results oracle can
+///         shatter (burn) some of them; everything else goes back to you. If the oracle never
+///         settles, you can take them back yourself after RECLAIM_AFTER.
 ///         Built to grow without a redeploy: new items are just new recipe ids, approved
 ///         minters (a future season contract, say) can award items as prizes, holders can
 ///         burn their own items (or let an approved contract burn them), and marketplace
@@ -44,13 +46,29 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
     BunkrTickets public immutable deeds;
     address public oracle;
 
+    struct Lock {
+        address player;
+        uint64 lockedAt;
+        bool settled;
+        uint256[] ids;
+    }
+
+    /// @notice Most Bags one run can carry (the Bunker Deed's loadout).
+    uint256 public constant MAX_LOADOUT = 3;
+    /// @notice After this, a player can take back Bags from a run nobody settled.
+    uint256 public constant RECLAIM_AFTER = 7 days;
+
     /// @notice Token id = the Bag's index in the game's FORGE_ORDER list.
     mapping(uint256 => Recipe) public recipes;
-    mapping(uint256 => mapping(uint256 => bool)) public shattered;
+    mapping(uint256 => Lock) private _locks;
+    /// @notice Bags each player has locked in runs right now, per id.
+    mapping(address => mapping(uint256 => uint256)) public lockedBalance;
     /// @notice Contracts or wallets allowed to award items without a recipe (season prizes).
     mapping(address => bool) public minters;
 
     event Forged(address indexed player, uint256 indexed bagId, uint256 burned);
+    event LoadoutLocked(address indexed player, uint256 indexed runId, uint256[] ids);
+    event RunSettled(address indexed player, uint256 indexed runId, uint256[] shattered, uint256[] returned);
     event Shattered(address indexed player, uint256 indexed bagId, uint256 indexed runId);
     event RecipeSet(uint256 indexed bagId, uint128 cost, uint8 minTier, bool enabled);
     event OracleChanged(address oracle);
@@ -62,7 +80,13 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
     error UnknownBag();
     error TierTooLow(uint8 need, uint8 have);
     error NotOracle();
-    error AlreadyShattered();
+    error NotYourRun();
+    error AlreadyLocked();
+    error BadLoadout();
+    error NoLock();
+    error AlreadySettled();
+    error NotInLoadout();
+    error TooEarly();
     error NotMinter();
 
     /// @param base_ metadata base URL, ending in a slash: item `id` is at `<base_><id>.json`
@@ -110,13 +134,50 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
         for (uint256 i; i < ids.length; i++) out[i] = balanceOf(player, ids[i]);
     }
 
-    /// @notice A carried Bag broke when its owner got liquidated.
-    function shatter(address player, uint256 bagId, uint256 runId) external {
+    /// @notice Carry Bags into a run you started: they move here until the run is settled.
+    ///         One lock per run, up to MAX_LOADOUT different Bags, one of each.
+    function lockLoadout(uint256 runId, uint256[] calldata ids) external nonReentrant {
+        if (deeds.runPlayer(runId) != msg.sender) revert NotYourRun();
+        Lock storage l = _locks[runId];
+        if (l.player != address(0)) revert AlreadyLocked();
+        if (ids.length == 0 || ids.length > MAX_LOADOUT) revert BadLoadout();
+        uint256[] memory ones = new uint256[](ids.length);
+        for (uint256 i; i < ids.length; i++) {
+            for (uint256 j; j < i; j++) if (ids[j] == ids[i]) revert BadLoadout();
+            ones[i] = 1;
+            lockedBalance[msg.sender][ids[i]]++;
+        }
+        (l.player, l.lockedAt, l.ids) = (msg.sender, uint64(block.timestamp), ids);
+        _update(msg.sender, address(this), ids, ones); // reverts if the player doesn't hold them
+        emit LoadoutLocked(msg.sender, runId, ids);
+    }
+
+    /// @notice The results oracle closes a run: burn the Bags that shattered, return the rest.
+    function settleRun(uint256 runId, uint256[] calldata shatterIds) external nonReentrant {
         if (msg.sender != oracle) revert NotOracle();
-        if (shattered[runId][bagId]) revert AlreadyShattered();
-        shattered[runId][bagId] = true;
-        _burn(player, bagId, 1);
-        emit Shattered(player, bagId, runId);
+        Lock storage l = _locks[runId];
+        uint256[] memory ids = l.ids;
+        bool[] memory broken = new bool[](ids.length);
+        for (uint256 i; i < shatterIds.length; i++) {
+            uint256 k = _indexOf(ids, shatterIds[i]);
+            if (broken[k]) revert BadLoadout();
+            broken[k] = true;
+        }
+        _close(runId, broken);
+    }
+
+    /// @notice Take your Bags back from a run the oracle never settled.
+    function reclaim(uint256 runId) external nonReentrant {
+        Lock storage l = _locks[runId];
+        if (l.player != msg.sender) revert NotYourRun();
+        if (block.timestamp < l.lockedAt + RECLAIM_AFTER) revert TooEarly();
+        _close(runId, new bool[](l.ids.length));
+    }
+
+    /// @notice A run's locked loadout: who locked it, when, whether it's settled, which Bags.
+    function lockOf(uint256 runId) external view returns (address player, uint64 lockedAt, bool settled, uint256[] memory ids) {
+        Lock storage l = _locks[runId];
+        return (l.player, l.lockedAt, l.settled, l.ids);
     }
 
     /// @notice Award items outside the forge: season prizes, leaderboard trophies, event drops.
@@ -160,6 +221,41 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
         _contractURI = contractURI_;
         emit ContractURIUpdated();
         emit URI(base_, type(uint256).max); // hint for indexers that all item URIs moved
+    }
+
+    function _close(uint256 runId, bool[] memory broken) internal {
+        Lock storage l = _locks[runId];
+        if (l.player == address(0)) revert NoLock();
+        if (l.settled) revert AlreadySettled();
+        l.settled = true;
+        address player = l.player;
+        uint256[] memory ids = l.ids;
+        uint256 nb;
+        for (uint256 i; i < ids.length; i++) if (broken[i]) nb++;
+        uint256[] memory gone = new uint256[](nb);
+        uint256[] memory back = new uint256[](ids.length - nb);
+        (uint256 g, uint256 b) = (0, 0);
+        for (uint256 i; i < ids.length; i++) {
+            lockedBalance[player][ids[i]]--;
+            if (broken[i]) gone[g++] = ids[i];
+            else back[b++] = ids[i];
+        }
+        for (uint256 i; i < nb; i++) {
+            _burn(address(this), gone[i], 1);
+            emit Shattered(player, gone[i], runId);
+        }
+        if (back.length > 0) _update(address(this), player, back, _ones(back.length));
+        emit RunSettled(player, runId, gone, back);
+    }
+
+    function _indexOf(uint256[] memory ids, uint256 id) internal pure returns (uint256) {
+        for (uint256 i; i < ids.length; i++) if (ids[i] == id) return i;
+        revert NotInLoadout();
+    }
+
+    function _ones(uint256 n) internal pure returns (uint256[] memory out) {
+        out = new uint256[](n);
+        for (uint256 i; i < n; i++) out[i] = 1;
     }
 
     function _forge(uint256 bagId) internal {

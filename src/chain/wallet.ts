@@ -340,9 +340,10 @@ export function toggleDrip(id: number): void {
 /**
  * Starts a run: a normal run spends a Ration Ticket (today's free one first); Daily Doom pays
  * its entry fee into the pot. The transaction carries the hash of a fresh secret; only this
- * browser knows the secret, so only it can report the result.
+ * browser knows the secret, so only it can report the result. Forged Bags being carried are
+ * then locked in the Forge until the results server settles the run.
  */
-export const enterRun = (daily: boolean) =>
+export const enterRun = (daily: boolean, bags: BagId[] = []) =>
   run(daily ? 'Paying the Daily Doom entry' : 'Spending a Ration Ticket', async () => {
     const secret = toHex(crypto.getRandomValues(new Uint8Array(32)));
     const commit = keccak256(secret);
@@ -355,13 +356,28 @@ export const enterRun = (daily: boolean) =>
     for (const log of receipt.logs) {
       try {
         const ev = decodeEventLog({ abi: ticketsAbi, data: log.data, topics: log.topics });
-        if (ev.eventName === 'RunEntered') return { runId: Number(ev.args.runId), txHash: hash, secret };
+        if (ev.eventName !== 'RunEntered') continue;
+        const runId = Number(ev.args.runId);
+        return { runId, txHash: hash, secret, loadout: daily ? [] : await lockBags(runId, bags) };
       } catch {
         /* not ours */
       }
     }
     throw new Error('The ticket went through but no run was recorded.');
   });
+
+/** Move the carried Bags into the Forge for this run. The ticket is already spent, so if the
+ *  player says no (or it fails) they just play this run without them. */
+async function lockBags(runId: number, bags: BagId[]): Promise<BagId[]> {
+  if (!bags.length) return [];
+  try {
+    const ids = bags.map((b) => BigInt(FORGE_ORDER.indexOf(b)));
+    await send('Locking your Bags in for this run', deployment!.forge, forgeAbi, 'lockLoadout', [BigInt(runId), ids]);
+    return bags;
+  } catch {
+    return [];
+  }
+}
 
 /**
  * One signature instead of an approve transaction. Returns null when the allowance is

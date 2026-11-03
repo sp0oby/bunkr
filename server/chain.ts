@@ -45,18 +45,20 @@ export async function runFromTx(hash: Hash): Promise<RunEntry | null> {
   return null;
 }
 
-/** Forged Bags a player owns right now, and what tier each needs. */
-export async function ownedBags(player: Address): Promise<{ owned: Set<BagId>; minTier: Map<BagId, number> }> {
-  const ids = FORGE_ORDER.map((_, i) => BigInt(i));
-  const [balances, recipes] = await Promise.all([
-    pub.readContract({ address: deployment.forge, abi: forgeAbi, functionName: 'bagsOf', args: [player, ids] }),
-    Promise.all(ids.map((id) => pub.readContract({ address: deployment.forge, abi: forgeAbi, functionName: 'recipes', args: [id] }))),
-  ]);
-  const owned = new Set<BagId>();
+/** What tier each forged Bag needs. */
+export async function bagTiers(): Promise<Map<BagId, number>> {
+  const recipes = await Promise.all(
+    FORGE_ORDER.map((_, i) => pub.readContract({ address: deployment.forge, abi: forgeAbi, functionName: 'recipes', args: [BigInt(i)] })),
+  );
   const minTier = new Map<BagId, number>();
-  balances.forEach((n, i) => n > 0n && owned.add(FORGE_ORDER[i]));
   recipes.forEach(([, tier, enabled], i) => enabled && minTier.set(FORGE_ORDER[i], tier));
-  return { owned, minTier };
+  return minTier;
+}
+
+/** The Bags a run's player locked into the Forge for it (empty if none). */
+export async function lockedBags(runId: number): Promise<{ player: Address; settled: boolean; bags: BagId[] }> {
+  const [player, , settled, ids] = await pub.readContract({ address: deployment.forge, abi: oracleAbi, functionName: 'lockOf', args: [BigInt(runId)] });
+  return { player, settled, bags: ids.map((id) => FORGE_ORDER[Number(id)]).filter((b): b is BagId => !!b) };
 }
 
 /** The oracle's side of the game contracts. */
@@ -65,12 +67,15 @@ const oracleAbi = parseAbi([
   'function settled(uint256 day) view returns (bool)',
   'function settleDay(uint256 day, address[] winners, uint16[] shareBps)',
   'function rollDay(uint256 day)',
-  'function shatter(address player, uint256 bagId, uint256 runId)',
+  'function lockOf(uint256 runId) view returns (address player, uint64 lockedAt, bool settled, uint256[] ids)',
+  'function settleRun(uint256 runId, uint256[] shatterIds)',
   'error NotOracle()',
   'error DayNotOver()',
   'error AlreadySettled()',
   'error BadShares()',
-  'error AlreadyShattered()',
+  'error NoLock()',
+  'error NotInLoadout()',
+  'error BadLoadout()',
   'error ERC1155InsufficientBalance(address sender, uint256 balance, uint256 needed, uint256 tokenId)',
 ]);
 
@@ -114,9 +119,11 @@ export async function rollDay(day: number): Promise<Hash> {
   return sendAndWait(request);
 }
 
-export async function shatter(player: Address, bag: BagId, runId: number): Promise<Hash> {
+/** Close a run's lock: burn the shattered Bags, give the rest back. */
+export async function settleRun(runId: number, shattered: BagId[]): Promise<Hash> {
   const { request } = await pub.simulateContract({
-    account: oracle, address: deployment.forge, abi: oracleAbi, functionName: 'shatter', args: [player, BigInt(FORGE_ORDER.indexOf(bag)), BigInt(runId)],
+    account: oracle, address: deployment.forge, abi: oracleAbi, functionName: 'settleRun',
+    args: [BigInt(runId), shattered.map((b) => BigInt(FORGE_ORDER.indexOf(b)))],
   });
   return sendAndWait(request);
 }

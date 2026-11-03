@@ -290,24 +290,101 @@ contract BunkrTest is Test {
         vm.stopPrank();
     }
 
-    function test_shatterOnlyOracleOncePerRun() public {
-        fund(alice, 30_000e18);
+    /// alice forges Bags 0 and 1 (Basement Deed), starts a run, and returns its id.
+    function aliceRunWithBags() internal returns (uint256 runId) {
+        fund(alice, 150_000e18);
         vm.startPrank(alice);
         token.approve(address(forge), type(uint256).max);
         forge.forge(0);
         forge.forge(0);
+        forge.forge(1);
+        runId = tickets.enterRun(false, keccak256("s"));
+        vm.stopPrank();
+    }
+
+    function ids2(uint256 a, uint256 b) internal pure returns (uint256[] memory out) {
+        out = new uint256[](2);
+        (out[0], out[1]) = (a, b);
+    }
+
+    function test_loadoutIsHeldDuringRun() public {
+        uint256 runId = aliceRunWithBags();
+        assertEq(tickets.runPlayer(runId), alice);
+
+        // Only the run's player can lock, only Bags they hold, no repeats, once per run.
+        vm.prank(bob);
+        vm.expectRevert(BunkrForge.NotYourRun.selector);
+        forge.lockLoadout(runId, ids2(0, 1));
+        vm.startPrank(alice);
+        vm.expectRevert(BunkrForge.BadLoadout.selector);
+        forge.lockLoadout(runId, ids2(0, 0));
+        vm.expectRevert();
+        forge.lockLoadout(runId, ids2(0, 2)); // never forged Bag 2
+        forge.lockLoadout(runId, ids2(0, 1));
+        vm.expectRevert(BunkrForge.AlreadyLocked.selector);
+        forge.lockLoadout(runId, ids2(0, 1));
+
+        // Mid-run the carried copies are gone from the wallet: can't dodge the stakes.
+        assertEq(forge.balanceOf(alice, 0), 1);
+        assertEq(forge.balanceOf(alice, 1), 0);
+        assertEq(forge.balanceOf(address(forge), 1), 1);
+        assertEq(forge.lockedBalance(alice, 1), 1);
+        vm.expectRevert();
+        forge.safeTransferFrom(alice, bob, 1, 1, "");
         vm.stopPrank();
 
+        // Lost run: the oracle shatters Bag 1, Bag 0 comes home.
         vm.prank(alice);
         vm.expectRevert(BunkrForge.NotOracle.selector);
-        forge.shatter(alice, 0, 1);
+        forge.settleRun(runId, new uint256[](0));
+        uint256[] memory gone = new uint256[](1);
+        gone[0] = 1;
+        vm.prank(oracle);
+        forge.settleRun(runId, gone);
+        assertEq(forge.balanceOf(alice, 0), 2);
+        assertEq(forge.balanceOf(alice, 1), 0);
+        assertEq(forge.totalSupply(1), 0);
+        assertEq(forge.lockedBalance(alice, 1), 0);
+        vm.prank(oracle);
+        vm.expectRevert(BunkrForge.AlreadySettled.selector);
+        forge.settleRun(runId, new uint256[](0));
+    }
 
+    function test_settleReturnsAllOnWinAndRejectsStrangers() public {
+        uint256 runId = aliceRunWithBags();
+        vm.prank(alice);
+        forge.lockLoadout(runId, ids2(0, 1));
+        uint256[] memory stranger = new uint256[](1);
+        stranger[0] = 5;
         vm.prank(oracle);
-        forge.shatter(alice, 0, 1);
-        assertEq(forge.balanceOf(alice, 0), 1);
+        vm.expectRevert(BunkrForge.NotInLoadout.selector);
+        forge.settleRun(runId, stranger);
         vm.prank(oracle);
-        vm.expectRevert(BunkrForge.AlreadyShattered.selector);
-        forge.shatter(alice, 0, 1);
+        forge.settleRun(runId, new uint256[](0)); // survived
+        assertEq(forge.balanceOf(alice, 0), 2);
+        assertEq(forge.balanceOf(alice, 1), 1);
+        vm.prank(oracle);
+        vm.expectRevert(BunkrForge.NoLock.selector);
+        forge.settleRun(999, new uint256[](0));
+    }
+
+    function test_reclaimAfterAWeekIfNeverSettled() public {
+        uint256 runId = aliceRunWithBags();
+        vm.startPrank(alice);
+        forge.lockLoadout(runId, ids2(0, 1));
+        vm.expectRevert(BunkrForge.TooEarly.selector);
+        forge.reclaim(runId);
+        vm.stopPrank();
+        vm.prank(bob);
+        vm.expectRevert(BunkrForge.NotYourRun.selector);
+        forge.reclaim(runId);
+        vm.warp(block.timestamp + 7 days);
+        vm.prank(alice);
+        forge.reclaim(runId);
+        assertEq(forge.balanceOf(alice, 1), 1);
+        vm.prank(oracle);
+        vm.expectRevert(BunkrForge.AlreadySettled.selector);
+        forge.settleRun(runId, new uint256[](0));
     }
 
     function test_metadata() public {

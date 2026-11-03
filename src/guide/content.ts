@@ -132,7 +132,7 @@ export const GUIDE: GuideSection[] = [
 
 export const FAQ: { q: string; a: string }[] = [
   { q: 'Do I need to buy $BUNKR to play?', a: 'No. Tent Mode is free: no wallet, 3 days underground. Holding $BUNKR (a Bunker Deed) unlocks the full 30-day game, Daily Doom and the token features.' },
-  { q: 'What happens to my forged Bag if I lose?', a: 'Only Bags you brought into that run are at risk, and each has a 35% chance to shatter. The rest stay in your wallet. Bags never shatter in Daily Doom, which uses standard issue.' },
+  { q: 'What happens to my forged Bag if I lose?', a: 'Only Bags you brought into that run are at risk. While the run is on they sit in the Forge, so they can\'t be sold or moved mid-run. Win and they all come back. Lose and each has a 35% chance to shatter (burned for good); the rest come back. If the game ever fails to settle a run, you can take them back yourself after a week. Daily Doom always uses standard issue, so nothing is at risk there.' },
   { q: 'Where does the Daily Doom pot come from?', a: 'Daily Doom entries (80% of each), the pot share of bought Ration Tickets, and top-ups like the creator fee from $BUNKR trading. It pays out to the top 3 when the UTC day ends.' },
   { q: 'Can someone cheat the leaderboard?', a: 'Scores are not taken from your browser. The results server replays every input of every ticketed run and only counts what it gets. Each day\'s randomness is only revealed when you reach it.' },
   { q: 'Is my progress saved?', a: 'Ramen Futures, DEFCON unlocks and Vault upgrades live in your browser. Use the save code in the Vault to back them up or move them. Your Deed, tickets and forged items live on chain in your wallet.' },
