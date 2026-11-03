@@ -79,22 +79,40 @@ contract BunkrTest is Test {
     function test_noDeedNoEntry() public {
         vm.prank(alice);
         vm.expectRevert(BunkrTickets.NoDeed.selector);
-        tickets.enterRun(false);
+        tickets.enterRun(false, bytes32(0));
     }
 
     function test_freeTicketOncePerDay() public {
         fund(alice, 10_000e18);
         assertTrue(tickets.freeTicketAvailable(alice));
         vm.prank(alice);
-        assertEq(tickets.enterRun(false), 1);
+        assertEq(tickets.enterRun(false, bytes32(0)), 1);
         assertFalse(tickets.freeTicketAvailable(alice));
         vm.prank(alice);
         vm.expectRevert(BunkrTickets.NoTicket.selector);
-        tickets.enterRun(false);
+        tickets.enterRun(false, bytes32(0));
         vm.warp(block.timestamp + 1 days);
         assertTrue(tickets.freeTicketAvailable(alice));
         vm.prank(alice);
-        tickets.enterRun(true);
+        tickets.enterRun(true, bytes32(0));
+    }
+
+    function test_dailyOncePerDayAndCommitEmitted() public {
+        fund(alice, 20_000e18);
+        vm.startPrank(alice);
+        token.approve(address(tickets), type(uint256).max);
+        tickets.buyTickets(2);
+        bytes32 commit = keccak256("secret");
+        vm.expectEmit(true, true, true, true);
+        emit BunkrTickets.RunEntered(alice, 1, tickets.today(), true, true, 1, commit);
+        tickets.enterRun(true, commit);
+        assertFalse(tickets.dailyAvailable(alice));
+        vm.expectRevert(BunkrTickets.DailyAlreadyPlayed.selector);
+        tickets.enterRun(true, commit);
+        tickets.enterRun(false, commit); // normal runs are still fine
+        vm.warp(block.timestamp + 1 days);
+        tickets.enterRun(true, commit);
+        vm.stopPrank();
     }
 
     function test_buySplitsBurnAndPot() public {
@@ -109,8 +127,8 @@ contract BunkrTest is Test {
         assertEq(token.balanceOf(address(tickets)), 2_500e18);
         // Free one first, then bought ones.
         vm.startPrank(alice);
-        tickets.enterRun(false);
-        tickets.enterRun(false);
+        tickets.enterRun(false, bytes32(0));
+        tickets.enterRun(false, bytes32(0));
         vm.stopPrank();
         assertEq(tickets.tickets(alice), 1);
     }

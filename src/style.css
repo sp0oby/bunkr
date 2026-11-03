@@ -563,3 +563,9 @@ img { -webkit-user-drag: none; }
 body.silo .brand { color: var(--amber); text-shadow: 0 4px 0 var(--ink), 0 0 18px #ffbe3d99; }
 .modal.end { max-height: 94vh; overflow-y: auto; }
 .forge-row em { color: var(--red); font-style: normal; text-transform: none; }
+.verdict { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 10px; border-radius: 12px; padding: 7px 10px; margin: -4px 0 12px; font-size: 13px; }
+.verdict.pending { color: var(--cyan); border: 2px dashed var(--cyan); }
+.verdict.err { color: #ffb3ad; border: 2px dashed var(--red); }
+.verdict.ok { background: var(--panel-2); border: 2px solid var(--green); }
+.verdict-badge { font: 13px var(--display); letter-spacing: 0.08em; background: var(--green); color: var(--ink); border: 2px solid var(--ink); border-radius: 8px; padding: 0 8px; }
+.verdict-shatter { flex-basis: 100%; color: var(--red); font-family: var(--display); letter-spacing: 0.02em; }

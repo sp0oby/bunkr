@@ -4,8 +4,8 @@ import type { ArchId, BagId, HatchMood, ResKey, RoomType, StatKey } from './type
 /** A day in sim-seconds. All economy rates are tuned against this. */
 export const DAY_SECONDS = 24;
 /** Real seconds a day takes at 1x speed. Slower than sim time so runs leave room
- *  for reading, room pop-outs and (later) wallet transactions. */
-export const REAL_SECONDS_PER_DAY = 60;
+ *  for reading and room pop-outs. Wallet transactions happen before and after a run, never mid-run. */
+export const REAL_SECONDS_PER_DAY = 36;
 /** Sim-seconds per real second while underground (outside boss fights). */
 export const UNDERGROUND_PACE = DAY_SECONDS / REAL_SECONDS_PER_DAY;
 export const RUN_DAYS = 30;

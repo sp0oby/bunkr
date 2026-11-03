@@ -37,10 +37,10 @@ export async function enterAndGo(query: string, daily: boolean): Promise<boolean
     return true;
   }
   if (runsLeft(s) === 0) return false;
-  const runId = await enterRun(daily);
-  if (runId == null) return false;
+  const entry = await enterRun(daily);
+  if (entry == null) return false;
   const after = wallet();
-  savePass({ runId, address: after.address!, chainId: deployment!.chainId, tier: after.tier, loadout: daily ? [] : loadout(after), daily });
+  savePass({ ...entry, address: after.address!, chainId: deployment!.chainId, tier: after.tier, loadout: daily ? [] : loadout(after), daily });
   audio.play('bag');
   location.search = query;
   return true;

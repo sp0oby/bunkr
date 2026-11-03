@@ -9,6 +9,7 @@ import type { BunkerView } from '../render/view';
 import { audio } from '../audio/audio';
 import { Icon, Rich, type IconName } from './icons';
 import { DeedModal, ForgePanel, enterAndGo } from './Deed';
+import type { FinishReply } from '../chain/server';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
 
@@ -23,6 +24,9 @@ export interface UiState {
   inspectBag: BagId | null;
   /** What the finished run earned (set once the run is banked). */
   rewards: RunRewards | null;
+  /** The results server's verdict on a ticketed run. Absent for Tent Mode and offline play. */
+  verdict?: { state: 'pending' } | { state: 'ok'; reply: FinishReply } | { state: 'error'; error: string };
+  verify?: () => void;
 }
 
 type Set = (fn: () => void) => void;
@@ -820,6 +824,7 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
             ))}
           </tbody>
         </table>
+        {ui.verdict && <Verdict ui={ui} />}
         {e.tent && (
           <div class="end-tent">
             <b>Your tent lasted {TENT_DAYS} days.</b> A Bunker Deed unlocks the full 30-day run, the whale, the audit and the Moon Mission.
@@ -836,6 +841,32 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
         </div>
       </div>
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
+    </div>
+  );
+}
+
+/** What the results server made of a ticketed run. */
+function Verdict({ ui }: { ui: UiState }) {
+  const v = ui.verdict!;
+  if (v.state === 'pending') return <div class="verdict pending">Verifying the run on the results server…</div>;
+  if (v.state === 'error') {
+    return (
+      <div class="verdict err">
+        <span>Not verified yet: {v.error}</span>
+        <button class="btn btn-amber" onClick={() => ui.verify?.()}>RETRY</button>
+      </div>
+    );
+  }
+  const r = v.reply;
+  return (
+    <div class="verdict ok">
+      <span class="verdict-badge">VERIFIED</span>
+      <span>Replayed on the server: {r.score.toLocaleString()}{r.dailyRank ? ` · #${r.dailyRank} in today's Daily Doom` : ''}</span>
+      {r.shattered.length > 0 && (
+        <div class="verdict-shatter">
+          SHATTERED: {r.shattered.map((b) => BAGS[b].name).join(', ')}. Liquidation is hard on forged Bags.
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { render } from 'preact';
 import { Game, STEP } from './sim/game';
 import { ROOMS, UNDERGROUND_PACE } from './sim/content';
-import type { Defcon } from './sim/types';
+import type { Defcon, RunConfig } from './sim/types';
 import { BunkerView } from './render/view';
 import { App, type UiState } from './ui/App';
 import { Title } from './ui/Title';
@@ -9,7 +9,9 @@ import { PhoneGate, isPhone, phoneOverride } from './ui/PhoneGate';
 import { audio } from './audio/audio';
 import { dailySeed, loadMeta, recordRun, runConfig } from './meta';
 import { tokenGate } from './chain/config';
-import { clearPass, readPass, restore } from './chain/wallet';
+import { clearPass, readPass, refresh, restore, savePass, type RunPass } from './chain/wallet';
+import { serverFinish, serverStart } from './chain/server';
+import { ServerProblem } from './ui/ServerProblem';
 import './style.css';
 
 const params = new URLSearchParams(location.search);
@@ -34,28 +36,46 @@ const playing = params.has('play') || params.has('daily') || params.has('seed');
 void restore();
 function boot(): void {
   if (!playing) render(<Title meta={meta} />, document.getElementById('ui')!);
-  else startRun();
+  else void startRun();
 }
 // Phones get HATCH's "play it on PC" screen until the real mobile version ships.
 if (isPhone() && !phoneOverride()) render(<PhoneGate onAnyway={boot} />, document.getElementById('ui')!);
 else boot();
 
-function startRun(): void {
+/** Ticketed runs get their seed and official config from the results server. */
+async function officialPass(pass: RunPass, defcon: Defcon): Promise<RunPass | null> {
+  if (pass.seed != null && pass.config) return pass;
+  try {
+    const reply = await serverStart({ txHash: pass.txHash, secret: pass.secret, defcon, vault: runConfig(meta, defcon, false), loadout: pass.loadout });
+    const next = { ...pass, seed: reply.seed, config: reply.config };
+    savePass(next);
+    return next;
+  } catch (err) {
+    render(<ServerProblem message={(err as Error).message} />, document.getElementById('ui')!);
+    return null;
+  }
+}
+
+async function startRun(): Promise<void> {
   const daily = params.has('daily');
   const wanted = Number(params.get('defcon') ?? 5);
   const defcon = Math.max(meta.unlocked, Math.min(5, Number.isFinite(wanted) ? wanted : 5)) as Defcon;
   const seedParam = params.get('seed');
-  const seed = daily ? dailySeed() : seedParam ? Number(seedParam) : undefined;
+  let seed = daily ? dailySeed() : seedParam ? Number(seedParam) : undefined;
   // With the token layer on, a run needs a pass from spending a Ration Ticket. No pass: Tent Mode.
-  const pass = tokenGate ? readPass(daily) : null;
-  const chainCfg = !tokenGate ? {} : pass
-    ? { deedTier: pass.tier, loadout: pass.loadout, rocket: pass.tier >= 3 || undefined }
-    : { tent: true };
-  const cfg = { ...runConfig(meta, defcon, daily), ...chainCfg };
-  if (cfg.rocket === undefined) delete cfg.rocket;
+  let pass = tokenGate ? readPass(daily) : null;
   if (daily && !pass && tokenGate) {
     location.search = '';
     return;
+  }
+  let cfg: Partial<RunConfig> = runConfig(meta, defcon, daily);
+  if (pass) {
+    pass = await officialPass(pass, defcon);
+    if (!pass) return;
+    seed = pass.seed;
+    cfg = pass.config!;
+  } else if (tokenGate) {
+    cfg = { ...cfg, tent: true };
   }
   const game = new Game(seed, cfg);
   if (pass?.tier === 4) document.body.classList.add('silo');
@@ -126,7 +146,27 @@ function startRun(): void {
     // Bank the run exactly once when it ends.
     if (game.ending && !ui.rewards) {
       ui.rewards = recordRun(meta, game.ending);
-      clearPass();
+      if (pass) {
+        const p = pass;
+        // The server replays the inputs to get the real result. Retry-able from the end screen.
+        ui.verify = () => {
+          ui.verdict = { state: 'pending' };
+          game.touch();
+          serverFinish({ runId: p.runId, secret: p.secret, ticks: game.tick, inputs: game.inputs })
+            .then((reply) => {
+              ui.verdict = { state: 'ok', reply };
+              clearPass();
+            })
+            .catch((err) => (ui.verdict = { state: 'error', error: (err as Error).message }))
+            .finally(() => {
+              void refresh();
+              game.touch();
+            });
+        };
+        ui.verify();
+      } else {
+        clearPass();
+      }
       game.touch();
     }
     view.frame(dt);

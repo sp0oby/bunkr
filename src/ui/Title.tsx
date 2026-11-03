@@ -66,12 +66,12 @@ export function Title({ meta }: { meta: Meta }) {
         <div class="tb-side">
           <button
             class="btn btn-amber"
-            disabled={playedToday || !!w.busy}
+            disabled={playedToday || !!w.busy || (deed && !w.dailyAvailable)}
             onClick={() => (tent ? setDeedOpen(true) : void enter('?daily=1', true))}
             title="Same seed for everyone today. One attempt. DEFCON 3. No Vault perks."
           >
             DAILY DOOM
-            <small>{playedToday ? `done · ${meta.daily!.score.toLocaleString()}` : tent ? 'needs a deed' : todayKey()}</small>
+            <small>{playedToday ? `done · ${meta.daily!.score.toLocaleString()}` : tent ? 'needs a deed' : !w.dailyAvailable ? 'played today' : todayKey()}</small>
           </button>
           <DeedChip onOpen={() => setDeedOpen(true)} />
           <button class="btn btn-pink" onClick={() => setVaultOpen(true)}>

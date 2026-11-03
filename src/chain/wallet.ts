@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import {
   BaseError, ContractFunctionRevertedError, UserRejectedRequestError, createPublicClient, createWalletClient, custom,
-  decodeEventLog, http, numberToHex, parseSignature, type Abi, type Account, type Address, type Hash, type WalletClient,
+  decodeEventLog, http, keccak256, numberToHex, parseSignature, toHex, type Abi, type Account, type Address, type Hash, type Hex, type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { forgeAbi, ticketsAbi, tokenAbi } from './abi';
 import { DEV_KEY, FORGE_ORDER, LOADOUT_SLOTS, chain, deployment, devWalletAllowed } from './config';
-import type { BagId } from '../sim/types';
+import type { BagId, RunConfig } from '../sim/types';
 
 type Kind = 'injected' | 'dev';
 
@@ -26,6 +26,7 @@ export interface WalletState {
   balance: bigint;
   tickets: number;
   freeAvailable: boolean;
+  dailyAvailable: boolean;
   pot: bigint;
   forged: Partial<Record<BagId, number>>;
   thresholds: bigint[];
@@ -49,7 +50,7 @@ const LOADOUT_KEY = 'bunkr.loadout';
 let state: WalletState = {
   status: deployment && chain ? 'disconnected' : 'off',
   kind: null, address: null, wrongChain: false,
-  tier: 0, balance: 0n, tickets: 0, freeAvailable: false, pot: 0n, forged: {},
+  tier: 0, balance: 0n, tickets: 0, freeAvailable: false, dailyAvailable: true, pot: 0n, forged: {},
   thresholds: [], ticketPrice: 0n, recipes: {},
   busy: null, error: null, lastTx: null,
 };
@@ -192,9 +193,10 @@ export async function refresh(): Promise<void> {
   if (!pub || !deployment || !state.address) return;
   const who = state.address;
   try {
-    const [ps, owned] = await Promise.all([
+    const [ps, owned, dailyAvailable] = await Promise.all([
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'playerState', args: [who] }),
       pub.readContract({ address: deployment.forge, abi: forgeAbi, functionName: 'bagsOf', args: [who, FORGE_ORDER.map((_, i) => BigInt(i))] }),
+      pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'dailyAvailable', args: [who] }),
       loadConfig(),
     ]);
     const forged: Partial<Record<BagId, number>> = {};
@@ -202,7 +204,7 @@ export async function refresh(): Promise<void> {
       if (n > 0n) forged[FORGE_ORDER[i]] = Number(n);
     });
     const [tier, balance, tickets, freeAvailable, pot] = ps;
-    set({ tier, balance, tickets: Number(tickets), freeAvailable, pot, forged });
+    set({ tier, balance, tickets: Number(tickets), freeAvailable, dailyAvailable, pot, forged });
   } catch (e) {
     set({ error: friendly(e) });
   }
@@ -271,20 +273,24 @@ export const forgeBag = (bag: BagId) =>
       : send('Forging', deployment!.forge, forgeAbi, 'forge', [id]);
   });
 
-/** Spends a Ration Ticket (today's free one first). Returns the on-chain run id. */
+/**
+ * Spends a Ration Ticket (today's free one first). The transaction carries the hash of a
+ * fresh secret; only this browser knows the secret, so only it can report the result.
+ */
 export const enterRun = (daily: boolean) =>
   run('Spending a Ration Ticket', async () => {
-    const hash = await send('Spending a Ration Ticket', deployment!.tickets, ticketsAbi, 'enterRun', [daily]);
+    const secret = toHex(crypto.getRandomValues(new Uint8Array(32)));
+    const hash = await send('Spending a Ration Ticket', deployment!.tickets, ticketsAbi, 'enterRun', [daily, keccak256(secret)]);
     const receipt = await pub!.getTransactionReceipt({ hash });
     for (const log of receipt.logs) {
       try {
         const ev = decodeEventLog({ abi: ticketsAbi, data: log.data, topics: log.topics });
-        if (ev.eventName === 'RunEntered') return Number(ev.args.runId);
+        if (ev.eventName === 'RunEntered') return { runId: Number(ev.args.runId), txHash: hash, secret };
       } catch {
         /* not ours */
       }
     }
-    return 0;
+    throw new Error('The ticket went through but no run was recorded.');
   });
 
 /**
@@ -334,6 +340,7 @@ function rejected(e: unknown): boolean {
 
 const REVERTS: Record<string, string> = {
   NoDeed: 'You need a Bunker Deed (hold at least the Shed amount of $BUNKR).',
+  DailyAlreadyPlayed: 'You already played today\'s Daily Doom. One attempt per day.',
   NoTicket: 'Out of Ration Tickets. Buy more, or wait for tomorrow\'s free one.',
   TierTooLow: 'Your Deed tier is too low to forge that Bag.',
   UnknownBag: 'That Bag can\'t be forged.',
@@ -385,6 +392,12 @@ export function toggleLoadout(bag: BagId): void {
 /** Proof the player spent a ticket, handed from the title screen to the run. */
 export interface RunPass {
   runId: number;
+  txHash: Hash;
+  /** Reveals the run's commit to the results server. */
+  secret: Hex;
+  /** Filled in once the results server has handed out the seed. */
+  seed?: number;
+  config?: Partial<RunConfig>;
   address: Address;
   chainId: number;
   tier: number;

@@ -25,6 +25,19 @@ const HATCH_COOLDOWN: Partial<Record<HatchTrigger, number>> = {
 };
 const HATCH_URGENT = new Set<HatchTrigger>(['start', 'drop', 'raid', 'whale', 'audit', 'death']);
 export const COPE_COST = 6;
+
+/**
+ * Every player action. The game records each call with the sim tick it happened on, so
+ * the results server can replay the run from its seed and get the real result instead
+ * of trusting the browser's score.
+ */
+export const ACTIONS = [
+  'build', 'digFloor', 'recruit', 'assign', 'cope', 'sendExpedition', 'payRespects', 'skipPrep', 'launch',
+  'answerAudit', 'dismissAudit', 'skipDrop', 'chooseCard', 'dismissCard', 'pokeHotspot', 'useBag',
+] as const;
+export type ActionName = (typeof ACTIONS)[number];
+/** [tick, action, args]: the action ran after `tick` calls to step(). */
+export type Input = [number, ActionName, unknown[]];
 /** Seconds to stamp each S.E.C. audit form. */
 export const AUDIT_FORM_SECONDS = 4.5;
 
@@ -100,6 +113,13 @@ export class Game {
   /** Output produced per room since the renderer last drained it (for popups). */
   roomOut = new Map<number, number>();
 
+  /** Calls to step() so far, paused or not. */
+  tick = 0;
+  /** Player actions so far, for replay. */
+  readonly inputs: Input[] = [];
+  /** >0 while the sim (or an action) is running, so nested calls aren't recorded. */
+  private depth = 0;
+
   private nextId = 1;
   private logId = 1;
   private warned = new Set<string>();
@@ -125,6 +145,7 @@ export class Game {
       this.bags.push(b);
       this.post(`Forged Bag on board: ${BAGS[b].name}. ${BAGS[b].desc}`, 'good');
     }
+    this.recordActions();
     this.say('start');
     this.post('The bombs drop when the T-MINUS clock hits zero. Build your bunker before then. Prices go up as panic sets in.', 'info');
   }
@@ -412,7 +433,7 @@ export class Game {
     const key = `${roomId}:${index}`;
     const ready = this.hotspotCd.get(key) ?? 0;
     if (this.time < ready) return `${spot.label}: recharging. Like your portfolio. (${Math.ceil(ready - this.time)}s)`;
-    this.hotspotCd.set(key, this.time + 8); // ~20 real seconds at the underground pace
+    this.hotspotCd.set(key, this.time + 13); // ~20 real seconds at the underground pace
     const text = spot.poke(this, room, this.workersIn(room));
     this.touch();
     return text;
@@ -633,8 +654,35 @@ export class Game {
   // Simulation
   // ======================================================================
 
+  /** Wrap each player action so top-level calls are logged with the current tick. */
+  private recordActions(): void {
+    const self = this as unknown as Record<ActionName, (...a: unknown[]) => unknown>;
+    for (const name of ACTIONS) {
+      const fn = self[name].bind(this);
+      self[name] = (...args: unknown[]) => {
+        if (this.depth === 0 && this.phase !== 'ended') this.inputs.push([this.tick, name, args]);
+        this.depth++;
+        try {
+          return fn(...args);
+        } finally {
+          this.depth--;
+        }
+      };
+    }
+  }
+
   /** Advance by exactly one fixed step. Paused while a card is open. */
   step(): void {
+    this.tick++;
+    this.depth++;
+    try {
+      this.stepInner();
+    } finally {
+      this.depth--;
+    }
+  }
+
+  private stepInner(): void {
     if (this.phase === 'ended' || this.card) return;
     if (this.audit) {
       // The audit pauses the bunker; only its form timer runs.
@@ -1180,4 +1228,23 @@ export class Game {
     this.fx.push('end');
     this.touch();
   }
+}
+
+/**
+ * Re-run a recorded game from its seed: apply each input at its tick, step in between.
+ * Same seed + config + inputs = the same game, so this is the server's source of truth.
+ */
+export function replay(seed: number, config: Partial<RunConfig>, inputs: Input[], ticks: number): Game {
+  const g = new Game(seed, config);
+  const run = g as unknown as Record<ActionName, (...a: unknown[]) => unknown>;
+  let i = 0;
+  for (let t = 0; t <= ticks && !g.ending; t++) {
+    while (i < inputs.length && inputs[i][0] === t) {
+      const [, name, args] = inputs[i++];
+      if (!ACTIONS.includes(name)) throw new Error(`Unknown action ${String(name)}`);
+      run[name](...args);
+    }
+    if (t < ticks) g.step();
+  }
+  return g;
 }

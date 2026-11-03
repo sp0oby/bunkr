@@ -37,12 +37,16 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
     mapping(address => uint256) public tickets;
     /// @dev UTC day + 1 of the last free ticket used (0 = never).
     mapping(address => uint256) private _lastFreeDay;
+    /// @dev UTC day + 1 of the last Daily Doom entry (0 = never). One attempt per day.
+    mapping(address => uint256) private _lastDailyDay;
     mapping(uint256 => uint256) public pot;
     mapping(uint256 => bool) public settled;
     uint256 public runCount;
 
     event TicketsBought(address indexed player, uint256 qty, uint256 burned, uint256 toPot, uint256 indexed day);
-    event RunEntered(address indexed player, uint256 indexed runId, uint256 indexed day, bool daily, bool free, uint8 tier);
+    event RunEntered(
+        address indexed player, uint256 indexed runId, uint256 indexed day, bool daily, bool free, uint8 tier, bytes32 commit
+    );
     event DaySettled(uint256 indexed day, uint256 amount, address[] winners, uint16[] shareBps);
     event PotRolled(uint256 indexed fromDay, uint256 indexed toDay, uint256 amount);
     event ConfigChanged(uint256[4] tierThresholds, uint256 ticketPrice, uint16 burnBps);
@@ -50,6 +54,7 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
 
     error NoDeed();
     error NoTicket();
+    error DailyAlreadyPlayed();
     error BadQty();
     error NotOracle();
     error DayNotOver();
@@ -90,6 +95,10 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
         return TIER_NONE;
     }
 
+    function dailyAvailable(address player) public view returns (bool) {
+        return _lastDailyDay[player] != today() + 1;
+    }
+
     function freeTicketAvailable(address player) public view returns (bool) {
         return tierOf(player) >= TIER_SHED && _lastFreeDay[player] != today() + 1;
     }
@@ -121,9 +130,15 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
     }
 
     /// @notice Spend a ticket to start a run. Uses today's free ticket first.
-    function enterRun(bool daily) external returns (uint256 runId) {
+    /// @param commit keccak256 of a secret only the player's game client knows. The results
+    ///        server only accepts this run's result from whoever can reveal it.
+    function enterRun(bool daily, bytes32 commit) external returns (uint256 runId) {
         uint8 tier = tierOf(msg.sender);
         if (tier == TIER_NONE) revert NoDeed();
+        if (daily) {
+            if (_lastDailyDay[msg.sender] == today() + 1) revert DailyAlreadyPlayed();
+            _lastDailyDay[msg.sender] = today() + 1;
+        }
         bool free = _lastFreeDay[msg.sender] != today() + 1;
         if (free) {
             _lastFreeDay[msg.sender] = today() + 1;
@@ -132,7 +147,7 @@ contract BunkrTickets is Ownable2Step, ReentrancyGuard {
             tickets[msg.sender]--;
         }
         runId = ++runCount;
-        emit RunEntered(msg.sender, runId, today(), daily, free, tier);
+        emit RunEntered(msg.sender, runId, today(), daily, free, tier, commit);
     }
 
     // ---------------------------------------------------------------- oracle

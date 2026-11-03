@@ -6,7 +6,9 @@ Things that have to happen before launch. Not optional.
 - [x] Contracts: MockBUNKR, BunkrTickets (Deeds, Ration Tickets, Daily Doom pot), BunkrForge (forged Bags) + tests
 - [x] Wallet connect, Deed panel, ticket per run, Tent Mode, forged-Bag loadout, forge from the end screen
 - [ ] Deploy to Robinhood Chain testnet (needs a funded deployer key: `npm run deploy:testnet`)
-- [ ] Results server: signs run results, settles Daily Doom pots, rolls Bag shatters on liquidation, Daily leaderboard
+- [x] Results server: verifies every ticketed run by replaying its inputs, settles Daily Doom pots, rolls Bag shatters, Daily leaderboard
+- [ ] Host the results server (needs ORACLE_KEY + SERVER_SECRET) and a real database before mainnet traffic
+- [ ] Daily Doom leaderboard screen in the game (the API is there: GET /leaderboard)
 - [ ] Chart-as-weather (needs a live price, so after the Urufu launch)
 - [ ] The Wasteland season mode
 - [ ] Outside audit before mainnet
@@ -26,5 +28,5 @@ Slot: after the token layer, before the tutorial — most crypto players will op
 - HATCH walks a new player through: build a reactor, drag a degen in, keep the vibes in the middle, survive day 1
 
 ## Done recently
-- One-minute in-game days (was 24s) so runs have room for wallet transactions; boss fights stay full speed
+- 36-second in-game days (was 24s; a minute felt stagnant); boss fights stay full speed
 - Phones get HATCH's "this bunker is PC-only" screen (with an "i like pain" override)
