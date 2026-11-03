@@ -26,7 +26,11 @@ const HATCH_COOLDOWN: Partial<Record<HatchTrigger, number>> = {
   death: 40, quit: 60, yolo: 60, bag: 90, recruit: 120, cope: 120,
   dayStart: 72, nopower: 60, starving: 60, thirsty: 60, over: 90, back: 90, balanced: 120, idle: 150,
 };
-const HATCH_URGENT = new Set<HatchTrigger>(['start', 'drop', 'raid', 'whale', 'audit', 'death']);
+/** Major events: HATCH always speaks (and is always voiced), whatever it said recently. */
+const HATCH_MAJOR = new Set<HatchTrigger>([
+  'start', 'drop', 'raid', 'whale', 'audit', 'death', 'raidwon', 'raidlost', 'quit',
+  'tent', 'tentWarn', 'silo', 'forged', 'revived', 'missile', 'whaleSighted', 'paperStorm',
+]);
 export const COPE_COST = 6;
 
 /**
@@ -576,6 +580,7 @@ export class Game {
       this.stats.revives++;
       this.kick(22);
       this.post(`${d.name} came back from liquidation on pure respect. ${r.presses} Fs. The bunker is a community.`, 'good');
+      this.say('revived');
       this.fx.push('raidwon');
     } else {
       this.vibe += 4;
@@ -638,6 +643,7 @@ export class Game {
     const dmg = raid.maxHp * 0.3 * (this.hasMod('silo') ? 1.5 : 1);
     raid.hp -= dmg;
     this.post(`MISSILE AWAY. Direct hit on ${raid.name}. ${this.missiles} left.`, 'good');
+    this.say('missile');
     this.fx.push('missile');
     this.touch();
     return true;
@@ -788,10 +794,10 @@ export class Game {
   /** HATCH comments on something — but not too often, and never the same thing on repeat. */
   say(trigger: HatchTrigger): void {
     if (this.time < this.hatchUnpluggedUntil) return;
-    const urgent = HATCH_URGENT.has(trigger);
+    const major = HATCH_MAJOR.has(trigger);
     const last = this.hatchLast.get(trigger) ?? -Infinity;
-    if (this.time - last < (HATCH_COOLDOWN[trigger] ?? 45)) return;
-    if (!urgent && this.time - this.hatchLastAny < HATCH_GAP) return;
+    if (!major && this.time - last < (HATCH_COOLDOWN[trigger] ?? 45)) return;
+    if (!major && this.time - this.hatchLastAny < HATCH_GAP) return;
     this.hatchLast.set(trigger, this.time);
     this.hatchLastAny = this.time;
     const lines = HATCH_LINES[trigger];
@@ -803,8 +809,8 @@ export class Game {
     this.hatchMood = mood;
     this.hatchLine = line;
     this.hatchSeq++;
-    // Voice each line only the first time; repeats are text-only.
-    this.hatchVoice = this.hatchSpoken.has(key) ? null : key;
+    // Major events are always voiced; anything else only the first time, then text-only.
+    this.hatchVoice = major || !this.hatchSpoken.has(key) ? key : null;
     this.hatchSpoken.add(key);
     this.touch();
   }
@@ -1422,6 +1428,7 @@ export class Game {
       const n = this.addRes('ramen', 80);
       this.kick(15);
       this.post(`WHALE SIGHTED. Somebody just market-bought a mountain of $BUNKR. The wasteland is euphoric. +${n} ramen fell off the truck.`, 'good');
+      this.say('whaleSighted');
       this.fx.push('raidwon');
     } else {
       this.kick(-20);
@@ -1434,6 +1441,7 @@ export class Game {
       } else {
         this.post('PAPER HANDS STORM. $BUNKR is dumping. The whole bunker is staring at the chart. Morale down.', 'bad');
       }
+      this.say('paperStorm');
       this.fx.push('raidlost');
     }
   }

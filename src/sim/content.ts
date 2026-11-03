@@ -322,7 +322,7 @@ export const EXPEDITION_CARD_CHANCE = 0.4;
 export type HatchTrigger =
   | 'start' | 'drop' | 'nopower' | 'starving' | 'thirsty' | 'over' | 'back' | 'balanced'
   | 'death' | 'raid' | 'whale' | 'audit' | 'raidwon' | 'raidlost' | 'bag' | 'recruit' | 'cope' | 'idle' | 'quit' | 'yolo' | 'dayStart'
-  | 'tent' | 'tentWarn' | 'silo' | 'forged';
+  | 'tent' | 'tentWarn' | 'silo' | 'forged' | 'revived' | 'missile' | 'whaleSighted' | 'paperStorm';
 
 export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   start: [
@@ -402,6 +402,19 @@ export const HATCH_LINES: Record<HatchTrigger, [HatchMood, string][]> = {
   ],
   forged: [
     ['smug', 'Forged Bags on board. If we get liquidated, they might not make it. No pressure.'],
+  ],
+  revived: [
+    ['laugh', 'Revived. Fifty Fs. The blockchain of respect has spoken.'],
+    ['smug', 'They are back. Respect is the only asset that never got rugged.'],
+  ],
+  missile: [
+    ['laugh', 'Launch away. That is what we call a hard fork.'],
+  ],
+  whaleSighted: [
+    ['laugh', 'Whale sighted. Somebody just bought a mountain of BUNKR. Everyone act rich.'],
+  ],
+  paperStorm: [
+    ['panic', 'Paper hands storm. The chart is bleeding. Do not look at the chart. I said do not look.'],
   ],
   recruit: [
     ['neutral', 'A new survivor crawled out of the porta-potty. Do not ask how they found us.'],
