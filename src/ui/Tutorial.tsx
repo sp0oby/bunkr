@@ -1,7 +1,7 @@
 // First-run tutorial: HATCH walks a new player through their first minutes, one step at a
 // time, in the real game. UI only: it never touches the sim, it just watches it. While the
 // early steps are on screen the prep clock is held, so nobody gets nuked mid-lesson.
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Game } from '../sim/game';
 import type { RoomType } from '../sim/types';
 import { Rich } from './icons';
@@ -116,10 +116,27 @@ export function Tutorial({ game, step, setStep }: { game: Game; step: number; se
     }
   });
 
-  // Pulse whatever this step is about.
+  // Pulse whatever this step is about, and get out of its way: if the bubble's usual spot
+  // beside HATCH would cover it, move up under the top bar until it's clear again.
+  const box = useRef<HTMLDivElement>(null);
+  const [top, setTop] = useState<number | null>(null);
   useEffect(() => {
+    setTop(null);
     if (!s?.point) return;
-    const mark = () => document.querySelectorAll(s.point!).forEach((el) => el.classList.add('tut-target'));
+    const mark = () => {
+      const els = [...document.querySelectorAll<HTMLElement>(s.point!)];
+      els.forEach((el) => el.classList.add('tut-target'));
+      const b = box.current;
+      if (!b) return;
+      const w = b.offsetWidth;
+      const h = b.offsetHeight;
+      const targets = els.map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.bottom > 0 && r.top < innerHeight);
+      const hits = (y: number) => targets.some((r) => r.left < 132 + w && r.right > 132 && r.top < y + h && r.bottom > y);
+      const atBottom = innerHeight - 78 - h;
+      const atTop = (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 60) + 12;
+      if (hits(atBottom) && !hits(atTop)) setTop(atTop);
+      else if (!hits(atBottom)) setTop(null);
+    };
     mark();
     const id = setInterval(mark, 300); // CSS2D labels get re-created as the bunker changes
     return () => {
@@ -134,7 +151,7 @@ export function Tutorial({ game, step, setStep }: { game: Game; step: number; se
     setStep(null);
   };
   return (
-    <div class="tutorial">
+    <div ref={box} class={`tutorial ${top != null ? 'at-top' : ''}`} style={top != null ? { top: `${top}px`, bottom: 'auto' } : undefined}>
       <div class="tut-kicker">HATCH · TUTORIAL {step + 1}/{STEPS.length}</div>
       <b class="tut-title">{s.title}</b>
       <p><Rich text={s.text} size={18} /></p>
