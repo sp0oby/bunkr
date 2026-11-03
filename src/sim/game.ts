@@ -22,6 +22,8 @@ export const STEP = 0.1;
 const HATCH_GAP = 14;
 /** How long a face from a line or event sticks before HATCH reacts to the bunker again (sim seconds). */
 const MOOD_HOLD = 8;
+/** Quiet time after any popup (card, raid, audit, revive) before the next event card: ~15s real, ~27s by day 30. */
+const POPUP_GAP = 10;
 /** Per-topic cooldowns in sim-seconds (a day is 24s). */
 const HATCH_COOLDOWN: Partial<Record<HatchTrigger, number>> = {
   start: 0, drop: 0, raid: 0, raidwon: 30, raidlost: 30,
@@ -119,6 +121,8 @@ export class Game {
   readonly prepSeconds: number;
   /** When today's event cards are due (sim time): 1-3 a day, at random times. */
   private cardTimes: number[] = [];
+  /** No event card before this: the player gets a breather after every popup. */
+  private quietUntil = 0;
   seenCards = new Set<string>();
 
   /** HATCH's face. A line or event sets it for a few seconds, then it follows the bunker. */
@@ -484,6 +488,7 @@ export class Game {
   dismissAudit(): void {
     if (this.audit?.done) {
       this.audit = null;
+      this.quietUntil = this.time + this.popupGap();
       this.touch();
     }
   }
@@ -525,6 +530,7 @@ export class Game {
   dismissCard(): void {
     if (this.card?.result != null) {
       this.card = null;
+      this.quietUntil = this.time + this.popupGap();
       this.touch();
     }
   }
@@ -617,6 +623,7 @@ export class Game {
   dismissRevive(): void {
     if (this.revive?.done) {
       this.revive = null;
+      this.quietUntil = this.time + this.popupGap();
       this.touch();
     }
   }
@@ -1404,6 +1411,7 @@ export class Game {
       this.fx.push('raidwon');
       if (this.rng.chance(0.5)) this.giveBag();
       this.raid = null;
+      this.quietUntil = this.time + this.popupGap();
     } else if (raid.t >= (raid.kind === 'whale' ? 45 : 30)) {
       this.kick(-25);
       this.stats.raidsLost++;
@@ -1411,6 +1419,7 @@ export class Game {
       this.say('raidlost');
       this.fx.push('raidlost');
       this.raid = null;
+      this.quietUntil = this.time + this.popupGap();
     }
     this.touch();
   }
@@ -1421,11 +1430,16 @@ export class Game {
     this.cardTimes = Array.from({ length: n }, () => this.time + this.rng.range(earliest, DAY_SECONDS * 0.92)).sort((a, b) => a - b);
   }
 
+  /** The breather after a popup grows through the run: the late game has enough going on. */
+  private popupGap(): number {
+    return POPUP_GAP + Math.max(0, this.day - 10) * 0.4;
+  }
+
   private cardsStep(): void {
-    if (this.raid || !this.cardTimes.length || this.time < this.cardTimes[0]) return;
+    // Cards wait out any popup and the quiet after it; ones still waiting at midnight are dropped
+    // (each day deals fresh), so they never pile up back to back.
+    if (this.raid || this.time < this.quietUntil || !this.cardTimes.length || this.time < this.cardTimes[0]) return;
     this.cardTimes.shift();
-    // Give the player a breather before the next one, even if two landed close together.
-    this.cardTimes = this.cardTimes.map((t) => Math.max(t, this.time + 4));
     const candidates = CARDS.filter((c) => !c.special && (!c.needs || c.needs(this)) && !(c.once && this.seenCards.has(c.id)));
     const def = this.rng.weighted(candidates, (c) => (this.seenCards.has(c.id) ? 0.25 : 1) * (c.weight ?? 1));
     if (def) this.openCard(def);

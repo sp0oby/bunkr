@@ -89,7 +89,7 @@ export const GUIDE: GuideSection[] = [
     title: 'Things will happen to you.',
     intro: 'Most of them are your fault.',
     cards: [
-      { title: 'Event cards', body: 'One to three times a day something shows up: a man from the future, a governance vote, a radioactive dog. Pick an option. Live with it.' },
+      { title: 'Event cards', body: 'One to three times a day something shows up: a man from the future, a governance vote, a radioactive dog. Pick an option. Live with it. After any event you get a breather before the next one, and it gets longer later in the run.' },
       { title: 'Raids', body: 'The Liquidators and the Mutant Whale steal ramen and stab degens. Your crew fights automatically, and you can click the raiders to smash them yourself. Every 10th hit crits.', art: 'sprites/raider.webp' },
       { title: 'The audit', body: 'Day 20: approve the real paperwork, reject the fraud, before the timer runs out. Pass for a morale boost. Fail and they take ramen, and maybe a Bag.', art: 'sprites/secagent.webp' },
       { title: 'Bags', body: 'Relics with weird powers, found on expeditions, made in the Meme Lab, or dropped by raiders. Carry more than 5 and you\'re a Bagholder: output -10%.' },
