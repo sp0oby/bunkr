@@ -11,6 +11,7 @@ import { Icon, Rich, type IconName } from './icons';
 import { DeedModal, ForgePanel, enterAndGo } from './Deed';
 import { DailyEndBoard } from './Daily';
 import { PnlModal } from './PnlCard';
+import { Tutorial } from './Tutorial';
 import { CALM_ART, blastArt, preload } from './preload';
 import type { FinishReply } from '../chain/server';
 
@@ -32,6 +33,8 @@ export interface UiState {
   verify?: () => void;
   /** Equipped nuke cosmetic ('dog'), if any. */
   nukeSkin?: string | null;
+  /** First-run tutorial step, while it's running. */
+  tutorial?: number | null;
 }
 
 type Set = (fn: () => void) => void;
@@ -79,7 +82,8 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
       {game.awaitingDay() != null && <div class="seed-wait">Syncing with the results server…</div>}
       {game.phase === 'prep' && <NewsTicker game={game} />}
       {game.raid && <RaidBar game={game} />}
-      <Hatch game={game} />
+      <Hatch game={game} quiet={ui.tutorial != null} />
+      {ui.tutorial != null && <Tutorial game={game} step={ui.tutorial} setStep={(s) => set(() => (ui.tutorial = s))} />}
       <Dock game={game} ui={ui} set={set} focusFloor={focusFloor} />
       {sel && !popped && <DwellerCard game={game} d={sel} ui={ui} set={set} />}
       {popped && <RoomPopup key={popped.id} game={game} room={popped} ui={ui} set={set} view={view} />}
@@ -289,7 +293,7 @@ function Toasts({ game }: { game: Game }) {
 
 /** HATCH, the bunker AI: a bobbing CRT that glitches when its mood changes and
  *  types its lines out in a comic speech bubble that tucks away when idle. */
-function Hatch({ game }: { game: Game }) {
+function Hatch({ game, quiet }: { game: Game; quiet?: boolean }) {
   const line = game.hatchLine;
   const [shown, setShown] = useState('');
   const [open, setOpen] = useState(false);
@@ -323,7 +327,7 @@ function Hatch({ game }: { game: Game }) {
         <img class={`hatch-img g${glitch % 2}`} src={`/art/hatch/${game.hatchMood}.webp`} alt="HATCH" draggable={false} />
         <span class="hatch-scan" />
       </div>
-      {open && line && (
+      {open && line && !quiet && (
         <div class="hatch-bubble">
           <div class="hatch-name">HATCH<span>bunker OS v6.9</span></div>
           <p><Rich text={shown} /><span class="caret">▌</span></p>

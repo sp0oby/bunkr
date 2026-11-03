@@ -749,3 +749,16 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 .guide-q b { font: 17px var(--display); }
 .guide-q p { margin: 4px 0 0; font-size: 13px; color: #e9e3f7; line-height: 1.4; }
 .guide-art.fit { background-size: contain; background-color: #1a1626; }
+
+/* ---------- First-run tutorial ---------- */
+.tutorial { position: absolute; left: 132px; bottom: 78px; z-index: 9; width: min(400px, 60vw); background: #fff8ec; color: var(--ink); border: 4px solid var(--ink); border-radius: 18px 18px 18px 4px; padding: 10px 14px 12px; box-shadow: 0 6px 0 var(--ink); animation: bubbleIn 0.35s cubic-bezier(.2,1.6,.4,1); transform-origin: bottom left; }
+.tut-kicker { font: 11px var(--display); letter-spacing: 0.1em; color: #7a6a9a; }
+.tut-title { display: block; font: 22px var(--display); margin: 2px 0 4px; }
+.tutorial p { margin: 0 0 8px; font-size: 14px; line-height: 1.4; }
+.tut-row { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.tut-row .btn { font-size: 16px; padding: 5px 16px; }
+.tut-skip { margin-right: auto; background: none; border: none; color: #7a6a9a; font: 12px var(--body); text-decoration: underline dotted; }
+.tut-wait { font: 12px var(--display); letter-spacing: 0.06em; color: #b8541c; }
+.tut-target { outline: 4px solid var(--rad) !important; outline-offset: 3px; animation: tutPulse 0.9s ease-in-out infinite !important; position: relative; z-index: 8; }
+@keyframes tutPulse { 50% { outline-color: var(--amber); outline-offset: 7px; } }
+.guide-tut { font-size: 13px; padding: 4px 12px; margin-left: 8px; }

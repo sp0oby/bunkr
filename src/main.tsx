@@ -13,6 +13,7 @@ import { clearPass, equippedDrip, readPass, refresh, restore, savePass, type Run
 import { fetchWeather, serverDay, serverFinish, serverStart } from './chain/server';
 import { ServerProblem } from './ui/ServerProblem';
 import { CALM_ART, blastArt, preload } from './ui/preload';
+import { tutorialHolds, tutorialSeen } from './ui/Tutorial';
 import './style.css';
 
 const params = new URLSearchParams(location.search);
@@ -70,7 +71,9 @@ async function startRun(): Promise<void> {
   const seedParam = params.get('seed');
   let seed = daily ? dailySeed() : seedParam ? Number(seedParam) : undefined;
   // With the token layer on, a run needs a pass from spending a Ration Ticket. No pass: Tent Mode.
-  let pass = tokenGate ? readPass(daily) : null;
+  // The tutorial is always a free practice run (Tent Mode when the token layer is on).
+  const tutorial = !daily && (params.has('tutorial') || (meta.runs === 0 && !tutorialSeen()));
+  let pass = tokenGate && !params.has('tutorial') ? readPass(daily) : null;
   if (daily && !pass && tokenGate) {
     location.search = '';
     return;
@@ -86,7 +89,7 @@ async function startRun(): Promise<void> {
   }
   const game = new Game(seed, cfg);
   if (pass?.tier === 4) document.body.classList.add('silo');
-  const ui: UiState = { selected: null, buildAt: null, speed: 1, drawer: null, roomView: null, inspectBag: null, rewards: null };
+  const ui: UiState = { selected: null, buildAt: null, speed: 1, drawer: null, roomView: null, inspectBag: null, rewards: null, tutorial: tutorial ? 0 : null };
 
   function assign(dwellerId: number, roomId: number): boolean {
     const room = game.roomById(roomId)!;
@@ -188,6 +191,8 @@ async function startRun(): Promise<void> {
     const pace = game.phase === 'underground' && !game.raid && !minigame ? UNDERGROUND_PACE : 1;
     fetchDays();
     acc += dt * (minigame ? Math.min(ui.speed, 1) : ui.speed) * pace;
+    // The tutorial holds the prep clock while HATCH is explaining.
+    if (game.phase === 'prep' && tutorialHolds(ui.tutorial ?? null)) acc = 0;
     // Don't bank time while waiting for a day seed, or the sim would lurch forward after.
     if (game.awaitingDay() != null) {
       acc = 0;

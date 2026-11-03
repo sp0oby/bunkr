@@ -29,8 +29,8 @@ Today the title screen works on phones, but in-game is broken. Phones currently 
 
 Slot: after the token layer, before the tutorial — most crypto players will open the link on their phones.
 
-## 3. First-run tutorial
-- HATCH walks a new player through: build a reactor, drag a degen in, keep the vibes in the middle, survive day 1
+## 3. First-run tutorial — DONE
+- [x] HATCH walks a new player through: build a reactor, drag a degen in, kitchen, pool, tickers, vibes, the drop, survive day 1 (prep clock frozen while learning; auto on first run, replay from How to Play, skippable)
 
 ## Done recently
 - How to Play: in-game guide (title screen) + public guide page at /guide.html, one source (src/guide/content.ts)

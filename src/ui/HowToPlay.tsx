@@ -25,6 +25,7 @@ export function HowToPlay({ onClose }: { onClose: () => void }) {
       <div class="modal guide" onClick={(e) => e.stopPropagation()}>
         <div class="guide-head">
           <div class="modal-title">HOW TO PLAY</div>
+          <button class="btn btn-amber guide-tut" onClick={() => (location.search = '?play=1&tutorial=1')}>PLAY THE TUTORIAL</button>
           <a class="guide-full" href="/guide.html" target="_blank" rel="noreferrer">full guide page</a>
           <button class="x big" onClick={onClose} title="Close (Esc)">✕</button>
         </div>
