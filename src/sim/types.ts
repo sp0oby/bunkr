@@ -91,6 +91,8 @@ export interface Dweller {
   exp: Expedition | null;
   deathDay?: number;
   fPaid?: boolean;
+  /** Already had their F-to-revive chance this run. */
+  revived?: boolean;
 }
 
 export type LogKind = 'info' | 'good' | 'bad' | 'hatch';
@@ -113,6 +115,19 @@ export interface Raid {
   t: number;
   hitTimer: number;
   stolen: number;
+  /** Times the player smashed the raiders by hand, and when they last could. */
+  smashes: number;
+  lastSmash: number;
+}
+
+/** A degen just got liquidated: mash F fast enough and they come back. */
+export interface Revive {
+  dwellerId: number;
+  presses: number;
+  /** Seconds left. */
+  timer: number;
+  done: boolean;
+  success: boolean | null;
 }
 
 export interface Ending {
@@ -139,6 +154,10 @@ export interface Stats {
   auditsPassed: number;
   whaleSlain: boolean;
   launched: boolean;
+  /** Degens brought back with F-to-revive. */
+  revives: number;
+  /** Other bunkers raided on expeditions. */
+  bunkersRaided: number;
 }
 
 /** One document in the S.E.C. audit minigame. */

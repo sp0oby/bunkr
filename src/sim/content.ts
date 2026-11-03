@@ -221,8 +221,13 @@ export interface LocDef {
 export const LOCATIONS: LocDef[] = [
   { id: 'exchange', name: 'Ruins of a Delisted Exchange', dur: 30, risk: 0.07, loot: { ramen: [30, 70], water: [0, 25] }, bagChance: 0.1, rads: [5, 15] },
   { id: 'mine', name: 'Abandoned Mining Farm (still warm)', dur: 45, risk: 0.17, loot: { power: [25, 60], copium: [5, 20] }, bagChance: 0.25, rads: [10, 25] },
+  { id: 'peg', name: 'Collapsed Stablecoin Peg', dur: 35, risk: 0.09, loot: { water: [35, 80] }, bagChance: 0.12, rads: [5, 15] },
+  { id: 'mansion', name: 'Influencer\'s Bunker Mansion', dur: 40, risk: 0.12, loot: { copium: [15, 35], ramen: [10, 30] }, bagChance: 0.3, rads: [8, 18] },
   { id: 'gz', name: 'Ground Zero', dur: 60, risk: 0.33, loot: { ramen: [70, 160], copium: [10, 25] }, bagChance: 0.6, rads: [25, 50] },
+  { id: 'rival', name: 'A Rival Bunker', dur: 50, risk: 0.2, loot: { ramen: [40, 90] }, bagChance: 0.2, rads: [10, 20] },
 ];
+/** Chance a returning degen brings a decision home. */
+export const EXPEDITION_CARD_CHANCE = 0.4;
 
 // ---------- HATCH ----------
 export type HatchTrigger =

@@ -123,6 +123,9 @@ async function startRun(): Promise<void> {
     onDig() {
       game.digFloor();
     },
+    onRaider() {
+      game.smash();
+    },
   });
 
   render(<App game={game} ui={ui} view={view} />, document.getElementById('ui')!);
@@ -156,11 +159,12 @@ async function startRun(): Promise<void> {
   function loop(now: number) {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    // Underground days run at one real minute each; boss fights and the audit
-    // stay at full speed so they don't drag.
-    const pace = game.phase === 'underground' && !game.raid && !game.audit ? UNDERGROUND_PACE : 1;
+    // Underground days run slower than sim time; boss fights stay at full speed so they
+    // don't drag. Timed minigames (audit, revive) always run at 1x, whatever the speed.
+    const minigame = !!(game.audit || game.revive);
+    const pace = game.phase === 'underground' && !game.raid && !minigame ? UNDERGROUND_PACE : 1;
     fetchDays();
-    acc += dt * ui.speed * pace;
+    acc += dt * (minigame ? Math.min(ui.speed, 1) : ui.speed) * pace;
     // Don't bank time while waiting for a day seed, or the sim would lurch forward after.
     if (game.awaitingDay() != null) {
       acc = 0;
@@ -218,6 +222,12 @@ async function startRun(): Promise<void> {
       ui.roomView = null;
       ui.inspectBag = null;
       game.touch();
+    } else if ((e.key === 'f' || e.key === 'F') && game.revive && !game.revive.done) {
+      if (!e.repeat) {
+        game.pressF();
+        audio.play('fpress');
+      }
+      e.preventDefault();
     } else if (game.audit && !game.audit.done) {
       if (e.key === 'a' || e.key === 'ArrowLeft') game.answerAudit(true);
       if (e.key === 'd' || e.key === 'ArrowRight') game.answerAudit(false);

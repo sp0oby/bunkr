@@ -5,7 +5,7 @@
 export type Sfx =
   | 'click' | 'pop' | 'build' | 'dig' | 'pickup' | 'assign' | 'denied' | 'boop' | 'card'
   | 'tick' | 'bag' | 'death' | 'raid' | 'raidwon' | 'raidlost' | 'nuke' | 'cope' | 'day'
-  | 'recruit' | 'quit' | 'open' | 'close';
+  | 'recruit' | 'quit' | 'open' | 'close' | 'smash' | 'crit' | 'fpress' | 'revive';
 
 export type MusicMode = 'prep' | 'bunker' | 'raid' | 'off';
 
@@ -163,6 +163,26 @@ class AudioEngine {
       case 'assign':
         this.tone({ f: 260 * r(), f2: 520, dur: 0.22, type: 'sine', vol: 0.4, vibrato: 18 });
         this.noise({ dur: 0.1, f: 300, vol: 0.25 });
+        break;
+      case 'smash':
+        this.noise({ dur: 0.07, f: 1800 * r(), f2: 400, type: 'bandpass', vol: 0.3 });
+        this.tone({ f: 140 * r(), f2: 60, dur: 0.08, type: 'square', vol: 0.18 });
+        break;
+      case 'crit':
+        this.noise({ dur: 0.18, f: 3000, f2: 200, type: 'bandpass', vol: 0.4 });
+        this.tone({ f: 90, f2: 40, dur: 0.25, type: 'square', vol: 0.25 });
+        this.tone({ t: 0.03, f: 880, f2: 1760, dur: 0.12, type: 'triangle', vol: 0.18 });
+        break;
+      case 'fpress': {
+        // A tiny church bell per F, pitch creeping up with every press.
+        const f = 660 * r();
+        this.tone({ f, dur: 0.12, type: 'sine', vol: 0.18 });
+        this.tone({ f: f * 2.01, dur: 0.08, type: 'sine', vol: 0.06 });
+        break;
+      }
+      case 'revive':
+        this.tone({ f: NOTE(60), dur: 0.5, type: 'sine', vol: 0.2, vibrato: 4 });
+        this.tone({ t: 0.05, f: NOTE(67), dur: 0.5, type: 'sine', vol: 0.12 });
         break;
       case 'denied':
         this.tone({ f: 150, dur: 0.12, type: 'square', vol: 0.15 });

@@ -11,6 +11,8 @@ function bot(seed: number, cfg = {}): Game {
   for (let i = 0; i < 20000 && !g.ending; i++) {
     if (g.card) g.card.result == null ? g.chooseCard(Math.floor(rnd() * 3)) : g.dismissCard();
     if (g.audit) g.audit.done ? g.dismissAudit() : g.answerAudit(rnd() < 0.5);
+    if (g.revive) g.revive.done ? g.dismissRevive() : rnd() < 0.7 && g.pressF();
+    if (g.raid && rnd() < 0.4) g.smash();
     const x = rnd();
     if (x < 0.02) g.build(types[Math.floor(rnd() * types.length)], Math.floor(rnd() * 3), Math.floor(rnd() * 6));
     else if (x < 0.03) g.recruit();

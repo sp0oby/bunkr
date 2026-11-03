@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import gsap from 'gsap';
 import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS, TENT_DAYS, archTitle, spriteFile } from '../sim/content';
-import { AUDIT_FORM_SECONDS, type Game } from '../sim/game';
+import { AUDIT_FORM_SECONDS, REVIVE_PRESSES, REVIVE_SECONDS, type Game } from '../sim/game';
 import type { RunRewards } from '../meta';
 import { HOTSPOTS, WORKER_QUIPS } from '../sim/hotspots';
 import type { BagId, Dweller, ResKey, Room } from '../sim/types';
@@ -83,6 +83,7 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
       {game.newBag && game.newLegend == null && !game.card && !ui.inspectBag && <BagReveal game={game} ui={ui} set={set} />}
       {ui.inspectBag && <BagInspect key={ui.inspectBag} game={game} id={ui.inspectBag} ui={ui} set={set} />}
       {game.audit && <AuditModal game={game} />}
+      {game.revive && <ReviveModal game={game} />}
       {game.card && <Card game={game} />}
       {game.phase === 'drop' && <Cinematic game={game} />}
       {game.ending && <End game={game} ui={ui} />}
@@ -728,11 +729,54 @@ function NewsTicker({ game }: { game: Game }) {
 
 function RaidBar({ game }: { game: Game }) {
   const r = game.raid!;
+  const limit = r.kind === 'whale' ? 45 : 30;
   return (
     <div class="raid panel">
       <b>{r.name}</b>
       <div class="raid-track"><span style={{ width: `${(r.hp / r.maxHp) * 100}%` }} /></div>
-      <small>{Math.ceil(30 - r.t)}s left · they stole {Math.round(r.stolen)} 🍜</small>
+      <small><Rich text={`${Math.max(0, Math.ceil(limit - r.t))}s left · they stole ${Math.round(r.stolen)} 🍜`} /></small>
+      <div class="raid-hint">CLICK THE {r.kind === 'whale' ? 'WHALE' : 'RAIDERS'} TO SMASH THEM · {r.smashes} hits · every 10th crits</div>
+    </div>
+  );
+}
+
+/** Someone just got liquidated: mash F to bring them back. */
+function ReviveModal({ game }: { game: Game }) {
+  const r = game.revive!;
+  const d = game.dwellers.find((x) => x.id === r.dwellerId)!;
+  const pct = Math.min(1, r.presses / REVIVE_PRESSES);
+  const press = () => {
+    game.pressF();
+    audio.play('fpress');
+  };
+  return (
+    <div class="modal-bg revive-bg">
+      <div class="modal revive">
+        <div class="card-day">DAY {game.day} · LIQUIDATION</div>
+        <div class="card-title">PRESS F TO PAY RESPECTS</div>
+        <div class="revive-sub">
+          {d.name} just got liquidated. Enough respect brings them back: <b>{REVIVE_PRESSES} Fs in {REVIVE_SECONDS} seconds.</b> One shot per degen.
+        </div>
+        <div class="revive-face" style={{ backgroundImage: `url(${spriteUrl(d)})` }} />
+        {!r.done ? (
+          <>
+            <button class={`revive-key ${r.presses % 2 ? 'down' : ''}`} onClick={press}>F</button>
+            <div class="revive-count"><b>{r.presses}</b>/{REVIVE_PRESSES}</div>
+            <div class="revive-bar"><span style={{ width: `${pct * 100}%` }} /></div>
+            <div class="af-timer"><span style={{ width: `${(r.timer / REVIVE_SECONDS) * 100}%` }} /></div>
+            <div class="revive-tip">Mash F on your keyboard (or click the key). The bunker is paused.</div>
+          </>
+        ) : (
+          <>
+            <p class={`card-result ${r.success ? 'win' : ''}`}>
+              {r.success
+                ? `${d.name} IS BACK. ${r.presses} Fs. Respect is the only currency that never depegs.`
+                : `${r.presses}/${REVIVE_PRESSES}. Not enough respect. ${d.name} stays liquidated. F.`}
+            </p>
+            <button class="btn btn-green card-ok" onClick={() => game.dismissRevive()}>BACK TO THE BUNKER</button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

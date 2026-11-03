@@ -1,16 +1,18 @@
 import { Rng } from './rng';
 import {
-  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, TENT_DAYS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, EXPEDITION_CARD_CHANCE, TENT_DAYS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
   LOOK_PRESENTATION, NAMES, POP_CAP, archTitle, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
 import { CARDS as CARDS1, type CardDef } from './events';
 import { CARDS2 } from './events2';
+import { CARDS3 } from './events3';
+import { EXPEDITION_CARDS } from './eventsExp';
 
-const CARDS: CardDef[] = [...CARDS1, ...CARDS2];
+const CARDS: CardDef[] = [...CARDS1, ...CARDS2, ...CARDS3];
 import { HOTSPOTS } from './hotspots';
 import type {
-  Audit, AuditForm, RunConfig,
+  Audit, AuditForm, Revive, RunConfig,
   ArchId, BagId, Dweller, Ending, HatchMood, LogEntry, LogKind, Phase, Raid, ResKey, Room, RoomType, StatKey, Stats,
 } from './types';
 
@@ -34,12 +36,18 @@ export const COPE_COST = 6;
 export const ACTIONS = [
   'build', 'digFloor', 'recruit', 'assign', 'cope', 'sendExpedition', 'payRespects', 'skipPrep', 'launch',
   'answerAudit', 'dismissAudit', 'skipDrop', 'chooseCard', 'dismissCard', 'pokeHotspot', 'useBag',
+  'pressF', 'dismissRevive', 'smash',
 ] as const;
 export type ActionName = (typeof ACTIONS)[number];
 /** [tick, action, args]: the action ran after `tick` calls to step(). */
 export type Input = [number, ActionName, unknown[]];
 /** Seconds to stamp each S.E.C. audit form. */
 export const AUDIT_FORM_SECONDS = 4.5;
+/** F-to-revive: this many presses before the timer runs out brings a degen back. */
+export const REVIVE_PRESSES = 50;
+export const REVIVE_SECONDS = 15;
+/** Fastest you can smash raiders by hand (sim seconds between hits). */
+const SMASH_COOLDOWN = 0.12;
 
 export interface PendingCard {
   def: CardDef;
@@ -87,6 +95,8 @@ export class Game {
   card: PendingCard | null = null;
   /** The S.E.C. audit minigame, while it's running (pauses the sim like a card). */
   audit: Audit | null = null;
+  /** The F-to-revive minigame, while it's running (pauses the sim like the audit). */
+  revive: Revive | null = null;
   /** Rocket Room build progress, 0-100. At 100 you can launch. */
   rocketProg = 0;
   readonly config: RunConfig;
@@ -103,7 +113,7 @@ export class Game {
   private hatchLastAny = -Infinity;
   private hatchSpoken = new Set<string>();
   log: LogEntry[] = [];
-  stats: Stats = { raidsWon: 0, raidsLost: 0, deaths: 0, quits: 0, recruits: 0, expeditions: 0, cardsPlayed: 0, peakRamen: 0, auditsPassed: 0, whaleSlain: false, launched: false };
+  stats: Stats = { raidsWon: 0, raidsLost: 0, deaths: 0, quits: 0, recruits: 0, expeditions: 0, cardsPlayed: 0, peakRamen: 0, auditsPassed: 0, whaleSlain: false, launched: false, revives: 0, bunkersRaided: 0 };
   ending: Ending | null = null;
 
   /** Bumped whenever something UI-visible changes. */
@@ -495,6 +505,62 @@ export class Game {
     this.fx.push('death');
     this.post(`${d.name} got liquidated (${cause}). Press F.`, 'bad');
     this.say('death');
+    // Everyone gets one shot at a respawn: mash F before the timer runs out.
+    if (!d.revived && !this.revive && this.phase === 'underground') {
+      d.revived = true;
+      this.revive = { dwellerId: d.id, presses: 0, timer: REVIVE_SECONDS, done: false, success: null };
+      this.fx.push('revive');
+    }
+  }
+
+  /** One press of F during the revive minigame. */
+  pressF(): void {
+    const r = this.revive;
+    if (!r || r.done) return;
+    r.presses++;
+    if (r.presses >= REVIVE_PRESSES) this.resolveRevive(true);
+    this.touch();
+  }
+
+  private resolveRevive(success: boolean): void {
+    const r = this.revive!;
+    const d = this.dwellers.find((x) => x.id === r.dwellerId)!;
+    r.done = true;
+    r.success = success;
+    d.fPaid = true;
+    if (success) {
+      d.status = 'active';
+      d.hp = 30;
+      d.deathDay = undefined;
+      this.stats.deaths--;
+      this.stats.revives++;
+      this.kick(22);
+      this.post(`${d.name} came back from liquidation on pure respect. ${r.presses} Fs. The bunker is a community.`, 'good');
+      this.fx.push('raidwon');
+    } else {
+      this.vibe += 4;
+      this.post(`${r.presses}/${REVIVE_PRESSES} Fs. Not enough respect. ${d.name} stays liquidated.`, 'bad');
+      this.fx.push('raidlost');
+    }
+  }
+
+  dismissRevive(): void {
+    if (this.revive?.done) {
+      this.revive = null;
+      this.touch();
+    }
+  }
+
+  /** Hit the raiders yourself. Every 10th smash is a crit. */
+  smash(): void {
+    const raid = this.raid;
+    if (!raid || this.audit || this.revive || this.card || raid.t - raid.lastSmash < SMASH_COOLDOWN) return;
+    raid.lastSmash = raid.t;
+    raid.smashes++;
+    const crit = raid.smashes % 10 === 0;
+    raid.hp -= (raid.kind === 'whale' ? 1.6 : 1.2) * (crit ? 5 : 1);
+    this.fx.push(crit ? 'crit' : 'smash');
+    this.touch();
   }
 
   /** Random recruit, weighted by rarity. */
@@ -678,7 +744,7 @@ export class Game {
    * set, step() does nothing (and doesn't count a tick), so waiting never changes the run.
    */
   awaitingDay(): number | null {
-    if (!this.config.serverDays || this.phase === 'ended' || this.card || this.audit) return null;
+    if (!this.config.serverDays || this.phase === 'ended' || this.card || this.audit || this.revive) return null;
     const next = this.phaseTime + STEP;
     let day: number | null = null;
     if (this.phase === 'drop' && next >= DROP_SECONDS) day = 1;
@@ -708,6 +774,14 @@ export class Game {
 
   private stepInner(): void {
     if (this.phase === 'ended' || this.card) return;
+    if (this.revive) {
+      // The revive pauses the bunker; only its timer runs.
+      if (!this.revive.done) {
+        this.revive.timer -= STEP;
+        if (this.revive.timer <= 0) this.resolveRevive(false);
+      }
+      return;
+    }
     if (this.audit) {
       // The audit pauses the bunker; only its form timer runs.
       if (!this.audit.done) {
@@ -757,7 +831,7 @@ export class Game {
     this.stats.peakRamen = Math.max(this.stats.peakRamen, this.res.ramen);
     this.warnings();
 
-    if (this.alive.length === 0 && this.phase === 'underground') this.finish(false);
+    if (this.alive.length === 0 && this.phase === 'underground' && !this.revive) this.finish(false);
   }
 
   private startDrop(): void {
@@ -1055,7 +1129,10 @@ export class Game {
         if (n > 0) got.push(`${n} ${k}`);
       }
       this.post(`${d.name} is back from ${loc.name} with ${got.join(', ') || 'nothing but trauma'}.`, 'good');
+      if (loc.id === 'rival') this.stats.bunkersRaided++;
       if (this.rng.chance(loc.bagChance)) this.giveBag();
+      const card = EXPEDITION_CARDS[loc.id];
+      if (card && !this.card && this.rng.chance(EXPEDITION_CARD_CHANCE)) this.openCard(card, d);
     }
   }
 
@@ -1063,7 +1140,7 @@ export class Game {
     const tough = this.config.defcon <= 4 ? 1.4 : 1;
     const whale = kind === 'whale';
     const hp = (whale ? 380 : 130) * this.raidMod * tough;
-    this.raid = { kind, name: whale ? 'THE MUTANT WHALE' : 'The Liquidators', hp, maxHp: hp, power: whale ? 9 : 5, t: 0, hitTimer: 0, stolen: 0 };
+    this.raid = { kind, name: whale ? 'THE MUTANT WHALE' : 'The Liquidators', hp, maxHp: hp, power: whale ? 9 : 5, t: 0, hitTimer: 0, stolen: 0, smashes: 0, lastSmash: -1 };
     this.raidMod = 1;
     this.say(whale ? 'whale' : 'raid');
     this.fx.push('raid');
@@ -1186,8 +1263,8 @@ export class Game {
     if (def) this.openCard(def);
   }
 
-  private openCard(def: CardDef): void {
-    const who = def.pickDweller ? def.pickDweller(this) : this.randomPresent();
+  private openCard(def: CardDef, forWho?: Dweller): void {
+    const who = forWho ?? (def.pickDweller ? def.pickDweller(this) : this.randomPresent());
     this.seenCards.add(def.id);
     this.card = { def, dwellerId: who?.id ?? null, result: null };
     this.fx.push('card');

@@ -601,3 +601,21 @@ body.silo .brand { color: var(--amber); text-shadow: 0 4px 0 var(--ink), 0 0 18p
 .daily-yesterday a { color: var(--cyan); }
 .daily-end { text-align: left; margin-bottom: 12px; }
 .daily-entry { font-size: 12px; color: var(--dim); margin: -4px 0 10px; max-width: 300px; } .daily-entry b { color: var(--amber); }
+
+/* ---------- Minigames: F-to-revive, raid smashing ---------- */
+.raid-hint { font: 11px var(--display); letter-spacing: 0.06em; color: var(--amber); margin-top: 3px; animation: pulseScale 1.2s infinite; }
+.smash-pop { position: fixed; z-index: 30; pointer-events: none; transform: translate(-50%, -50%); font: 22px var(--display); color: #fff; -webkit-text-stroke: 2px var(--ink); text-shadow: 0 3px 0 var(--ink); }
+.smash-pop.crit { color: var(--amber); font-size: 30px; }
+.revive-bg { background: #1a0606d0; }
+.revive { width: min(440px, 92vw); text-align: center; }
+.revive-sub { color: var(--dim); font-size: 13px; margin: 2px 0 10px; }
+.revive-sub b { color: var(--text); }
+.revive-face { width: 110px; height: 130px; margin: 0 auto 6px; background: center bottom / contain no-repeat; filter: grayscale(1) brightness(0.8); }
+.revive-key { width: 112px; height: 112px; margin: 2px auto 8px; display: grid; place-items: center; font: 72px var(--display); color: var(--ink); background: linear-gradient(#fffaf0, #d9d2c3); border: 4px solid var(--ink); border-radius: 18px; box-shadow: 0 9px 0 var(--ink), inset 0 -6px 0 #0002; transition: transform 0.04s, box-shadow 0.04s; }
+.revive-key.down { transform: translateY(6px); box-shadow: 0 3px 0 var(--ink), inset 0 -6px 0 #0002; }
+.revive-count { font: 18px var(--display); color: var(--dim); }
+.revive-count b { font-size: 34px; color: var(--text); }
+.revive-bar { height: 16px; border: 3px solid var(--ink); border-radius: 999px; background: var(--panel-2); overflow: hidden; margin: 6px 0; }
+.revive-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--green), var(--rad)); transition: width 0.08s; }
+.revive-tip { color: var(--dim); font-size: 11px; margin-top: 6px; }
+.card-result.win { color: var(--green); }

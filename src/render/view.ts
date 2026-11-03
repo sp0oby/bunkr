@@ -39,6 +39,8 @@ export interface ViewCallbacks {
   onDrop(dwellerId: number, roomId: number): void;
   onEmptyCell(floor: number, col: number): void;
   onDig(): void;
+  /** The player clicked a raider (or the whale): hit it. */
+  onRaider(): void;
   selected(): number | null;
 }
 
@@ -67,6 +69,7 @@ const RES_ICON: Partial<Record<RoomType, string>> = { reactor: '⚡', kitchen: '
 const FX_SOUND: Record<string, Sfx> = {
   card: 'card', bag: 'bag', death: 'death', raid: 'raid', raidwon: 'raidwon', raidlost: 'raidlost',
   legend: 'raidwon', stamp: 'build', denied: 'denied', audit: 'card', launch: 'nuke', build: 'build', dig: 'dig', recruit: 'recruit', assign: 'assign', cope: 'cope', day: 'day', quit: 'quit',
+  smash: 'smash', crit: 'crit', revive: 'revive',
 };
 const mat = (color: number) => new THREE.MeshBasicMaterial({ color });
 
@@ -108,6 +111,13 @@ function tiled(url: string, w: number, h: number, tile: number): THREE.Texture {
 }
 
 /** Sprite plane that sizes itself to the image's aspect once loaded, anchored at its feet. */
+/** A raider or the whale: a sprite the player can click to smash. */
+function raiderMesh(url: string, height: number): THREE.Mesh {
+  const m = spriteMesh(url, height);
+  m.userData.raider = true;
+  return m;
+}
+
 function spriteMesh(url: string, height: number): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(1, 1);
   geo.translate(0, 0.5, 0);
@@ -547,7 +557,7 @@ export class BunkerView {
     if (kind !== this.raidKind) {
       this.raidKind = kind;
       while (this.raiders.children.length) this.raiders.remove(this.raiders.children[0]);
-      if (kind === 'whale') this.raiders.add(spriteMesh(spriteArt('whale'), 2.7));
+      if (kind === 'whale') this.raiders.add(raiderMesh(spriteArt('whale'), 2.7));
     }
     if (!raid) return;
     if (raid.kind === 'whale') {
@@ -560,7 +570,7 @@ export class BunkerView {
     }
     const want = Math.max(1, Math.ceil((raid.hp / raid.maxHp) * 4));
     while (this.raiders.children.length > want) this.raiders.remove(this.raiders.children[0]);
-    while (this.raiders.children.length < want) this.raiders.add(spriteMesh(spriteArt('raider'), 1.8));
+    while (this.raiders.children.length < want) this.raiders.add(raiderMesh(spriteArt('raider'), 1.8));
     this.raiders.children.forEach((r, i) => {
       r.position.set(0.9 + i * 0.95, floorY(0), 0.6);
       r.rotation.z = Math.sin(this.game.time * 9 + i) * 0.08;
@@ -739,6 +749,10 @@ export class BunkerView {
       el.setPointerCapture(e.pointerId);
       this.pointer.set(e.clientX, e.clientY);
       const hit = this.hitTest(e.clientX, e.clientY);
+      if (hit.raider) {
+        this.smashAt(e.clientX, e.clientY);
+        return;
+      }
       if (hit.dweller != null) this.dragDweller = { id: hit.dweller, startX: e.clientX, startY: e.clientY, active: false };
     });
 
@@ -747,7 +761,7 @@ export class BunkerView {
       const hit = this.hitTest(e.clientX, e.clientY);
       this.hoverRoom = hit.room;
       this.hoverDweller = hit.dweller;
-      el.style.cursor = this.dragDweller?.active ? 'grabbing' : hit.dweller != null ? 'grab' : hit.room != null ? 'pointer' : 'default';
+      el.style.cursor = this.dragDweller?.active ? 'grabbing' : hit.raider ? 'crosshair' : hit.dweller != null ? 'grab' : hit.room != null ? 'pointer' : 'default';
       const dd = this.dragDweller;
       if (dd && !dd.active && Math.hypot(e.clientX - dd.startX, e.clientY - dd.startY) > 6) {
         dd.active = true;
@@ -795,21 +809,40 @@ export class BunkerView {
     window.addEventListener('blur', () => this.keys.clear());
   }
 
-  private hitTest(clientX: number, clientY: number): { dweller: number | null; room: number | null } {
+  /** Smash a raider and show the hit where the player clicked. */
+  private smashAt(clientX: number, clientY: number): void {
+    const before = this.game.raid?.smashes ?? 0;
+    this.cb.onRaider();
+    const raid = this.game.raid;
+    if (!raid || raid.smashes === before) return;
+    const crit = raid.smashes % 10 === 0;
+    const pop = document.createElement('div');
+    pop.className = `smash-pop ${crit ? 'crit' : ''}`;
+    pop.textContent = crit ? 'CRIT!' : 'SMASH';
+    pop.style.left = `${clientX}px`;
+    pop.style.top = `${clientY}px`;
+    document.body.appendChild(pop);
+    gsap.fromTo(pop, { y: 0, scale: crit ? 1.6 : 1, opacity: 1 }, { y: -50, scale: 1, opacity: 0, duration: 0.6, ease: 'power2.out', onComplete: () => pop.remove() });
+    this.shake = Math.max(this.shake, crit ? 0.5 : 0.12);
+  }
+
+  private hitTest(clientX: number, clientY: number): { dweller: number | null; room: number | null; raider: boolean } {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     const hits = this.raycaster.intersectObjects(this.scene.children, true);
     let dweller: number | null = null;
     let room: number | null = null;
+    let raider = false;
     for (const h of hits) {
+      if (h.object.userData.raider) raider = true;
       const did = h.object.userData.dwellerId;
       const rid = h.object.userData.roomId;
       if (did != null && dweller == null && did !== this.dragDweller?.id) dweller = did;
       if (rid != null && room == null) room = rid;
     }
     if (this.dragDweller?.active) dweller = null;
-    return { dweller, room };
+    return { dweller, room, raider: raider && !!this.game.raid };
   }
 
   private label(text: string, cls: string): CSS2DObject {
