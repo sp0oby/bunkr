@@ -1,4 +1,4 @@
-import type { ArchId, BagId, HatchMood, ResKey, RoomType, StatKey } from './types';
+import type { MutatorId, Station, TraitId, ArchId, BagId, HatchMood, ResKey, RoomType, StatKey } from './types';
 
 // ---------- Tuning ----------
 /** A day in sim-seconds. All economy rates are tuned against this. */
@@ -43,9 +43,91 @@ export const ROOMS: Record<RoomType, RoomDef> = {
   storage: { id: 'storage', name: 'Cold Storage', short: 'STORAGE', color: 0x8fa3b8, cost: 30, stat: null, desc: '+ramen and +water capacity. No workers.' },
   grass: { id: 'grass', name: 'Touch Grass Hydroponics', short: 'GRASS', color: 0x2bd96b, cost: 45, stat: 'vibes', desc: 'Dampens the vibe pendulum.' },
   rocket: { id: 'rocket', name: 'Rocket Room', short: 'ROCKET', color: 0xffffff, cost: 150, stat: 'grind', desc: 'Build a rocket out of a water heater and a porta-potty. Leave Earth.' },
+  silo: { id: 'silo', name: 'Missile Silo', short: 'SILO', color: 0xff7a1a, cost: 120, stat: 'grind', desc: 'Builds missiles. Fire them at bosses. Unlocks on day 12.' },
 };
 
-export const ROOM_ORDER: RoomType[] = ['reactor', 'kitchen', 'pool', 'copium', 'grass', 'rugdetector', 'storage', 'shill', 'memelab', 'rocket'];
+export const ROOM_ORDER: RoomType[] = ['reactor', 'kitchen', 'pool', 'copium', 'grass', 'rugdetector', 'storage', 'shill', 'memelab', 'silo', 'rocket'];
+
+/** The Silo is a late build: available from this underground day. */
+export const SILO_DAY = 12;
+export const MAX_MISSILES = 3;
+
+// ---------- Weekly mutators ----------
+export interface MutatorDef {
+  name: string;
+  desc: string;
+  /** Score multiplier for the week's suffering. */
+  score: number;
+}
+
+export const MUTATORS: Record<MutatorId, MutatorDef> = {
+  bear: { name: 'Bear Market', desc: 'Everything costs twice as much. Score x1.3.', score: 1.3 },
+  bull: { name: 'Bull Run', desc: 'Rooms make 25% more and the vibes run hot. So do the rads: +60%.', score: 1 },
+  airdrop: { name: 'Airdrop Season', desc: 'Crates fall from the sky most mornings. Some of them are Bags. Some of them are live.', score: 1 },
+  rugseason: { name: 'Rug Season', desc: 'Extra Liquidator raids on days 5 and 16. Rug Detectors work twice as hard. Win, and the loot is yours.', score: 1 },
+  halving: { name: 'The Halving', desc: 'All rooms make 25% less. Score x1.5. Number go up, eventually.', score: 1.5 },
+};
+const MUTATOR_ORDER: MutatorId[] = ['bear', 'bull', 'airdrop', 'rugseason', 'halving'];
+
+/** Mutators rotate every Monday (UTC). `utcDay` = days since 1970-01-01. */
+export function mutatorForDay(utcDay: number): MutatorId {
+  const week = Math.floor((utcDay + 3) / 7); // 1970-01-01 was a Thursday
+  return MUTATOR_ORDER[((week % MUTATOR_ORDER.length) + MUTATOR_ORDER.length) % MUTATOR_ORDER.length];
+}
+export const utcDayNow = () => Math.floor(Date.now() / 86400_000);
+
+// ---------- Room mods ----------
+export interface ModDef {
+  name: string;
+  cost: number;
+  desc: string;
+}
+
+/** One upgrade per room type, bought in the room's pop-out. Most come with a catch. */
+export const ROOM_MODS: Partial<Record<RoomType, ModDef>> = {
+  reactor: { name: 'Leverage Coil', cost: 120, desc: '3x power. 5% chance each morning it melts down: +15 rads, workers hurt, offline for the day.' },
+  kitchen: { name: 'Instant Noodle Futures', cost: 100, desc: '+60% ramen, but pays 10 ramen of interest every morning.' },
+  pool: { name: 'Impermanent Loss Filter', cost: 100, desc: '+80% water. Loses 4% of stored water every morning to "impermanent loss".' },
+  copium: { name: 'Hopium/Copium Swap', cost: 90, desc: 'Double copium. The swap burns extra power.' },
+  rugdetector: { name: 'Honeypot Trap', cost: 110, desc: 'Raiders get stuck: they steal 60% less and hit 30% softer.' },
+  storage: { name: 'Seed Phrase Tattoo Parlor', cost: 80, desc: 'Half of all raid theft and audit fines bounce off.' },
+  memelab: { name: 'Fork Factory', cost: 130, desc: 'Research 50% faster. Every fork is a feature.' },
+  grass: { name: 'Astroturf', cost: 70, desc: 'Calms the vibes twice as hard. It is fake grass. Nobody can tell.' },
+  silo: { name: 'MIRV Upgrade', cost: 150, desc: 'Missiles hit 50% harder. One missile, many problems.' },
+};
+
+// ---------- Radio (Shill Tower) ----------
+export const STATIONS: Record<Station, { name: string; desc: string }> = {
+  hopium: { name: 'Hopium FM', desc: 'Doo-wop for degens. Pushes the vibes up. Recruits 20% faster.' },
+  blues: { name: 'Bear Market Blues', desc: 'Sad harmonica. Pushes the vibes down, but everyone grinds 10% harder.' },
+  doomer: { name: 'Doomer Wave', desc: 'Slow synthwave. Steadies the swings. Half as many rage-quits.' },
+};
+
+// ---------- Traits ----------
+export interface TraitDef {
+  name: string;
+  good: boolean;
+  desc: string;
+}
+
+export const TRAITS: Record<TraitId, TraitDef> = {
+  diamondhands: { name: 'Diamond Hands', good: true, desc: 'Never rage-quits.' },
+  gymrat: { name: 'Gym Rat', good: true, desc: '+2 Grind.' },
+  bigbrain: { name: 'Galaxy Brain', good: true, desc: '+2 Brain.' },
+  maincharacter: { name: 'Main Character', good: true, desc: '+2 Vibes.' },
+  builtdifferent: { name: 'Built Different', good: true, desc: 'Takes 30% less damage.' },
+  dumpsterdiver: { name: 'Dumpster Diver', good: true, desc: '+40% expedition loot.' },
+  neversleeps: { name: 'Never Sleeps', good: true, desc: 'Works 15% harder.' },
+  weakhands: { name: 'Weak Hands', good: false, desc: 'First to rage-quit when it gets bad.' },
+  glassjaw: { name: 'Glass Jaw', good: false, desc: 'Takes 40% more damage.' },
+  bottomless: { name: 'Bottomless Pit', good: false, desc: 'Eats twice the ramen.' },
+  doomposter: { name: 'Doomposter', good: false, desc: 'Drags morale down a little every morning.' },
+  alphaleaker: { name: 'Alpha Leaker', good: false, desc: 'Sometimes leaks ramen to the group chat.' },
+  grasstoucher: { name: 'Touches Grass Too Much', good: false, desc: '-2 Grind.' },
+  fomo: { name: 'Chronic FOMO', good: false, desc: 'First to YOLO onto the surface when it\'s too back.' },
+};
+export const GOOD_TRAITS = (Object.keys(TRAITS) as TraitId[]).filter((t) => TRAITS[t].good);
+export const CURSED_TRAITS = (Object.keys(TRAITS) as TraitId[]).filter((t) => !TRAITS[t].good);
 
 // ---------- Archetypes ----------
 export interface ArchDef {

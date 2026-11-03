@@ -11,7 +11,8 @@ export type RoomType =
   | 'memelab'
   | 'storage'
   | 'grass'
-  | 'rocket';
+  | 'rocket'
+  | 'silo';
 
 export type ArchId =
   | 'maxi'
@@ -66,7 +67,19 @@ export interface Room {
   floor: number;
   col: number;
   width: number;
+  /** Room mod installed (see ROOM_MODS). */
+  mod?: boolean;
+  /** Shill Tower only: what the radio is playing. */
+  station?: Station;
+  /** Melted down (Leverage Coil): offline through this day. */
+  offlineDay?: number;
 }
+
+export type Station = 'hopium' | 'blues' | 'doomer';
+
+export type TraitId =
+  | 'diamondhands' | 'gymrat' | 'bigbrain' | 'maincharacter' | 'builtdifferent' | 'dumpsterdiver' | 'neversleeps'
+  | 'weakhands' | 'glassjaw' | 'bottomless' | 'doomposter' | 'alphaleaker' | 'grasstoucher' | 'fomo';
 
 export type DwellerStatus = 'active' | 'expedition' | 'dead' | 'gone';
 
@@ -93,6 +106,8 @@ export interface Dweller {
   fPaid?: boolean;
   /** Already had their F-to-revive chance this run. */
   revived?: boolean;
+  /** One good trait and one cursed trait, rolled on arrival. */
+  traits: TraitId[];
 }
 
 export type LogKind = 'info' | 'good' | 'bad' | 'hatch';
@@ -140,6 +155,7 @@ export interface Ending {
   daily: boolean;
   /** Tent Mode demo ran out: the player has no Bunker Deed. */
   tent?: boolean;
+  mutator?: MutatorId | null;
 }
 
 export interface Stats {
@@ -201,4 +217,8 @@ export interface RunConfig {
    * reach that day, so nobody can simulate ahead. Otherwise day seeds derive from the run seed.
    */
   serverDays: boolean;
+  /** This week's mutator (same for everyone that week). */
+  mutator: MutatorId | null;
 }
+
+export type MutatorId = 'bear' | 'bull' | 'airdrop' | 'rugseason' | 'halving';

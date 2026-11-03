@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { DEFCONS } from '../sim/content';
+import { DEFCONS, MUTATORS, mutatorForDay, utcDayNow } from '../sim/content';
 import type { Defcon } from '../sim/types';
 import { VAULT, buyVault, dailyPlayed, todayKey, vaultLevel, type Meta } from '../meta';
 import { audio } from '../audio/audio';
@@ -25,6 +25,7 @@ export function Title({ meta }: { meta: Meta }) {
   const [, bump] = useState(0);
   const playedToday = dailyPlayed(meta);
   const levels = [5, 4, 3, 2, 1] as Defcon[];
+  const weekMut = mutatorForDay(utcDayNow());
 
   return (
     <div class="title">
@@ -86,6 +87,11 @@ export function Title({ meta }: { meta: Meta }) {
           </button>
           <button class="btn btn-dark tp-sound" onClick={() => { audio.toggleMute(); bump((n) => n + 1); }} title="Sound (M)"><Icon name={audio.muted ? 'mute' : 'sound'} size={26} /></button>
         </div>
+      </div>
+      <div class="title-mutator">
+        <span>THIS WEEK</span>
+        <b>{MUTATORS[weekMut].name}</b>
+        <small>{MUTATORS[weekMut].desc}</small>
       </div>
       <div class="title-foot">Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 100 score</div>
 

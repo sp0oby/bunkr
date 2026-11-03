@@ -1,6 +1,6 @@
 import { Rng } from './rng';
 import {
-  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, EXPEDITION_CARD_CHANCE, TENT_DAYS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, CURSED_TRAITS, MUTATORS, EXPEDITION_CARD_CHANCE, GOOD_TRAITS, MAX_MISSILES, ROOM_MODS, SILO_DAY, TENT_DAYS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
   LOOK_PRESENTATION, NAMES, POP_CAP, archTitle, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
@@ -11,8 +11,9 @@ import { EXPEDITION_CARDS } from './eventsExp';
 
 const CARDS: CardDef[] = [...CARDS1, ...CARDS2, ...CARDS3];
 import { HOTSPOTS } from './hotspots';
+import { STATIONS } from './content';
 import type {
-  Audit, AuditForm, Revive, RunConfig,
+  Audit, AuditForm, Revive, RunConfig, Station, TraitId,
   ArchId, BagId, Dweller, Ending, HatchMood, LogEntry, LogKind, Phase, Raid, ResKey, Room, RoomType, StatKey, Stats,
 } from './types';
 
@@ -36,7 +37,7 @@ export const COPE_COST = 6;
 export const ACTIONS = [
   'build', 'digFloor', 'recruit', 'assign', 'cope', 'sendExpedition', 'payRespects', 'skipPrep', 'launch',
   'answerAudit', 'dismissAudit', 'skipDrop', 'chooseCard', 'dismissCard', 'pokeHotspot', 'useBag',
-  'pressF', 'dismissRevive', 'smash',
+  'pressF', 'dismissRevive', 'smash', 'installMod', 'setStation', 'fireSilo', 'sellBunker', 'rugPull',
 ] as const;
 export type ActionName = (typeof ACTIONS)[number];
 /** [tick, action, args]: the action ran after `tick` calls to step(). */
@@ -45,6 +46,8 @@ export type Input = [number, ActionName, unknown[]];
 export const AUDIT_FORM_SECONDS = 4.5;
 /** F-to-revive: this many presses before the timer runs out brings a degen back. */
 export const REVIVE_PRESSES = 50;
+/** Rugging your own bunker is possible from this day (needs Cold Storage). */
+export const RUG_DAY = 8;
 export const REVIVE_SECONDS = 15;
 /** Fastest you can smash raiders by hand (sim seconds between hits). */
 const SMASH_COOLDOWN = 0.12;
@@ -95,6 +98,11 @@ export class Game {
   card: PendingCard | null = null;
   /** The S.E.C. audit minigame, while it's running (pauses the sim like a card). */
   audit: Audit | null = null;
+  /** How the run ended early, if it did (sold out or rugged). */
+  private special: 'exit' | 'rug' | null = null;
+  /** Missile Silo: missiles ready to fire, and progress toward the next one. */
+  missiles = 0;
+  siloProg = 0;
   /** The F-to-revive minigame, while it's running (pauses the sim like the audit). */
   revive: Revive | null = null;
   /** Rocket Room build progress, 0-100. At 100 you can launch. */
@@ -141,7 +149,7 @@ export class Game {
     this.rng = new Rng(seed);
     this.config = {
       defcon: 5, daily: false, startRamen: 0, extraDegen: false, startBag: false, legendLuck: false, rocket: false,
-      tent: false, deedTier: 0, loadout: [], serverDays: false, ...config,
+      tent: false, deedTier: 0, loadout: [], serverDays: false, mutator: null, ...config,
     };
     this.prepSeconds = this.config.defcon <= 2 ? 55 : PREP_SECONDS;
     this.res.ramen += this.config.startRamen;
@@ -247,15 +255,38 @@ export class Game {
     if (k === 'hands' && this.bags.includes('laserpointer')) v += 1;
     if (k === 'hands' && this.bags.includes('diamondgloves')) v += 2;
     if (k === 'brain' && this.bags.includes('fewunderstand') && d.brain < 4) v += 2;
-    return Math.min(12, v);
+    if (k === 'grind' && this.has(d, 'gymrat')) v += 2;
+    if (k === 'brain' && this.has(d, 'bigbrain')) v += 2;
+    if (k === 'vibes' && this.has(d, 'maincharacter')) v += 2;
+    if (k === 'grind' && this.has(d, 'grasstoucher')) v -= 2;
+    return Math.max(1, Math.min(12, v));
+  }
+
+  has(d: Dweller, t: TraitId): boolean {
+    return d.traits.includes(t);
+  }
+
+  /** What the radio is playing (the first Shill Tower decides). */
+  station(): Station | null {
+    const tower = this.rooms.find((r) => r.type === 'shill');
+    return tower ? tower.station ?? 'hopium' : null;
+  }
+
+  hasMod(type: RoomType): boolean {
+    return this.rooms.some((r) => r.type === type && r.mod);
+  }
+
+  /** Bear Market week: everything costs double. */
+  get priceMult(): number {
+    return this.config.mutator === 'bear' ? 2 : 1;
   }
 
   buildCost(type: RoomType): number {
-    return Math.round(ROOMS[type].cost * (1 + 0.08 * this.roomsBuilt) * this.panicMult);
+    return Math.round(ROOMS[type].cost * (1 + 0.08 * this.roomsBuilt) * this.panicMult * this.priceMult);
   }
 
   digCost(): number {
-    return Math.round(35 * this.floorsDug * this.panicMult * (this.bags.includes('pickaxe') ? 0.6 : 1));
+    return Math.round(35 * this.floorsDug * this.panicMult * this.priceMult * (this.bags.includes('pickaxe') ? 0.6 : 1));
   }
 
   recruitCost(): number {
@@ -264,6 +295,7 @@ export class Game {
 
   /** Whether a room type can be built at all this run (the Rocket Room is a secret). */
   canBuildType(type: RoomType): boolean {
+    if (type === 'silo') return this.underground && this.day >= SILO_DAY && !this.rooms.some((r) => r.type === 'silo');
     if (type !== 'rocket') return true;
     return (this.config.rocket || this.bags.includes('moonmap')) && !this.rooms.some((r) => r.type === 'rocket');
   }
@@ -293,11 +325,13 @@ export class Game {
     // Merge with same-type neighbours up to width 3.
     for (const dir of [-1, 1]) {
       const n = this.roomAt(floor, dir < 0 ? room.col - 1 : room.col + room.width);
-      if (n && n.type === type && type !== 'rocket' && n.width + room.width <= 3) {
+      if (n && n.type === type && type !== 'rocket' && type !== 'silo' && n.width + room.width <= 3) {
         const keep = dir < 0 ? n : room;
         const drop = dir < 0 ? room : n;
         keep.col = Math.min(n.col, room.col);
         keep.width = n.width + room.width;
+        keep.mod = keep.mod || drop.mod;
+        keep.station = keep.station ?? drop.station;
         for (const d of this.dwellers) if (d.roomId === drop.id) d.roomId = keep.id;
         this.rooms = this.rooms.filter((r) => r !== drop);
         room = keep;
@@ -483,6 +517,8 @@ export class Game {
 
   hurt(d: Dweller, amount: number, cause: string): void {
     if (d.status === 'dead' || d.status === 'gone') return;
+    if (this.has(d, 'builtdifferent')) amount *= 0.7;
+    if (this.has(d, 'glassjaw')) amount *= 1.4;
     if (d.arch === 'midcurve' && this.day < 4) amount = Math.min(amount, d.hp - 1);
     d.hp -= amount;
     if (d.hp <= 0) this.kill(d, cause);
@@ -551,6 +587,58 @@ export class Game {
     }
   }
 
+  /** During the Liquidators' raid: sell them the bunker. Ends the run (EXIT LIQUIDITY). */
+  sellBunker(): void {
+    if (this.raid?.kind !== 'liquidators' || this.phase !== 'underground') return;
+    const price = Math.round(150 + this.rooms.length * 40);
+    this.addRes('ramen', price);
+    this.raid = null;
+    this.post(`You sold the bunker to the Liquidators for ${price} ramen. They are thrilled. They have no idea.`, 'good');
+    this.finishWith('exit');
+  }
+
+  /** Cold Storage: take everything and leave. Ends the run (RUGGED YOUR OWN BUNKER). */
+  rugPull(): void {
+    if (this.phase !== 'underground' || this.day < RUG_DAY || !this.rooms.some((r) => r.type === 'storage') || this.raid || this.audit) return;
+    this.post('You emptied Cold Storage into a duffel bag and climbed out the porta-potty alone. The degens are still asleep.', 'bad');
+    this.finishWith('rug');
+  }
+
+  /** Buy a room's mod (see ROOM_MODS). */
+  installMod(roomId: number): boolean {
+    const room = this.roomById(roomId);
+    const mod = room && ROOM_MODS[room.type];
+    if (!room || !mod || room.mod || this.res.ramen < mod.cost || this.phase === 'ended') return false;
+    this.res.ramen -= mod.cost;
+    room.mod = true;
+    this.post(`Installed ${mod.name} in the ${ROOMS[room.type].name}. ${mod.desc}`, 'good');
+    this.fx.push('build');
+    this.touch();
+    return true;
+  }
+
+  /** Change the Shill Tower's radio station. */
+  setStation(roomId: number, station: Station): void {
+    const room = this.roomById(roomId);
+    if (!room || room.type !== 'shill' || !STATIONS[station]) return;
+    room.station = station;
+    this.post(`The Shill Tower is now playing ${STATIONS[station].name}.`, 'info');
+    this.touch();
+  }
+
+  /** Fire a missile from the Silo at the boss. */
+  fireSilo(): boolean {
+    const raid = this.raid;
+    if (!raid || this.missiles <= 0 || this.audit || this.revive || this.card) return false;
+    this.missiles--;
+    const dmg = raid.maxHp * 0.3 * (this.hasMod('silo') ? 1.5 : 1);
+    raid.hp -= dmg;
+    this.post(`MISSILE AWAY. Direct hit on ${raid.name}. ${this.missiles} left.`, 'good');
+    this.fx.push('missile');
+    this.touch();
+    return true;
+  }
+
   /** Hit the raiders yourself. Every 10th smash is a crit. */
   smash(): void {
     const raid = this.raid;
@@ -596,6 +684,8 @@ export class Game {
       roomId: null,
       status: 'active',
       exp: null,
+      // Mid-Curve Max is exactly average: no traits either way.
+      traits: arch === 'midcurve' ? [] : [this.rng.pick(GOOD_TRAITS), this.rng.pick(CURSED_TRAITS)],
     };
     this.dwellers.push(d);
     if (!silent) this.stats.recruits++;
@@ -867,6 +957,10 @@ export class Game {
     }
     this.post(`— DAY ${this.day} —`, 'info');
     if (this.day === 10) this.startRaid('liquidators');
+    if (this.config.mutator === 'rugseason' && (this.day === 5 || this.day === 16)) {
+      this.raidMod *= 0.7;
+      this.startRaid('liquidators');
+    }
     if (this.day === 20) this.startAudit();
     if (this.day === 28) this.startRaid('whale');
     if (this.day > 1 && this.config.defcon <= 3 && this.res.ramen > 0) {
@@ -877,6 +971,8 @@ export class Game {
       }
     }
     if (this.day > 1 && this.bags.includes('tradewatch')) this.addRes('ramen', 12);
+    if (this.day > 1) this.morningMods();
+    if (this.day > 1 && this.config.mutator === 'airdrop' && this.rng.chance(0.6)) this.airdropCrate();
     if (this.day === 24 && !this.dwellers.some((d) => d.arch === 'larry')) {
       this.queueCard('larry');
     }
@@ -906,13 +1002,16 @@ export class Game {
 
   /** Global output multiplier from vibes, bagholding and wifi distraction. */
   outputMult(): number {
-    return this.vibeMult() * (this.bags.length > this.bagCap ? 0.9 : 1) * (this.time < this.wifiUntil ? 0.5 : 1);
+    return this.vibeMult() * (this.bags.length > this.bagCap ? 0.9 : 1) * (this.time < this.wifiUntil ? 0.5 : 1)
+      * (this.underground && this.station() === 'blues' ? 1.1 : 1)
+      * (this.config.mutator === 'bull' ? 1.25 : this.config.mutator === 'halving' ? 0.75 : 1);
   }
 
   /** How hard a room is working right now (0 = idle / unpowered). */
   roomEff(room: Room, vm = this.outputMult(), powered = this.res.power > 0): number {
     const def = ROOMS[room.type];
     if (!def.stat || (room.type !== 'reactor' && !powered)) return 0;
+    if (room.offlineDay != null && room.offlineDay >= this.day && this.underground) return 0;
     const workers = this.workersIn(room);
     if (!workers.length) return 0;
     const hasReply = workers.some((w) => w.arch === 'replyguy');
@@ -936,11 +1035,13 @@ export class Game {
         case 'grandpa': if (t === 'reactor' || t === 'pool') f *= 1.4; break;
         default: break;
       }
+      if (this.has(w, 'neversleeps')) f *= 1.15;
       if (hasReply && w.arch !== 'replyguy') f *= 1.15;
       if (hasVc && w.arch !== 'vc') f *= 1.4;
       factor += f;
     }
-    return (room.width === 3 ? 1.15 : room.width === 2 ? 1.05 : 1) * factor * vm;
+    const modBoost = !room.mod ? 1 : t === 'reactor' ? 3 : t === 'kitchen' ? 1.6 : t === 'pool' ? 1.8 : t === 'copium' ? 2 : t === 'memelab' ? 1.5 : 1;
+    return (room.width === 3 ? 1.15 : room.width === 2 ? 1.05 : 1) * factor * vm * modBoost;
   }
 
   /** Human-readable output line for a room, per in-game day. */
@@ -967,7 +1068,7 @@ export class Game {
     const vm = this.outputMult();
     const powered = this.res.power > 0;
     for (const room of this.rooms) {
-      if (room.type !== 'reactor' && room.type !== 'storage') rates.power -= 0.035 * room.width;
+      if (room.type !== 'reactor' && room.type !== 'storage') rates.power -= 0.035 * room.width * (room.type === 'copium' && room.mod ? 2.5 : 1);
       const eff = this.roomEff(room, vm, powered);
       if (eff <= 0) continue;
       const out = (n: number) => this.roomOut.set(room.id, (this.roomOut.get(room.id) ?? 0) + n * dt);
@@ -996,7 +1097,7 @@ export class Game {
         case 'copium': rates.copium += 0.07 * eff; out(0.07 * eff); break;
         case 'shill':
           if (this.underground && this.alive.length < POP_CAP) {
-            this.recruitProg += 0.55 * eff * dt;
+            this.recruitProg += 0.55 * eff * dt * (this.station() === 'hopium' ? 1.2 : 1);
             if (this.recruitProg >= 100) {
               this.recruitProg = 0;
               const d = this.addDweller(this.rollArch());
@@ -1014,7 +1115,17 @@ export class Game {
           }
           break;
         case 'grass':
-          this.vibeVel *= 1 - Math.min(0.5, 0.025 * eff) * dt;
+          this.vibeVel *= 1 - Math.min(0.5, 0.025 * eff * (room.mod ? 2 : 1)) * dt;
+          break;
+        case 'silo':
+          if (this.underground && this.missiles < MAX_MISSILES) {
+            this.siloProg += 0.3 * eff * dt;
+            if (this.siloProg >= 100) {
+              this.siloProg = 0;
+              this.missiles++;
+              this.post(`Missile ${this.missiles}/${MAX_MISSILES} ready in the Silo. Save it for a boss.`, 'good');
+            }
+          }
           break;
         default:
           break;
@@ -1027,7 +1138,7 @@ export class Game {
 
   private consume(dt: number): void {
     let eat = 0;
-    for (const d of this.present) eat += d.arch === 'intern' ? 0.025 : d.arch === 'mevbot' ? 0.1 : 0.05;
+    for (const d of this.present) eat += (d.arch === 'intern' ? 0.025 : d.arch === 'mevbot' ? 0.1 : 0.05) * (this.has(d, 'bottomless') ? 2 : 1);
     this.res.ramen -= eat * dt;
     this.res.water -= 0.05 * this.present.length * dt;
     this.rates.ramen -= eat;
@@ -1038,7 +1149,7 @@ export class Game {
       this.res.ramen = 60;
       this.post('Starving degens ate the Expired MRE NFT. +60 ramen. Tasted like a rug.', 'good');
     }
-    this.addRads(0.012 * dt * (this.config.defcon <= 1 ? 1.5 : 1));
+    this.addRads(0.012 * dt * (this.config.defcon <= 1 ? 1.5 : 1) * (this.config.mutator === 'bull' ? 1.6 : 1));
   }
 
   private pendulum(dt: number): void {
@@ -1049,6 +1160,11 @@ export class Game {
       if (this.res.power <= 0) pressure -= 0.7;
       if (this.rads > 60) pressure -= 0.5;
       if (this.raid) pressure -= this.raid.kind === 'whale' ? 1.0 : 0.6;
+      const st = this.station();
+      if (st === 'hopium') pressure += 0.25;
+      if (st === 'blues') pressure -= 0.25;
+      if (st === 'doomer') this.vibeVel *= 1 - 0.012 * dt;
+      if (this.config.mutator === 'bull') pressure += 0.3;
     }
     // Spring pulls toward the middle, but degens amplify momentum (negative damping),
     // so the swing grows unless you dampen it with copium or grass.
@@ -1063,9 +1179,9 @@ export class Game {
     if (!this.underground) return;
     const zone = this.vibeZone();
     // Somebody has to stay behind to post the farewell threads.
-    if (zone === 'cooked' && this.present.length > 2 && this.rng.chance(0.008 * dt * 10)) {
-      const d = this.randomPresent((x) => x.arch !== 'maxi' && x.arch !== 'rekt');
-      const quitter = this.present.find((x) => x.arch === 'pete') ?? d;
+    if (zone === 'cooked' && this.present.length > 2 && this.rng.chance(0.008 * dt * 10 * (this.station() === 'doomer' ? 0.5 : 1))) {
+      const d = this.randomPresent((x) => x.arch !== 'maxi' && x.arch !== 'rekt' && !this.has(x, 'diamondhands'));
+      const quitter = this.present.find((x) => x.arch === 'pete') ?? this.present.find((x) => this.has(x, 'weakhands')) ?? d;
       if (quitter) {
         quitter.status = 'gone';
         quitter.roomId = null;
@@ -1076,7 +1192,7 @@ export class Game {
       }
     }
     if (zone === 'manic' && this.rng.chance(0.007 * dt * 10)) {
-      const d = this.randomPresent();
+      const d = this.present.find((x) => this.has(x, 'fomo')) ?? this.randomPresent();
       if (d) {
         if (this.rng.chance(0.25)) {
           const n = this.addRes('ramen', this.rng.int(40, 90));
@@ -1119,6 +1235,7 @@ export class Game {
       let mult = 1;
       if (d.arch === 'farmer') mult *= 2;
       if (d.arch === 'rugpuller') mult *= 1.5;
+      if (this.has(d, 'dumpsterdiver')) mult *= 1.4;
       if (d.arch === 'farmer' && this.rng.chance(0.15)) {
         this.hurt(d, 40, 'an airdrop that was actually a landmine');
         this.post(`${d.name} claimed an airdrop. It was a landmine. -40 HP.`, 'bad');
@@ -1181,12 +1298,12 @@ export class Game {
       a.verdict = `CLEAN AUDIT (${a.correct}/6). The agent nods, stamps your forehead, and leaves. Morale up. +${n} 💊 confiscated from someone else.`;
       this.fx.push('raidwon');
     } else if (a.correct >= 3) {
-      const fine = Math.round(this.res.ramen * 0.25);
+      const fine = Math.round(this.res.ramen * 0.25 * (this.hasMod('storage') ? 0.5 : 1));
       this.res.ramen -= fine;
       a.verdict = `PASSED WITH CONCERNS (${a.correct}/6). Fined ${fine} ramen for "vibes-based accounting".`;
       this.fx.push('raidlost');
     } else {
-      const fine = Math.round(this.res.ramen * 0.35);
+      const fine = Math.round(this.res.ramen * 0.35 * (this.hasMod('storage') ? 0.5 : 1));
       this.res.ramen -= fine;
       this.kick(-25);
       let bag = '';
@@ -1208,7 +1325,7 @@ export class Game {
     const fighters = this.present.filter((d) => d.arch !== 'pete');
     let rug = 0;
     for (const r of this.rooms) {
-      if (r.type === 'rugdetector') rug += this.workersIn(r).reduce((s, w) => s + 1 + 0.12 * this.stat(w, 'hands'), 0);
+      if (r.type === 'rugdetector') rug += this.workersIn(r).reduce((s, w) => s + 1 + 0.12 * this.stat(w, 'hands'), 0) * (this.config.mutator === 'rugseason' ? 2 : 1);
     }
     const dmg = fighters.reduce((s, d) => s + 1 + 0.15 * this.stat(d, 'grind') + 0.1 * this.stat(d, 'hands'), 0) * (1 + 0.3 * rug) * (this.bags.includes('bullhorn') ? 1.3 : 1);
     raid.hp -= dmg * 1.1 * dt;
@@ -1216,13 +1333,14 @@ export class Game {
     if (raid.hitTimer >= 1.5 && fighters.length) {
       raid.hitTimer = 0;
       const victim = this.rng.pick(fighters);
-      const hit = raid.power * this.rng.range(0.6, 1.3) * (this.bags.includes('bearspray') ? 0.7 : 1);
+      const hit = raid.power * this.rng.range(0.6, 1.3) * (this.bags.includes('bearspray') ? 0.7 : 1) * (this.hasMod('rugdetector') ? 0.7 : 1);
       this.hurt(victim, hit, raid.kind === 'whale' ? 'swallowed by the Mutant Whale' : `stabbed by ${raid.name}`);
       this.fx.push('hit');
     }
     if (!this.bags.includes('safu')) {
       const carl = this.present.some((d) => d.arch === 'coldcarl');
-      const steal = Math.min(this.res.ramen, (carl ? 0.5 : 1) * (raid.kind === 'whale' ? 2.6 : 1.6) * dt);
+      const guard = (this.hasMod('rugdetector') ? 0.4 : 1) * (this.hasMod('storage') ? 0.5 : 1);
+      const steal = Math.min(this.res.ramen, (carl ? 0.5 : 1) * (raid.kind === 'whale' ? 2.6 : 1.6) * guard * dt);
       this.res.ramen -= steal;
       raid.stolen += steal;
     }
@@ -1287,30 +1405,87 @@ export class Game {
     check('back', z === 'manic', 'back');
   }
 
+  /** Airdrop Season: a crate lands on the porta-potty. */
+  private airdropCrate(): void {
+    const r = this.rng.next();
+    if (r < 0.4 && this.giveBag()) {
+      this.post('AIRDROP: a crate landed on the porta-potty. It had a Bag in it. Eligible after all.', 'good');
+    } else if (r < 0.75) {
+      const n = this.addRes('ramen', this.rng.int(40, 80));
+      this.post(`AIRDROP: a crate of ${n} ramen landed on the porta-potty. Nobody knows who sent it. Nobody asks.`, 'good');
+    } else {
+      const d = this.randomPresent();
+      this.addRads(5);
+      if (d) this.hurt(d, 25, 'a live airdrop');
+      this.post(`AIRDROP: the crate was live ordnance. ${d ? `${d.name} -25 HP, ` : ''}+5 rads. Should have checked the contract.`, 'bad');
+      this.fx.push('hit');
+    }
+  }
+
+  /** Each morning: mods charge their price, traits do their thing. */
+  private morningMods(): void {
+    for (const room of this.rooms) {
+      if (!room.mod) continue;
+      if (room.type === 'reactor' && this.rng.chance(0.05)) {
+        room.offlineDay = this.day;
+        this.addRads(15);
+        for (const w of this.workersIn(room)) this.hurt(w, 25, 'a Leverage Coil meltdown');
+        this.post('MELTDOWN. The Leverage Coil liquidated itself. Reactor offline today, +15 rads. Leverage is a hell of a drug.', 'bad');
+        this.fx.push('raidlost');
+      }
+      if (room.type === 'kitchen') {
+        this.res.ramen = Math.max(0, this.res.ramen - 10);
+        this.post('Instant Noodle Futures: 10 ramen of interest paid.', 'info');
+      }
+      if (room.type === 'pool' && this.res.water > 0) {
+        const lost = Math.round(this.res.water * 0.04);
+        this.res.water -= lost;
+        if (lost) this.post(`Impermanent loss: ${lost} water just... left.`, 'info');
+      }
+    }
+    const doomers = this.present.filter((d) => this.has(d, 'doomposter')).length;
+    if (doomers) this.kick(-2 * doomers);
+    for (const d of this.present) {
+      if (this.has(d, 'alphaleaker') && this.rng.chance(0.3) && this.res.ramen > 20) {
+        const n = Math.round(this.res.ramen * 0.03);
+        this.res.ramen -= n;
+        this.post(`${d.name} leaked the bunker's alpha to the group chat. ${n} ramen walked out the door.`, 'bad');
+      }
+    }
+  }
+
   /** HATCH says this as soon as the current line has had its moment. */
   private queueSay(trigger: HatchTrigger): void {
     this.hatchQueue.push(trigger);
   }
 
+  private finishWith(kind: 'exit' | 'rug'): void {
+    this.special = kind;
+    this.finish(false);
+  }
+
   private finish(survived: boolean, tent = false): void {
     this.phase = 'ended';
     const alive = this.alive.length;
+    const rug = this.special === 'rug';
     const breakdown: [string, number][] = [
-      ['Survivors x 250', alive * 250],
+      rug ? ['Survivors (you left them)', 0] : ['Survivors x 250', alive * 250],
       ...(this.stats.launched ? [['Moon Mission', 2500] as [string, number]] : []),
       ...(this.stats.whaleSlain ? [['Mutant Whale slain', 1000] as [string, number]] : []),
       ...(this.stats.auditsPassed ? [['Clean S.E.C. audit', 400] as [string, number]] : []),
-      ['Ramen', Math.round(this.res.ramen)],
+      [rug ? 'Ramen in the duffel bag x 3' : 'Ramen', Math.round(this.res.ramen * (rug ? 3 : 1))],
       ['Water', Math.round(this.res.water)],
       ['Copium x 2', Math.round(this.res.copium * 2)],
       ['Bags x 150', this.bags.length * 150],
       ['Days survived x 40', Math.min(this.day, RUN_DAYS) * 40],
       ['Raids won x 300', this.stats.raidsWon * 300],
     ];
-    const mult = DEFCONS[this.config.defcon].score;
     const base = breakdown.reduce((s, [, n]) => s + n, 0);
-    if (mult !== 1) breakdown.push([`DEFCON ${this.config.defcon} multiplier x${mult}`, Math.round(base * (mult - 1))]);
-    const score = Math.round(base * mult);
+    const dmult = DEFCONS[this.config.defcon].score;
+    if (dmult !== 1) breakdown.push([`DEFCON ${this.config.defcon} multiplier x${dmult}`, Math.round(base * (dmult - 1))]);
+    const mut = this.config.mutator ? MUTATORS[this.config.mutator] : null;
+    if (mut && mut.score !== 1) breakdown.push([`${mut.name} x${mut.score}`, Math.round(base * dmult * (mut.score - 1))]);
+    const score = Math.round(base * dmult * (mut?.score ?? 1));
     let title = 'LIQUIDATED';
     let blurb = `Everyone died by day ${this.day}. The bunker is now a very sad NFT.`;
     if (tent) {
@@ -1321,15 +1496,23 @@ export class Game {
       this.hatchLastAny = -Infinity;
       this.say('tent');
     }
+    if (this.special === 'exit') {
+      title = 'EXIT LIQUIDITY';
+      blurb = 'You sold the bunker to the raiders, at the top. The degens walked out with you. Somewhere, a Liquidator is reading the reactor manual.';
+    } else if (rug) {
+      title = 'RUGGED YOUR OWN BUNKER';
+      blurb = 'You took the ramen, the Bags and the door. The degens woke up to a farewell thread. Dev is not doing something.';
+    }
     if (survived) {
       if (this.stats.launched) { title = 'MOON MISSION'; blurb = 'You strapped a porta-potty to a water heater and left the planet. Literally to the moon. Few understand.'; }
+      else if (this.stats.bunkersRaided >= 3) { title = 'BECAME THE RAIDERS'; blurb = `You raided ${this.stats.bunkersRaided} other bunkers and surfaced richer than the Liquidators. Somewhere underground, someone is telling stories about you.`; }
       else if (alive >= 8) { title = 'BUNKER DAO'; blurb = 'You surfaced with a whole community. Governance proposal #1: never go back down there.'; }
       else if (this.stats.whaleSlain) { title = 'WHALE HUNTER'; blurb = 'You took down the Mutant Whale and surfaced. Every degen on Earth wants your signal.'; }
       else if (this.res.ramen >= 400) { title = 'RAMEN BARON'; blurb = 'You surfaced holding the world\'s largest ramen reserve. You are the Fed now.'; }
       else if (alive <= 2) { title = 'LAST DEGENS STANDING'; blurb = 'Two survivors. Zero friends. Infinite trauma. Still bullish.'; }
       else { title = 'TOUCHED GRASS'; blurb = 'You climbed out of the porta-potty and touched grass. It was radioactive grass. Still counts.'; }
     }
-    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily, tent };
+    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily, tent, mutator: this.config.mutator };
     this.fx.push('end');
     this.touch();
   }

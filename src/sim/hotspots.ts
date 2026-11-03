@@ -108,6 +108,15 @@ export const HOTSPOTS: Record<RoomType, Hotspot[]> = {
     { x: 0.82, y: 0.6, label: 'Press LAUNCH early', poke: (g) => (g.rocketProg >= 100 ? 'It\'s ready. Use the big LAUNCH button.' : `HATCH: "Absolutely not. It's ${Math.floor(g.rocketProg)}% rocket and ${100 - Math.floor(g.rocketProg)}% hope."`) },
     { x: 0.2, y: 0.3, label: 'Stare at the moon target', poke: () => 'You stare at the moon. The moon does not stare back. Yet.' },
   ],
+  silo: [
+    { x: 0.5, y: 0.45, label: 'Knock on the missile', poke: (g) => `It knocks back. That is not normal. ${g.missiles} missile${g.missiles === 1 ? '' : 's'} ready.` },
+    { x: 0.84, y: 0.64, label: 'Lift the big red cover', poke: (g) => (g.raid && g.missiles ? 'There is a boss here. Use the FIRE button. That is what it is for.' : 'HATCH: "Put the cover down. There is nothing to shoot. Please do not shoot the Liquidity Pool again."') },
+    { x: 0.87, y: 0.38, label: 'Count the spare fins', poke: () => 'Six fins. The rocket uses four. Nobody knows what the other two are for. Nobody asks.' },
+    { x: 0.95, y: 0.66, label: 'Stare at the lava lamp', poke: (g) => {
+      g.kick(3);
+      return 'The lava goes up. The lava goes down. Just like the chart, but calming. Vibes up a little.';
+    } },
+  ],
   grass: [
     { x: 0.83, y: 0.8, label: 'Ask the gnome', poke: (g) => `The gnome says: "${pick(g, ['Touch grass.', 'Buy high, sell never.', 'I have survived four apocalypses. This one has the worst vibes.', 'The real yield was the friends we made.', 'Have you tried not checking the chart?'])}"` },
     { x: 0.76, y: 0.76, label: 'Sit in the lawn chair', poke: (g) => {

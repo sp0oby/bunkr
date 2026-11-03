@@ -3,7 +3,7 @@
 import { createHmac } from 'node:crypto';
 import { keccak256, type Hash, type Hex } from 'viem';
 import { ACTIONS, replay, type Input } from '../src/sim/game';
-import { BAGS } from '../src/sim/content';
+import { BAGS, mutatorForDay } from '../src/sim/content';
 import { LOADOUT_SLOTS, SHATTER_CHANCE } from '../src/chain/constants';
 import { dailySeed } from '../src/meta';
 import type { BagId, Defcon, RunConfig } from '../src/sim/types';
@@ -67,7 +67,7 @@ export async function startRun(body: StartBody): Promise<{ runId: number; seed: 
     // Daily Doom is a level field: same seed for everyone, standard issue, no perks.
     // Underground days are still dealt per run, so one leaked attempt can't spoil the day.
     seed = dailySeed(dayKey(entry.day));
-    config = { defcon: 3, daily: true, deedTier: 1, serverDays: true };
+    config = { defcon: 3, daily: true, deedTier: 1, serverDays: true, mutator: mutatorForDay(entry.day) };
   } else {
     seed = hmac32(`run:${entry.runId}`);
     const wanted = Array.isArray(body.loadout) ? body.loadout.filter((b): b is BagId => typeof b === 'string' && b in BAGS) : [];
@@ -79,7 +79,10 @@ export async function startRun(body: StartBody): Promise<{ runId: number; seed: 
     }
     const defcon = Math.max(1, Math.min(5, Math.floor(Number(body.defcon) || 5))) as Defcon;
     const vault = vaultFrom(body.vault);
-    config = { ...vault, defcon, daily: false, deedTier: entry.tier, loadout, rocket: vault.rocket || entry.tier >= 3, serverDays: true };
+    config = {
+      ...vault, defcon, daily: false, deedTier: entry.tier, loadout, rocket: vault.rocket || entry.tier >= 3, serverDays: true,
+      mutator: mutatorForDay(entry.day),
+    };
   }
 
   const rec: RunRecord = {

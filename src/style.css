@@ -619,3 +619,34 @@ body.silo .brand { color: var(--amber); text-shadow: 0 4px 0 var(--ink), 0 0 18p
 .revive-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--green), var(--rad)); transition: width 0.08s; }
 .revive-tip { color: var(--dim); font-size: 11px; margin-top: 6px; }
 .card-result.win { color: var(--green); }
+
+/* ---------- Traits, room mods, radio, Silo ---------- */
+.dc-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 2px; }
+.trait-chip { display: flex; flex-direction: column; font: 12px var(--display); letter-spacing: 0.03em; border: 2px solid var(--ink); border-radius: 8px; padding: 2px 8px; }
+.trait-chip small { font: 700 10px var(--body); letter-spacing: 0; opacity: 0.85; }
+.trait-chip.good { background: color-mix(in srgb, var(--green) 25%, var(--panel-2)); color: #c8ffd6; }
+.trait-chip.bad { background: color-mix(in srgb, var(--red) 22%, var(--panel-2)); color: #ffc9c4; }
+.mod-bar, .radio-bar { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 2px solid var(--ink); border-radius: 12px; padding: 7px 10px; margin-top: 8px; }
+.mod-bar.installed { border-color: var(--amber); }
+.mod-tag, .radio-title { font: 12px var(--display); letter-spacing: 0.1em; background: var(--amber); color: var(--ink); border: 2px solid var(--ink); border-radius: 6px; padding: 1px 6px; }
+.radio-title { background: var(--red); color: #fff; animation: pulseScale 1.6s infinite; }
+.mod-body { flex: 1; display: flex; flex-direction: column; }
+.mod-body b { font: 15px var(--display); }
+.mod-body small { color: var(--dim); font-size: 11px; }
+.mod-on { font: 13px var(--display); color: var(--amber); letter-spacing: 0.05em; }
+.radio-st { flex: 1; display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: var(--panel); border: 2px solid var(--ink); border-radius: 10px; padding: 5px 8px; }
+.radio-st b { font: 14px var(--display); }
+.radio-st small { color: var(--dim); font-size: 10px; line-height: 1.2; }
+.radio-st.on { border-color: var(--green); box-shadow: inset 0 0 0 2px #3ee06f55; }
+.raid-fire { margin-top: 6px; font-size: 14px; padding: 4px 12px; }
+
+/* ---------- Mutators and early exits ---------- */
+.mutator-tag { display: block; font: 10px var(--display); letter-spacing: 0.08em; color: var(--amber); }
+.title-mutator { position: absolute; top: 16px; right: 16px; z-index: 3; display: flex; flex-direction: column; align-items: flex-end; max-width: 260px; text-align: right; background: #0b0b10b8; border: 3px solid var(--ink); border-radius: 14px; padding: 7px 12px; box-shadow: var(--pop); }
+.title-mutator span { font: 10px var(--display); letter-spacing: 0.12em; color: var(--dim); }
+.title-mutator b { font: 20px var(--display); color: var(--amber); }
+.title-mutator small { font-size: 11px; color: var(--dim); }
+.raid-sell { margin-top: 6px; font-size: 12px; padding: 4px 10px; }
+.btn.armed { background: var(--red); color: #fff; animation: pulseScale 0.6s infinite; }
+.rug-bar { border-color: var(--red); }
+.rug-bar .mod-tag { background: var(--red); color: #fff; }

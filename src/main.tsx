@@ -1,6 +1,6 @@
 import { render } from 'preact';
 import { Game, STEP } from './sim/game';
-import { DAY_SECONDS, ROOMS, RUN_DAYS, UNDERGROUND_PACE } from './sim/content';
+import { DAY_SECONDS, ROOMS, RUN_DAYS, UNDERGROUND_PACE, mutatorForDay, utcDayNow } from './sim/content';
 import type { Defcon, RunConfig } from './sim/types';
 import { BunkerView } from './render/view';
 import { App, type UiState } from './ui/App';
@@ -68,7 +68,7 @@ async function startRun(): Promise<void> {
     location.search = '';
     return;
   }
-  let cfg: Partial<RunConfig> = runConfig(meta, defcon, daily);
+  let cfg: Partial<RunConfig> = { ...runConfig(meta, defcon, daily), mutator: mutatorForDay(utcDayNow()) };
   if (pass) {
     pass = await officialPass(pass, defcon);
     if (!pass) return;
@@ -204,6 +204,7 @@ async function startRun(): Promise<void> {
     }
     view.frame(dt);
     audio.setMusic(game.phase === 'prep' ? 'prep' : game.phase === 'underground' ? (game.raid ? 'raid' : 'bunker') : 'off');
+    audio.setStation(game.station() ?? 'hopium');
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);

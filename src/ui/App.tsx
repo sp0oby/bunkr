@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import gsap from 'gsap';
-import { ARCHS, BAGS, LOCATIONS, PREP_NEWS, ROOMS, ROOM_ORDER, RUN_DAYS, TENT_DAYS, archTitle, spriteFile } from '../sim/content';
-import { AUDIT_FORM_SECONDS, REVIVE_PRESSES, REVIVE_SECONDS, type Game } from '../sim/game';
+import { ARCHS, BAGS, LOCATIONS, MAX_MISSILES, MUTATORS, PREP_NEWS, ROOMS, ROOM_MODS, ROOM_ORDER, RUN_DAYS, STATIONS, TENT_DAYS, TRAITS, archTitle, spriteFile } from '../sim/content';
+import { AUDIT_FORM_SECONDS, REVIVE_PRESSES, REVIVE_SECONDS, RUG_DAY, type Game } from '../sim/game';
 import type { RunRewards } from '../meta';
 import { HOTSPOTS, WORKER_QUIPS } from '../sim/hotspots';
-import type { BagId, Dweller, ResKey, Room } from '../sim/types';
+import type { BagId, Dweller, ResKey, Room, Station } from '../sim/types';
 import type { BunkerView } from '../render/view';
 import { audio } from '../audio/audio';
 import { Icon, Rich, type IconName } from './icons';
@@ -142,6 +142,7 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
             <span class="t-icon t-day">D</span>
             <span class="t-main">
               <span class="t-val">DAY {Math.min(game.day, RUN_DAYS)}<small>/{game.config.tent ? `${TENT_DAYS} TENT` : RUN_DAYS}</small></span>
+              {game.config.mutator && <span class="mutator-tag" title={MUTATORS[game.config.mutator].desc}>{MUTATORS[game.config.mutator].name.toUpperCase()}</span>}
               <span class="daybar"><span style={{ width: `${game.dayProgress * 100}%` }} /></span>
             </span>
           </>
@@ -467,6 +468,15 @@ function DwellerCard({ game, d, ui, set }: { game: Game; d: Dweller; ui: UiState
           <div><span>HP</span><b class={d.hp < 40 ? 'down' : ''}>{Math.round(d.hp)}</b></div>
         </div>
         <div class="dc-traits"><span class="up"><b>PERK</b> {a.perk}</span><span class="down"><b>CURSE</b> {a.curse}</span></div>
+        {d.traits.length > 0 && (
+          <div class="dc-chips">
+            {d.traits.map((t) => (
+              <span key={t} class={`trait-chip ${TRAITS[t].good ? 'good' : 'bad'}`} title={TRAITS[t].desc}>
+                {TRAITS[t].name}<small>{TRAITS[t].desc}</small>
+              </span>
+            ))}
+          </div>
+        )}
         <div class="dc-hint">Drag them into a room · Reactor & Kitchen use GRIND · Pool & Lab use BRAIN · Copium, Grass & Shill use VIBES · Rug Detector uses HANDS</div>
       </div>
       {game.underground && (
@@ -614,6 +624,54 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
           })}
         </div>
 
+        {room.type === 'shill' && (
+          <div class="radio-bar">
+            <span class="radio-title">ON AIR</span>
+            {(Object.keys(STATIONS) as Station[]).map((st) => (
+              <button
+                key={st}
+                class={`radio-st ${(room.station ?? 'hopium') === st ? 'on' : ''}`}
+                title={STATIONS[st].desc}
+                onClick={() => set(() => game.setStation(room.id, st))}
+              >
+                <b>{STATIONS[st].name}</b>
+                <small>{STATIONS[st].desc}</small>
+              </button>
+            ))}
+          </div>
+        )}
+        {room.type === 'silo' && (
+          <div class="rocket-bar">
+            <span>MISSILES {game.missiles}/{MAX_MISSILES}</span>
+            <div class="rocket-track"><span style={{ width: `${game.missiles >= MAX_MISSILES ? 100 : game.siloProg}%` }} /></div>
+            <button class="btn btn-red" disabled={!game.raid || game.missiles === 0} onClick={() => set(() => game.fireSilo())}>
+              {game.raid ? `FIRE · ${game.missiles} left` : 'NO TARGET'}
+            </button>
+          </div>
+        )}
+        {room.type === 'storage' && game.underground && (
+          <div class="mod-bar rug-bar">
+            <span class="mod-tag">EXIT</span>
+            <span class="mod-body">
+              <b>Pull the rug</b>
+              <small>{game.day < RUG_DAY ? `Available from day ${RUG_DAY}. Patience is a virtue. Rugging is not.` : 'Take all the ramen and Bags and leave alone. Ramen counts triple. The degens count zero. Ends the run.'}</small>
+            </span>
+            {game.day >= RUG_DAY && !game.raid && <SureButton class="btn btn-red" label="PULL THE RUG" sure="REALLY? THEY TRUSTED YOU" onConfirm={() => set(() => { ui.roomView = null; game.rugPull(); })} />}
+          </div>
+        )}
+        {ROOM_MODS[room.type] && (
+          <div class={`mod-bar ${room.mod ? 'installed' : ''}`}>
+            <span class="mod-tag">MOD</span>
+            <span class="mod-body"><b>{ROOM_MODS[room.type]!.name}</b><small>{ROOM_MODS[room.type]!.desc}</small></span>
+            {room.mod ? (
+              <span class="mod-on">INSTALLED{room.offlineDay != null && room.offlineDay >= game.day ? ' · MELTED DOWN' : ''}</span>
+            ) : (
+              <button class="btn btn-amber" disabled={game.res.ramen < ROOM_MODS[room.type]!.cost} onClick={() => set(() => game.installMod(room.id))}>
+                <Rich text={`INSTALL · ${ROOM_MODS[room.type]!.cost} 🍜`} />
+              </button>
+            )}
+          </div>
+        )}
         {room.type === 'rocket' && (
           <div class="rocket-bar">
             <span>ROCKET {Math.floor(game.rocketProg)}%</span>
@@ -736,7 +794,26 @@ function RaidBar({ game }: { game: Game }) {
       <div class="raid-track"><span style={{ width: `${(r.hp / r.maxHp) * 100}%` }} /></div>
       <small><Rich text={`${Math.max(0, Math.ceil(limit - r.t))}s left · they stole ${Math.round(r.stolen)} 🍜`} /></small>
       <div class="raid-hint">CLICK THE {r.kind === 'whale' ? 'WHALE' : 'RAIDERS'} TO SMASH THEM · {r.smashes} hits · every 10th crits</div>
+      {game.missiles > 0 && (
+        <button class="btn btn-red raid-fire" onClick={() => game.fireSilo()}>FIRE MISSILE · {game.missiles} left</button>
+      )}
+      {r.kind === 'liquidators' && <SureButton class="btn btn-dark raid-sell" label="SELL THEM THE BUNKER" sure="REALLY? THIS ENDS THE RUN" onConfirm={() => game.sellBunker()} />}
     </div>
+  );
+}
+
+/** A button that asks once before doing something you can't undo. */
+function SureButton({ label, sure, onConfirm, class: cls }: { label: string; sure: string; onConfirm: () => void; class: string }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const id = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(id);
+  }, [armed]);
+  return (
+    <button class={`${cls} ${armed ? 'armed' : ''}`} onClick={() => (armed ? onConfirm() : setArmed(true))}>
+      {armed ? sure : label}
+    </button>
   );
 }
 
@@ -852,7 +929,7 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
   return (
     <div class="modal-bg">
       <div class="modal end">
-        <div class="end-kicker">{e.daily ? 'DAILY DOOM · ' : ''}DEFCON {e.defcon} · NET WORTH AFTER APOCALYPSE</div>
+        <div class="end-kicker">{e.daily ? 'DAILY DOOM · ' : ''}DEFCON {e.defcon}{e.mutator ? ` · ${MUTATORS[e.mutator].name.toUpperCase()}` : ''} · NET WORTH AFTER APOCALYPSE</div>
         <div class="end-title">{e.title}</div>
         <p>{e.blurb}</p>
         <div class="end-score">{e.score.toLocaleString()}</div>

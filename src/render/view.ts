@@ -69,7 +69,7 @@ const RES_ICON: Partial<Record<RoomType, string>> = { reactor: '⚡', kitchen: '
 const FX_SOUND: Record<string, Sfx> = {
   card: 'card', bag: 'bag', death: 'death', raid: 'raid', raidwon: 'raidwon', raidlost: 'raidlost',
   legend: 'raidwon', stamp: 'build', denied: 'denied', audit: 'card', launch: 'nuke', build: 'build', dig: 'dig', recruit: 'recruit', assign: 'assign', cope: 'cope', day: 'day', quit: 'quit',
-  smash: 'smash', crit: 'crit', revive: 'revive',
+  smash: 'smash', crit: 'crit', revive: 'revive', missile: 'nuke',
 };
 const mat = (color: number) => new THREE.MeshBasicMaterial({ color });
 

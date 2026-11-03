@@ -8,6 +8,8 @@ export type Sfx =
   | 'recruit' | 'quit' | 'open' | 'close' | 'smash' | 'crit' | 'fpress' | 'revive';
 
 export type MusicMode = 'prep' | 'bunker' | 'raid' | 'off';
+/** What the Shill Tower plays during bunker time. */
+export type RadioStation = 'hopium' | 'blues' | 'doomer';
 
 const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12); // MIDI → Hz
 
@@ -19,6 +21,7 @@ class AudioEngine {
   private voiceBus!: GainNode;
   private noiseBuf!: AudioBuffer;
   private mode: MusicMode = 'off';
+  private station: RadioStation = 'hopium';
   private nextBeat = 0;
   private beat = 0;
   private lastTick = 0;
@@ -264,10 +267,16 @@ class AudioEngine {
     if (this.nextBeat < this.ctx.currentTime) this.nextBeat = this.ctx.currentTime + 0.1;
   }
 
+  /** Change the bunker-time station; takes over at the next bar. */
+  setStation(st: RadioStation): void {
+    this.station = st;
+  }
+
   private schedule(): void {
     const ctx = this.ctx;
     if (!ctx || this.mode === 'off') return;
-    const bpm = this.mode === 'raid' ? 150 : this.mode === 'prep' ? 104 : 80;
+    const radio = this.mode === 'bunker' ? this.station : null;
+    const bpm = this.mode === 'raid' ? 150 : this.mode === 'prep' ? 104 : radio === 'hopium' ? 96 : radio === 'blues' ? 66 : 74;
     const step = 60 / bpm / 2; // eighth notes
     // Am F C G (bunker) / Dm Bb A (prep) / E power riff (raid)
     const progs: Record<Exclude<MusicMode, 'off'>, number[][]> = {
@@ -275,7 +284,13 @@ class AudioEngine {
       prep: [[50, 53, 57], [46, 50, 53], [45, 49, 52], [45, 49, 52]],
       raid: [[52, 59, 64], [52, 59, 64], [55, 62, 67], [50, 57, 62]],
     };
-    const prog = progs[this.mode];
+    // Hopium FM: doo-wop I-vi-IV-V in C. Bear Market Blues: E minor blues. Doomer Wave: slow minor synth.
+    const radios: Record<RadioStation, number[][]> = {
+      hopium: [[48, 52, 55], [45, 48, 52], [41, 45, 48], [43, 47, 50]],
+      blues: [[52, 55, 59], [52, 55, 59], [57, 60, 64], [52, 55, 59], [59, 62, 66], [57, 60, 64], [52, 55, 59], [59, 62, 66]],
+      doomer: [[45, 48, 52], [41, 45, 48], [43, 46, 50], [40, 43, 47]],
+    };
+    const prog = radio ? radios[radio] : progs[this.mode];
     while (this.nextBeat < ctx.currentTime + 0.25) {
       const t = this.nextBeat - ctx.currentTime;
       const bar = Math.floor(this.beat / 8) % prog.length;
@@ -284,7 +299,8 @@ class AudioEngine {
       const out = this.musicBus;
       if (inBar === 0) {
         // Pad + bass at the top of each bar.
-        for (const n of chord) this.tone({ t, f: NOTE(n), dur: step * 8, type: 'triangle', vol: 0.07, attack: 0.25, out });
+        const padType: OscillatorType = radio === 'doomer' ? 'sawtooth' : 'triangle';
+        for (const n of chord) this.tone({ t, f: NOTE(n), dur: step * 8, type: padType, vol: radio === 'doomer' ? 0.035 : 0.07, attack: radio === 'doomer' ? 0.6 : 0.25, out });
         this.tone({ t, f: NOTE(chord[0] - 24), dur: step * 3, type: 'sine', vol: 0.35, out });
       }
       if (this.mode !== 'bunker' && inBar === 4) this.tone({ t, f: NOTE(chord[0] - 24), dur: step * 2, type: 'sine', vol: 0.3, out });
@@ -292,8 +308,14 @@ class AudioEngine {
         this.tone({ t, f: NOTE(chord[0] - 12), dur: step * 0.8, type: 'sawtooth', vol: 0.08, out });
         if (inBar % 2 === 0) this.noise({ t, dur: 0.12, f: 120, vol: 0.5, out }); // kick
       } else {
+        // Hopium FM: doo-wop "shoo-bop" on the off-beats. Blues: a lazy bent lead.
+        if (radio === 'hopium' && (inBar === 3 || inBar === 7)) this.tone({ t, f: NOTE(chord[2] + 12), dur: step * 0.7, type: 'square', vol: 0.03, out });
+        if (radio === 'blues' && inBar === 5 && Math.random() < 0.7) {
+          const n = chord[1] + 12;
+          this.tone({ t, f: NOTE(n + 1), f2: NOTE(n), dur: step * 2.5, type: 'sawtooth', vol: 0.03, vibrato: 5, out });
+        }
         // Lazy arpeggio, a little swung.
-        if (inBar % 2 === 1 || Math.random() < 0.3) {
+        if (radio !== 'blues' && (inBar % 2 === 1 || Math.random() < 0.3)) {
           const n = chord[(this.beat * 7) % chord.length] + 12;
           this.tone({ t: t + (inBar % 2 ? step * 0.12 : 0), f: NOTE(n), dur: step * 1.5, type: 'sine', vol: 0.06, out });
         }
