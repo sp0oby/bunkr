@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import gsap from 'gsap';
-import { ARCHS, BAGS, LOCATIONS, MAX_MISSILES, MUTATORS, PREP_NEWS, ROOMS, ROOM_MODS, ROOM_ORDER, RUN_DAYS, STATIONS, TENT_DAYS, TRAITS, archTitle, spriteFile } from '../sim/content';
+import { ARCHS, BAGS, LOCATIONS, MAX_MISSILES, MUTATORS, WEATHER, PREP_NEWS, ROOMS, ROOM_MODS, ROOM_ORDER, RUN_DAYS, STATIONS, TENT_DAYS, TRAITS, archTitle, spriteFile } from '../sim/content';
 import { AUDIT_FORM_SECONDS, REVIVE_PRESSES, REVIVE_SECONDS, RUG_DAY, type Game } from '../sim/game';
 import type { RunRewards } from '../meta';
 import { HOTSPOTS, WORKER_QUIPS } from '../sim/hotspots';
@@ -28,6 +28,8 @@ export interface UiState {
   /** The results server's verdict on a ticketed run. Absent for Tent Mode and offline play. */
   verdict?: { state: 'pending' } | { state: 'ok'; reply: FinishReply } | { state: 'error'; error: string };
   verify?: () => void;
+  /** Equipped nuke cosmetic ('dog'), if any. */
+  nukeSkin?: string | null;
 }
 
 type Set = (fn: () => void) => void;
@@ -85,7 +87,7 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
       {game.audit && <AuditModal game={game} />}
       {game.revive && <ReviveModal game={game} />}
       {game.card && <Card game={game} />}
-      {game.phase === 'drop' && <Cinematic game={game} />}
+      {game.phase === 'drop' && <Cinematic game={game} ui={ui} />}
       {game.ending && <End game={game} ui={ui} />}
     </div>
   );
@@ -143,6 +145,9 @@ function TopBar({ game, ui, set }: { game: Game; ui: UiState; set: Set }) {
             <span class="t-main">
               <span class="t-val">DAY {Math.min(game.day, RUN_DAYS)}<small>/{game.config.tent ? `${TENT_DAYS} TENT` : RUN_DAYS}</small></span>
               {game.config.mutator && <span class="mutator-tag" title={MUTATORS[game.config.mutator].desc}>{MUTATORS[game.config.mutator].name.toUpperCase()}</span>}
+              {game.config.weather && game.config.weather !== 'calm' && (
+                <span class={`mutator-tag wx-${game.config.weather}`} title={WEATHER[game.config.weather].desc}>{WEATHER[game.config.weather].name.toUpperCase()}</span>
+              )}
               <span class="daybar"><span style={{ width: `${game.dayProgress * 100}%` }} /></span>
             </span>
           </>
@@ -708,7 +713,7 @@ function RoomPopup({ game, room, ui, set, view }: { game: Game; room: Room; ui: 
 
 /** The bombs drop: an in-engine cinematic built from two paintings — the calm
  *  street and the detonation — with a flash, shockwave, debris and shake. */
-function Cinematic({ game }: { game: Game }) {
+function Cinematic({ game, ui }: { game: Game; ui: UiState }) {
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = root.current;
@@ -745,7 +750,7 @@ function Cinematic({ game }: { game: Game }) {
       <div class="cine-shake">
         <div class="cine-img cine-calm" style={{ backgroundImage: 'url(/art/cine-calm.webp)' }} />
         <div class="cine-sky" />
-        <div class="cine-img cine-blast" style={{ backgroundImage: 'url(/art/drop-end.webp)' }} />
+        <div class="cine-img cine-blast" style={{ backgroundImage: `url(/art/${ui.nukeSkin === 'dog' ? 'drop-dog' : 'drop-end'}.webp)` }} />
         <div class="cine-ring" />
         <div class="cine-ring2" />
         <div class="cine-debris">{Array.from({ length: 36 }).map((_, i) => <span class={`shard s${i % 4}`} key={i} />)}</div>

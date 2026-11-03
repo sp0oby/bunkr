@@ -40,6 +40,18 @@ contract Deploy is Script {
             minTiers[i] = RARITY[i] + 1; // common: Shed, rare: Basement, legendary: Bunker
         }
         forge.setRecipes(ids, costs, minTiers);
+
+        // Cosmetics (ids 100+, must match COSMETICS in src/chain/constants.ts). Shed tier.
+        uint256[] memory cIds = new uint256[](4);
+        uint128[] memory cCosts = new uint128[](4);
+        uint8[] memory cTiers = new uint8[](4);
+        uint128[4] memory C_COST = [uint128(50_000e18), 50_000e18, 75_000e18, 30_000e18];
+        for (uint256 i; i < 4; i++) {
+            cIds[i] = 100 + i;
+            cCosts[i] = C_COST[i];
+            cTiers[i] = 1;
+        }
+        forge.setRecipes(cIds, cCosts, cTiers);
         vm.stopBroadcast();
 
         string memory o = "deploy";

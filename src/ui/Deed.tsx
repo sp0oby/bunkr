@@ -3,9 +3,10 @@ import { BAGS } from '../sim/content';
 import type { BagId } from '../sim/types';
 import { LOADOUT_SLOTS, TIERS, TIER_PERKS, deployment, devWalletAllowed, explorerTx, tokenGate } from '../chain/config';
 import {
-  buyTickets, clearPass, connect, disconnect, enterRun, faucet, forgeBag, loadout, savePass, switchChain, toggleLoadout,
-  useWallet, wallet, type WalletState,
+  buyTickets, clearPass, connect, disconnect, enterRun, equippedDrip, faucet, forgeBag, forgeDrip, loadout, savePass, switchChain,
+  toggleDrip, toggleLoadout, useWallet, wallet, type WalletState,
 } from '../chain/wallet';
+import { COSMETICS } from '../chain/constants';
 import { audio } from '../audio/audio';
 
 /** The Deed tier left after spending `cost`, so the UI can warn before it happens. */
@@ -183,6 +184,8 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
+        {connected && s.tier >= 1 && <DripSection s={s} />}
+
         {(s.busy || s.error) && (
           <div class={`deed-status ${s.error ? 'err' : ''}`}>
             {s.busy ? `${s.busy}…` : s.error}
@@ -195,6 +198,42 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
           <button class="btn btn-dark" onClick={onClose}>CLOSE</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Burn-to-drip cosmetics: looks only, never gameplay. */
+function DripSection({ s }: { s: WalletState }) {
+  const on = equippedDrip(s);
+  const preview = (key: string) =>
+    key === 'dog' ? <span class="drip-thumb" style={{ backgroundImage: 'url(/art/drop-dog.webp)' }} />
+      : key === 'goldhatch' ? <span class="drip-thumb hatchy"><img src="/art/hatch/smug.webp" alt="" /></span>
+        : <span class={`drip-thumb swatch-${key}`} />;
+  return (
+    <div class="deed-section">
+      <div class="deed-h">DRIP <small>burn $BUNKR for looks. Zero gameplay. Maximum flex.</small></div>
+      <div class="drip-grid">
+        {COSMETICS.map((c) => {
+          const owned = (s.drip[c.id] ?? 0) > 0;
+          const cost = s.dripCost[c.id];
+          const equipped = on[c.slot] === c.key;
+          return (
+            <div key={c.id} class={`drip-card ${equipped ? 'on' : ''}`}>
+              {preview(c.key)}
+              <b>{c.name}</b>
+              <small>{c.desc}</small>
+              {owned ? (
+                <button class={`btn ${equipped ? 'btn-green' : 'btn-dark'}`} onClick={() => toggleDrip(c.id)}>{equipped ? 'EQUIPPED' : 'EQUIP'}</button>
+              ) : (
+                <button class="btn btn-amber" disabled={!!s.busy || cost == null || s.balance < cost} onClick={() => void forgeDrip(c.id)}>
+                  {cost == null ? 'SOON' : `FORGE · ${fmtBunkr(cost)}`}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div class="deed-note">Drip shows up in your next run. It's an ERC-1155, so you can trade it.</div>
     </div>
   );
 }

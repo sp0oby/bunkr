@@ -19,5 +19,21 @@ export const TIER_PERKS = [
 /** How many forged Bags each tier can bring into a run. */
 export const LOADOUT_SLOTS = [0, 1, 2, 3, 3];
 
+/** Burn-to-drip cosmetics: ERC-1155 on BunkrForge (ids 100+). Looks only, never gameplay. */
+export type CosmeticSlot = 'bunker' | 'nuke' | 'hatch';
+export interface CosmeticDef {
+  id: number;
+  key: string;
+  slot: CosmeticSlot;
+  name: string;
+  desc: string;
+}
+export const COSMETICS: CosmeticDef[] = [
+  { id: 100, key: 'gold', slot: 'bunker', name: 'Gold Bunker', desc: 'Solid gold walls. Structurally questionable. Spiritually load-bearing.' },
+  { id: 101, key: 'rgb', slot: 'bunker', name: 'Gamer Bunker', desc: 'RGB on every frame. +0 FPS. +100 vibes, spiritually.' },
+  { id: 102, key: 'dog', slot: 'nuke', name: 'Good Boy Nuke', desc: 'Your mushroom cloud is now a dog. He is a good boy. He is also a nuke.' },
+  { id: 103, key: 'goldhatch', slot: 'hatch', name: 'Gold HATCH', desc: 'HATCH, but premium. Still mean. Now mean in gold.' },
+];
+
 /** Chance each forged Bag you carried breaks when you get liquidated. */
 export const SHATTER_CHANCE = 0.35;

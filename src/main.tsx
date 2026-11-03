@@ -9,8 +9,8 @@ import { PhoneGate, isPhone, phoneOverride } from './ui/PhoneGate';
 import { audio } from './audio/audio';
 import { dailySeed, loadMeta, recordRun, runConfig } from './meta';
 import { tokenGate } from './chain/config';
-import { clearPass, readPass, refresh, restore, savePass, type RunPass } from './chain/wallet';
-import { serverDay, serverFinish, serverStart } from './chain/server';
+import { clearPass, equippedDrip, readPass, refresh, restore, savePass, type RunPass } from './chain/wallet';
+import { fetchWeather, serverDay, serverFinish, serverStart } from './chain/server';
 import { ServerProblem } from './ui/ServerProblem';
 import './style.css';
 
@@ -33,7 +33,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 const playing = params.has('play') || params.has('daily') || params.has('seed');
-void restore();
+const restored = restore();
 function boot(): void {
   if (!playing) render(<Title meta={meta} />, document.getElementById('ui')!);
   else void startRun();
@@ -75,7 +75,7 @@ async function startRun(): Promise<void> {
     seed = pass.seed;
     cfg = pass.config!;
   } else if (tokenGate) {
-    cfg = { ...cfg, tent: true };
+    cfg = { ...cfg, tent: true, weather: (await fetchWeather())?.kind ?? null };
   }
   const game = new Game(seed, cfg);
   if (pass?.tier === 4) document.body.classList.add('silo');
@@ -130,6 +130,15 @@ async function startRun(): Promise<void> {
 
   render(<App game={game} ui={ui} view={view} />, document.getElementById('ui')!);
 
+  // Cosmetics are looks only: applied once the wallet has reconnected.
+  void restored.then(() => {
+    const drip = tokenGate ? equippedDrip() : {};
+    view.setBunkerSkin(drip.bunker ?? null);
+    document.body.classList.toggle('drip-goldhatch', drip.hatch === 'goldhatch');
+    ui.nukeSkin = drip.nuke ?? null;
+    game.touch();
+  });
+
   // Ticketed runs get each underground day's seed from the results server just before
   // that day starts. The sim waits (without counting time) if one hasn't arrived yet.
   const fetching = new Set<number>();
@@ -145,7 +154,10 @@ async function startRun(): Promise<void> {
     if (day == null || game.daySeeds.has(day) || fetching.has(day)) return;
     fetching.add(day);
     serverDay({ runId: pass!.runId, secret: pass!.secret, day })
-      .then((r) => game.daySeeds.set(r.day, r.seed))
+      .then((r) => {
+        game.daySeeds.set(r.day, r.seed);
+        if (r.event) game.dayEvents.set(r.day, r.event);
+      })
       .catch(() => new Promise((ok) => setTimeout(ok, 1000))) // too early or offline: try again shortly
       .finally(() => {
         fetching.delete(day);

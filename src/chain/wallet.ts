@@ -8,6 +8,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { forgeAbi, ticketsAbi, tokenAbi } from './abi';
 import { DEV_KEY, FORGE_ORDER, LOADOUT_SLOTS, chain, deployment, devWalletAllowed } from './config';
+import { COSMETICS, type CosmeticSlot } from './constants';
 import type { BagId, RunConfig } from '../sim/types';
 
 type Kind = 'injected' | 'dev';
@@ -29,6 +30,9 @@ export interface WalletState {
   dailyAvailable: boolean;
   pot: bigint;
   forged: Partial<Record<BagId, number>>;
+  /** Cosmetics owned, by token id, and what each one costs to forge. */
+  drip: Record<number, number>;
+  dripCost: Record<number, bigint>;
   thresholds: bigint[];
   ticketPrice: bigint;
   /** One Daily Doom attempt, and the share of it that goes to the pot (basis points). */
@@ -53,7 +57,7 @@ const LOADOUT_KEY = 'bunkr.loadout';
 let state: WalletState = {
   status: deployment && chain ? 'disconnected' : 'off',
   kind: null, address: null, wrongChain: false,
-  tier: 0, balance: 0n, tickets: 0, freeAvailable: false, dailyAvailable: true, pot: 0n, forged: {},
+  tier: 0, balance: 0n, tickets: 0, freeAvailable: false, dailyAvailable: true, pot: 0n, forged: {}, drip: {}, dripCost: {},
   thresholds: [], ticketPrice: 0n, dailyFee: 0n, dailyPotBps: 0, recipes: {},
   busy: null, error: null, lastTx: null,
 };
@@ -179,14 +183,17 @@ let config: Promise<void> | null = null;
 export function loadConfig(): Promise<void> {
   if (!pub || !deployment) return Promise.resolve();
   config ??= (async () => {
-    const [thresholds, ticketPrice, dailyFee, dailyPotBps, recipes] = await Promise.all([
+    const [thresholds, ticketPrice, dailyFee, dailyPotBps, recipes, dripRows] = await Promise.all([
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'getTierThresholds' }),
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'ticketPrice' }),
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'dailyFee' }),
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'dailyPotBps' }),
       readRecipes(),
+      Promise.all(COSMETICS.map((c) => pub.readContract({ address: deployment!.forge, abi: forgeAbi, functionName: 'recipes', args: [BigInt(c.id)] }))),
     ]);
-    set({ thresholds: [...thresholds], ticketPrice, dailyFee, dailyPotBps, recipes });
+    const dripCost: Record<number, bigint> = {};
+    dripRows.forEach(([cost, , enabled], i) => enabled && (dripCost[COSMETICS[i].id] = cost));
+    set({ thresholds: [...thresholds], ticketPrice, dailyFee, dailyPotBps, recipes, dripCost });
   })().catch((e) => {
     config = null; // try again next time
     set({ error: friendly(e) });
@@ -198,18 +205,21 @@ export async function refresh(): Promise<void> {
   if (!pub || !deployment || !state.address) return;
   const who = state.address;
   try {
-    const [ps, owned, dailyAvailable] = await Promise.all([
+    const [ps, owned, dailyAvailable, dripOwned] = await Promise.all([
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'playerState', args: [who] }),
       pub.readContract({ address: deployment.forge, abi: forgeAbi, functionName: 'bagsOf', args: [who, FORGE_ORDER.map((_, i) => BigInt(i))] }),
       pub.readContract({ address: deployment.tickets, abi: ticketsAbi, functionName: 'dailyAvailable', args: [who] }),
+      pub.readContract({ address: deployment.forge, abi: forgeAbi, functionName: 'bagsOf', args: [who, COSMETICS.map((c) => BigInt(c.id))] }),
       loadConfig(),
     ]);
+    const drip: Record<number, number> = {};
+    dripOwned.forEach((n, i) => n > 0n && (drip[COSMETICS[i].id] = Number(n)));
     const forged: Partial<Record<BagId, number>> = {};
     owned.forEach((n, i) => {
       if (n > 0n) forged[FORGE_ORDER[i]] = Number(n);
     });
     const [tier, balance, tickets, freeAvailable, pot] = ps;
-    set({ tier, balance, tickets: Number(tickets), freeAvailable, dailyAvailable, pot, forged });
+    set({ tier, balance, tickets: Number(tickets), freeAvailable, dailyAvailable, pot, forged, drip });
   } catch (e) {
     set({ error: friendly(e) });
   }
@@ -277,6 +287,55 @@ export const forgeBag = (bag: BagId) =>
       ? send('Forging', deployment!.forge, forgeAbi, 'forgeWithPermit', [id, ...permit])
       : send('Forging', deployment!.forge, forgeAbi, 'forge', [id]);
   });
+
+/** Burn $BUNKR for a cosmetic. */
+export const forgeDrip = (id: number) =>
+  run('Forging drip', async () => {
+    const cost = state.dripCost[id] ?? 0n;
+    const permit = await maybePermit(deployment!.forge, cost);
+    return permit
+      ? send('Forging drip', deployment!.forge, forgeAbi, 'forgeWithPermit', [BigInt(id), ...permit])
+      : send('Forging drip', deployment!.forge, forgeAbi, 'forge', [BigInt(id)]);
+  });
+
+// ------------------------------------------------------------------ drip (equipped cosmetics)
+
+const DRIP_KEY = 'bunkr.drip';
+
+/** Equipped cosmetic per slot, only if the wallet still owns it. */
+export function equippedDrip(s: WalletState = state): Partial<Record<CosmeticSlot, string>> {
+  let saved: Partial<Record<CosmeticSlot, number>> = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(DRIP_KEY) ?? '{}');
+  } catch {
+    /* ignore */
+  }
+  const out: Partial<Record<CosmeticSlot, string>> = {};
+  for (const [slot, id] of Object.entries(saved) as [CosmeticSlot, number][]) {
+    const def = COSMETICS.find((c) => c.id === id);
+    if (def && (s.drip[id] ?? 0) > 0) out[slot] = def.key;
+  }
+  return out;
+}
+
+export function toggleDrip(id: number): void {
+  const def = COSMETICS.find((c) => c.id === id);
+  if (!def) return;
+  let saved: Partial<Record<CosmeticSlot, number>> = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(DRIP_KEY) ?? '{}');
+  } catch {
+    /* ignore */
+  }
+  if (saved[def.slot] === id) delete saved[def.slot];
+  else saved[def.slot] = id;
+  try {
+    localStorage.setItem(DRIP_KEY, JSON.stringify(saved));
+  } catch {
+    /* ignore */
+  }
+  set({});
+}
 
 /**
  * Starts a run: a normal run spends a Ration Ticket (today's free one first); Daily Doom pays

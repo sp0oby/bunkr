@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Address, Hex } from 'viem';
-import type { BagId, RunConfig } from '../src/sim/types';
+import type { BagId, MarketEvent, RunConfig } from '../src/sim/types';
 import { DATA_FILE } from './env';
 
 export interface RunResult {
@@ -30,6 +30,8 @@ export interface RunRecord {
   status: 'started' | 'finished' | 'abandoned';
   /** When each underground day's seed was handed out (index 0 = day 1). */
   dayTimes?: number[];
+  /** Market events dealt with those days, by day number. */
+  dayEvents?: Record<number, MarketEvent>;
   startedAt: number;
   finishedAt?: number;
   result?: RunResult;

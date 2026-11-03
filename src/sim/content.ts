@@ -1,4 +1,4 @@
-import type { MutatorId, Station, TraitId, ArchId, BagId, HatchMood, ResKey, RoomType, StatKey } from './types';
+import type { MutatorId, Station, TraitId, Weather, ArchId, BagId, HatchMood, ResKey, RoomType, StatKey } from './types';
 
 // ---------- Tuning ----------
 /** A day in sim-seconds. All economy rates are tuned against this. */
@@ -51,6 +51,13 @@ export const ROOM_ORDER: RoomType[] = ['reactor', 'kitchen', 'pool', 'copium', '
 /** The Silo is a late build: available from this underground day. */
 export const SILO_DAY = 12;
 export const MAX_MISSILES = 3;
+
+// ---------- Chart weather ----------
+export const WEATHER: Record<Weather, { name: string; desc: string; score: number }> = {
+  bull: { name: 'Bull Run Weather', desc: '$BUNKR is pumping. More loot, hotter vibes, and more radiation.', score: 1 },
+  winter: { name: 'Nuclear Winter', desc: '$BUNKR is dumping. Less loot, colder vibes, weaker raiders. Score x1.2: buy-the-dip runs pay.', score: 1.2 },
+  calm: { name: 'Crab Market', desc: '$BUNKR is going sideways. The wasteland is quiet.', score: 1 },
+};
 
 // ---------- Weekly mutators ----------
 export interface MutatorDef {

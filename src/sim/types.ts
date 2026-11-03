@@ -156,6 +156,7 @@ export interface Ending {
   /** Tent Mode demo ran out: the player has no Bunker Deed. */
   tent?: boolean;
   mutator?: MutatorId | null;
+  weather?: Weather | null;
 }
 
 export interface Stats {
@@ -219,6 +220,12 @@ export interface RunConfig {
   serverDays: boolean;
   /** This week's mutator (same for everyone that week). */
   mutator: MutatorId | null;
+  /** The $BUNKR chart is the weather, fixed when the run starts. */
+  weather: Weather | null;
 }
+
+export type Weather = 'bull' | 'winter' | 'calm';
+/** Market events dealt with a day's seed: a big pump or a big dump of $BUNKR. */
+export type MarketEvent = 'whale' | 'paperstorm';
 
 export type MutatorId = 'bear' | 'bull' | 'airdrop' | 'rugseason' | 'halving';

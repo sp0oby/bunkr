@@ -173,6 +173,9 @@ export class BunkerView {
   private started = false;
 
   private surface!: THREE.MeshBasicMaterial;
+  /** Bunker cosmetic (Gold Bunker, Gamer Bunker), from the player's equipped drip. */
+  private bunkerSkin: string | null = null;
+  private concreteMat: THREE.MeshBasicMaterial | null = null;
   private rooms = new Map<number, RoomView>();
   private dwellers = new Map<number, DwellerView>();
   private hull = new THREE.Group();
@@ -279,7 +282,9 @@ export class BunkerView {
     // Ink outline, concrete body, hazard roof band.
     const ink = new THREE.Mesh(new THREE.PlaneGeometry(hw + 0.16, hh + 0.16), mat(INK));
     ink.position.set(hx, hy, -3.1);
-    const concrete = new THREE.Mesh(new THREE.PlaneGeometry(hw, hh), new THREE.MeshBasicMaterial({ map: tiled('/art/env/concrete.webp', hw, hh, 3.2) }));
+    this.concreteMat = new THREE.MeshBasicMaterial({ map: tiled('/art/env/concrete.webp', hw, hh, 3.2) });
+    if (this.bunkerSkin === 'gold') this.concreteMat.color.setHex(0xffd36b);
+    const concrete = new THREE.Mesh(new THREE.PlaneGeometry(hw, hh), this.concreteMat);
     concrete.position.set(hx, hy, -3);
     const hz = hazardTexture();
     hz.repeat.set(hw / 0.9, 1);
@@ -401,8 +406,9 @@ export class BunkerView {
       t.repeat.set(aspect / ROOM_ART_ASPECT, 1);
       t.offset.set((1 - t.repeat.x) / 2, 0);
     }
-    const ink = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.12, h + 0.12), mat(INK));
+    const ink = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.12, h + 0.12), mat(this.bunkerSkin === 'gold' ? 0xb07a10 : INK));
     ink.position.z = -0.05;
+    ink.userData.frame = true;
     const art = new THREE.MeshBasicMaterial({ map: t });
     const back = new THREE.Mesh(new THREE.PlaneGeometry(w, h), art);
     back.userData.roomId = room.id;
@@ -695,6 +701,17 @@ export class BunkerView {
       const pulse = 0.04 * Math.sin(g.time * 0.8);
       this.surface.color.setRGB(0.92 + pulse, 0.84 + pulse, 0.78);
     }
+    // The $BUNKR chart is the weather: green when it pumps, cold blue when it dumps.
+    if (g.config.weather === 'bull') this.surface.color.multiply(new THREE.Color(0.86, 1.05, 0.78));
+    if (g.config.weather === 'winter') this.surface.color.multiply(new THREE.Color(0.72, 0.84, 1.0));
+    // Gamer Bunker: every room frame cycles through the rainbow.
+    if (this.bunkerSkin === 'rgb') {
+      let i = 0;
+      for (const v of this.rooms.values()) {
+        const frame = v.group.children.find((c) => c.userData.frame) as THREE.Mesh | undefined;
+        (frame?.material as THREE.MeshBasicMaterial | undefined)?.color.setHSL((performance.now() / 4000 + i++ * 0.13) % 1, 1, 0.55);
+      }
+    }
 
     this.shake = Math.max(0, this.shake - dt * 1.8);
     const sx = (Math.random() - 0.5) * this.shake;
@@ -824,6 +841,15 @@ export class BunkerView {
     document.body.appendChild(pop);
     gsap.fromTo(pop, { y: 0, scale: crit ? 1.6 : 1, opacity: 1 }, { y: -50, scale: 1, opacity: 0, duration: 0.6, ease: 'power2.out', onComplete: () => pop.remove() });
     this.shake = Math.max(this.shake, crit ? 0.5 : 0.12);
+  }
+
+  /** Apply the player's bunker cosmetic. Rebuilds the hull and rooms so every frame picks it up. */
+  setBunkerSkin(skin: string | null): void {
+    if (skin === this.bunkerSkin) return;
+    this.bunkerSkin = skin;
+    if (this.concreteMat) this.concreteMat.color.setHex(skin === 'gold' ? 0xffd36b : 0xffffff);
+    for (const id of [...this.rooms.keys()]) this.removeRoom(id);
+    this.syncRooms();
   }
 
   private hitTest(clientX: number, clientY: number): { dweller: number | null; room: number | null; raider: boolean } {

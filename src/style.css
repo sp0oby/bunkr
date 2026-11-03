@@ -650,3 +650,21 @@ body.silo .brand { color: var(--amber); text-shadow: 0 4px 0 var(--ink), 0 0 18p
 .btn.armed { background: var(--red); color: #fff; animation: pulseScale 0.6s infinite; }
 .rug-bar { border-color: var(--red); }
 .rug-bar .mod-tag { background: var(--red); color: #fff; }
+body.drip-goldhatch .hatch-img { filter: sepia(1) saturate(3.2) hue-rotate(-12deg) brightness(1.08) drop-shadow(0 0 10px #ffbe3d88); }
+
+/* ---------- Drip and weather ---------- */
+.drip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.drip-card { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; padding: 7px; }
+.drip-card.on { border-color: var(--green); }
+.drip-card b { font: 14px var(--display); }
+.drip-card small { color: var(--dim); font-size: 10px; line-height: 1.25; flex: 1; }
+.drip-card .btn { font-size: 12px; padding: 4px 8px; }
+.drip-thumb { height: 54px; border: 2px solid var(--ink); border-radius: 8px; background: center / cover no-repeat var(--panel-2); display: grid; place-items: center; overflow: hidden; }
+.drip-thumb.hatchy img { height: 50px; filter: sepia(1) saturate(3.2) hue-rotate(-12deg) brightness(1.08); }
+.swatch-gold { background: repeating-linear-gradient(45deg, #ffd36b 0 12px, #e2a92b 12px 24px); }
+.swatch-rgb { background: linear-gradient(90deg, #ff3b3b, #ffbe3d, #3ee06f, #3ff0ff, #a463ff, #ff6fbf); animation: rgbspin 3s linear infinite; background-size: 200% 100%; }
+@keyframes rgbspin { to { background-position: 200% 0; } }
+.title-weather { margin-top: 6px; padding-top: 6px; border-top: 2px dashed #ffffff22; display: flex; flex-direction: column; align-items: flex-end; }
+.wx-bull b, .mutator-tag.wx-bull { color: var(--green); }
+.wx-winter b, .mutator-tag.wx-winter { color: var(--cyan); }
+.wx-calm b { color: var(--dim); }

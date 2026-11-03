@@ -1,6 +1,6 @@
 // Talking to the results server, which hands out run seeds and verifies results by replay.
 import type { Input } from '../sim/game';
-import type { BagId, RunConfig } from '../sim/types';
+import type { BagId, MarketEvent, RunConfig, Weather } from '../sim/types';
 
 export const SERVER_URL: string = import.meta.env.VITE_BUNKR_SERVER ?? (import.meta.env.DEV ? 'http://localhost:8787' : '');
 
@@ -27,7 +27,23 @@ export const serverStart = (body: { txHash: string; secret: string; defcon: numb
   post<StartReply>('/run/start', body);
 
 export const serverDay = (body: { runId: number; secret: string; day: number }) =>
-  post<{ day: number; seed: number }>('/run/day', body);
+  post<{ day: number; seed: number; event: MarketEvent | null }>('/run/day', body);
+
+export interface WeatherReport {
+  kind: Weather;
+  change24h: number | null;
+}
+
+/** The $BUNKR chart as weather. null when there's no server. */
+export async function fetchWeather(): Promise<WeatherReport | null> {
+  if (!SERVER_URL) return null;
+  try {
+    const res = await fetch(`${SERVER_URL}/weather`);
+    return res.ok ? ((await res.json()) as WeatherReport) : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface FinishReply {
   runId: number;

@@ -3,12 +3,14 @@
 //   POST /run/day      { runId, secret, day }                      -> that day's seed (in order, paced)
 //   POST /run/finish   { runId, secret, ticks, inputs }            -> verified result
 //   GET  /leaderboard?day=N&player=0x…                            -> Daily Doom top 10, pot, your rank
+//   GET  /weather                                                 -> the $BUNKR chart as weather
 //   GET  /health
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { formatUnits } from 'viem';
 import { chainNow, oracle, potOf } from './chain';
 import { ABANDON_MS, PORT, TICK_MS, deployment } from './env';
 import { HttpError, daySeed, finishRun, startRun, sweepAbandoned } from './runs';
+import { getWeather } from './weather';
 import { settleFinishedDays } from './settle';
 import { dailyBoard, db } from './store';
 
@@ -71,6 +73,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (req.method === 'OPTIONS') return send(res, 204, null);
     if (req.method === 'GET' && url.pathname === '/health') return send(res, 200, { ok: true, chainId: deployment.chainId, oracle: oracle.address });
+    if (req.method === 'GET' && url.pathname === '/weather') return send(res, 200, await getWeather());
     if (req.method === 'GET' && url.pathname === '/leaderboard') return send(res, 200, await leaderboard(url.searchParams.get('day'), url.searchParams.get('player')));
     if (req.method === 'POST' && url.pathname === '/run/start') return send(res, 200, await startRun(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/run/day') return send(res, 200, await daySeed(await readJson(req)));

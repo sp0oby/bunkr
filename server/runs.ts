@@ -6,9 +6,10 @@ import { ACTIONS, replay, type Input } from '../src/sim/game';
 import { BAGS, mutatorForDay } from '../src/sim/content';
 import { LOADOUT_SLOTS, SHATTER_CHANCE } from '../src/chain/constants';
 import { dailySeed } from '../src/meta';
-import type { BagId, Defcon, RunConfig } from '../src/sim/types';
+import type { BagId, Defcon, MarketEvent, RunConfig } from '../src/sim/types';
 import { ownedBags, runFromTx, shatter } from './chain';
 import { MIN_DAY_GAP_MS, SERVER_SECRET, deployment } from './env';
+import { getWeather, marketEventNow } from './weather';
 import { db, dailyBoard, type RunRecord } from './store';
 
 export class HttpError extends Error {
@@ -85,6 +86,8 @@ export async function startRun(body: StartBody): Promise<{ runId: number; seed: 
     };
   }
 
+  config.weather = (await getWeather()).kind;
+
   const rec: RunRecord = {
     runId: entry.runId, player: entry.player, day: entry.day, daily: entry.daily, tier: entry.tier, commit: entry.commit,
     seed, config, loadout, status: 'started', startedAt: Date.now(),
@@ -99,7 +102,7 @@ const daySeedOf = (runId: number, day: number) => hmac32(`day:${runId}:${day}`);
  * The seed for one underground day, handed out only in order and no faster than a person
  * could play. Without it the game can't go past that day, so nobody can simulate ahead.
  */
-export async function daySeed(body: { runId?: number; secret?: string; day?: number }): Promise<{ day: number; seed: number }> {
+export async function daySeed(body: { runId?: number; secret?: string; day?: number }): Promise<{ day: number; seed: number; event: MarketEvent | null }> {
   const rec = db.run(Number(body.runId));
   if (!rec) throw new HttpError(404, 'Unknown run.');
   checkSecret(body.secret, rec.commit);
@@ -111,9 +114,11 @@ export async function daySeed(body: { runId?: number; secret?: string; day?: num
     const wait = times.length ? times[times.length - 1] + MIN_DAY_GAP_MS - Date.now() : 0;
     if (wait > 0) throw new HttpError(429, `Too fast. Try again in ${Math.ceil(wait / 1000)}s.`);
     rec.dayTimes = [...times, Date.now()];
+    const ev = day > 1 ? await marketEventNow() : null;
+    if (ev) rec.dayEvents = { ...rec.dayEvents, [day]: ev };
     db.putRun(rec);
   }
-  return { day, seed: daySeedOf(rec.runId, day) };
+  return { day, seed: daySeedOf(rec.runId, day), event: rec.dayEvents?.[day] ?? null };
 }
 
 export interface FinishBody {
@@ -165,7 +170,8 @@ export async function finishRun(body: FinishBody): Promise<FinishResult> {
   const seeds = new Map((rec.dayTimes ?? []).map((_, i) => [i + 1, daySeedOf(rec.runId, i + 1)] as [number, number]));
   let g;
   try {
-    g = replay(rec.seed, rec.config, inputs, ticks, seeds);
+    const events = new Map(Object.entries(rec.dayEvents ?? {}).map(([d, e]) => [Number(d), e] as [number, MarketEvent]));
+    g = replay(rec.seed, rec.config, inputs, ticks, seeds, events);
   } catch {
     throw new HttpError(400, 'That input log doesn\'t replay.');
   }

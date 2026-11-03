@@ -1,5 +1,6 @@
-import { useState } from 'preact/hooks';
-import { DEFCONS, MUTATORS, mutatorForDay, utcDayNow } from '../sim/content';
+import { useEffect, useState } from 'preact/hooks';
+import { fetchWeather, type WeatherReport } from '../chain/server';
+import { DEFCONS, MUTATORS, WEATHER, mutatorForDay, utcDayNow } from '../sim/content';
 import type { Defcon } from '../sim/types';
 import { VAULT, buyVault, dailyPlayed, todayKey, vaultLevel, type Meta } from '../meta';
 import { audio } from '../audio/audio';
@@ -26,6 +27,10 @@ export function Title({ meta }: { meta: Meta }) {
   const playedToday = dailyPlayed(meta);
   const levels = [5, 4, 3, 2, 1] as Defcon[];
   const weekMut = mutatorForDay(utcDayNow());
+  const [weather, setWeather] = useState<WeatherReport | null>(null);
+  useEffect(() => {
+    void fetchWeather().then(setWeather);
+  }, []);
 
   return (
     <div class="title">
@@ -92,6 +97,13 @@ export function Title({ meta }: { meta: Meta }) {
         <span>THIS WEEK</span>
         <b>{MUTATORS[weekMut].name}</b>
         <small>{MUTATORS[weekMut].desc}</small>
+        {weather && (
+          <div class={`title-weather wx-${weather.kind}`}>
+            <span>WEATHER · $BUNKR {weather.change24h == null ? 'chart' : `${weather.change24h > 0 ? '+' : ''}${weather.change24h.toFixed(1)}% 24h`}</span>
+            <b>{WEATHER[weather.kind].name}</b>
+            <small>{WEATHER[weather.kind].desc}</small>
+          </div>
+        )}
       </div>
       <div class="title-foot">Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 100 score</div>
 

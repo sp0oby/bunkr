@@ -1,6 +1,6 @@
 import { Rng } from './rng';
 import {
-  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, CURSED_TRAITS, MUTATORS, EXPEDITION_CARD_CHANCE, GOOD_TRAITS, MAX_MISSILES, ROOM_MODS, SILO_DAY, TENT_DAYS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
+  ARCHS, AUDIT_FRAUD, AUDIT_LEGIT, BAGS, BAG_FIDGETS, DEFCONS, BAG_SOFT_CAP, BASE_CAPS, CURSED_TRAITS, MUTATORS, WEATHER, EXPEDITION_CARD_CHANCE, GOOD_TRAITS, MAX_MISSILES, ROOM_MODS, SILO_DAY, TENT_DAYS, COLS, DAY_SECONDS, DROP_SECONDS, HATCH_LINES, LOCATIONS, MAX_FLOORS,
   LOOK_PRESENTATION, NAMES, POP_CAP, archTitle, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS,
   type HatchTrigger,
 } from './content';
@@ -13,7 +13,7 @@ const CARDS: CardDef[] = [...CARDS1, ...CARDS2, ...CARDS3];
 import { HOTSPOTS } from './hotspots';
 import { STATIONS } from './content';
 import type {
-  Audit, AuditForm, Revive, RunConfig, Station, TraitId,
+  Audit, AuditForm, MarketEvent, Revive, RunConfig, Station, TraitId,
   ArchId, BagId, Dweller, Ending, HatchMood, LogEntry, LogKind, Phase, Raid, ResKey, Room, RoomType, StatKey, Stats,
 } from './types';
 
@@ -135,6 +135,8 @@ export class Game {
   tick = 0;
   /** Seeds for underground days, filled in by the results server as the run reaches them. */
   readonly daySeeds = new Map<number, number>();
+  /** Market events the server dealt with those days (a big $BUNKR pump or dump). */
+  readonly dayEvents = new Map<number, MarketEvent>();
   /** Player actions so far, for replay. */
   readonly inputs: Input[] = [];
   /** >0 while the sim (or an action) is running, so nested calls aren't recorded. */
@@ -149,7 +151,7 @@ export class Game {
     this.rng = new Rng(seed);
     this.config = {
       defcon: 5, daily: false, startRamen: 0, extraDegen: false, startBag: false, legendLuck: false, rocket: false,
-      tent: false, deedTier: 0, loadout: [], serverDays: false, mutator: null, ...config,
+      tent: false, deedTier: 0, loadout: [], serverDays: false, mutator: null, weather: null, ...config,
     };
     this.prepSeconds = this.config.defcon <= 2 ? 55 : PREP_SECONDS;
     this.res.ramen += this.config.startRamen;
@@ -896,6 +898,8 @@ export class Game {
       if (this.day !== prevDay) {
         if (this.day <= RUN_DAYS) this.rng.reseed(this.daySeed(this.day));
         this.onNewDay();
+        const ev = this.dayEvents.get(this.day);
+        if (ev && this.day <= RUN_DAYS) this.marketEvent(ev);
       }
       if (this.day > RUN_DAYS) {
         this.finish(true);
@@ -1149,7 +1153,7 @@ export class Game {
       this.res.ramen = 60;
       this.post('Starving degens ate the Expired MRE NFT. +60 ramen. Tasted like a rug.', 'good');
     }
-    this.addRads(0.012 * dt * (this.config.defcon <= 1 ? 1.5 : 1) * (this.config.mutator === 'bull' ? 1.6 : 1));
+    this.addRads(0.012 * dt * (this.config.defcon <= 1 ? 1.5 : 1) * (this.config.mutator === 'bull' ? 1.6 : 1) * (this.config.weather === 'bull' ? 1.3 : 1));
   }
 
   private pendulum(dt: number): void {
@@ -1165,6 +1169,8 @@ export class Game {
       if (st === 'blues') pressure -= 0.25;
       if (st === 'doomer') this.vibeVel *= 1 - 0.012 * dt;
       if (this.config.mutator === 'bull') pressure += 0.3;
+      if (this.config.weather === 'bull') pressure += 0.2;
+      if (this.config.weather === 'winter') pressure -= 0.2;
     }
     // Spring pulls toward the middle, but degens amplify momentum (negative damping),
     // so the swing grows unless you dampen it with copium or grass.
@@ -1236,6 +1242,8 @@ export class Game {
       if (d.arch === 'farmer') mult *= 2;
       if (d.arch === 'rugpuller') mult *= 1.5;
       if (this.has(d, 'dumpsterdiver')) mult *= 1.4;
+      if (this.config.weather === 'bull') mult *= 1.25;
+      if (this.config.weather === 'winter') mult *= 0.75;
       if (d.arch === 'farmer' && this.rng.chance(0.15)) {
         this.hurt(d, 40, 'an airdrop that was actually a landmine');
         this.post(`${d.name} claimed an airdrop. It was a landmine. -40 HP.`, 'bad');
@@ -1256,7 +1264,7 @@ export class Game {
   private startRaid(kind: 'liquidators' | 'whale'): void {
     const tough = this.config.defcon <= 4 ? 1.4 : 1;
     const whale = kind === 'whale';
-    const hp = (whale ? 380 : 130) * this.raidMod * tough;
+    const hp = (whale ? 380 : 130) * this.raidMod * tough * (this.config.weather === 'winter' ? 0.8 : 1);
     this.raid = { kind, name: whale ? 'THE MUTANT WHALE' : 'The Liquidators', hp, maxHp: hp, power: whale ? 9 : 5, t: 0, hitTimer: 0, stolen: 0, smashes: 0, lastSmash: -1 };
     this.raidMod = 1;
     this.say(whale ? 'whale' : 'raid');
@@ -1405,6 +1413,28 @@ export class Game {
     check('back', z === 'manic', 'back');
   }
 
+  /** The chart moved hard: the whole wasteland feels it. */
+  private marketEvent(ev: MarketEvent): void {
+    if (ev === 'whale') {
+      const n = this.addRes('ramen', 80);
+      this.kick(15);
+      this.post(`WHALE SIGHTED. Somebody just market-bought a mountain of $BUNKR. The wasteland is euphoric. +${n} ramen fell off the truck.`, 'good');
+      this.fx.push('raidwon');
+    } else {
+      this.kick(-20);
+      const weak = this.present.find((d) => this.has(d, 'weakhands') || d.arch === 'pete');
+      if (weak && this.rng.chance(0.5)) {
+        weak.status = 'gone';
+        weak.roomId = null;
+        this.stats.quits++;
+        this.post(`PAPER HANDS STORM. $BUNKR is dumping and ${weak.name} panic-sold their bunk and left. Morale down.`, 'bad');
+      } else {
+        this.post('PAPER HANDS STORM. $BUNKR is dumping. The whole bunker is staring at the chart. Morale down.', 'bad');
+      }
+      this.fx.push('raidlost');
+    }
+  }
+
   /** Airdrop Season: a crate lands on the porta-potty. */
   private airdropCrate(): void {
     const r = this.rng.next();
@@ -1485,7 +1515,9 @@ export class Game {
     if (dmult !== 1) breakdown.push([`DEFCON ${this.config.defcon} multiplier x${dmult}`, Math.round(base * (dmult - 1))]);
     const mut = this.config.mutator ? MUTATORS[this.config.mutator] : null;
     if (mut && mut.score !== 1) breakdown.push([`${mut.name} x${mut.score}`, Math.round(base * dmult * (mut.score - 1))]);
-    const score = Math.round(base * dmult * (mut?.score ?? 1));
+    const wx = this.config.weather ? WEATHER[this.config.weather] : null;
+    if (wx && wx.score !== 1) breakdown.push([`${wx.name} x${wx.score}`, Math.round(base * dmult * (mut?.score ?? 1) * (wx.score - 1))]);
+    const score = Math.round(base * dmult * (mut?.score ?? 1) * (wx?.score ?? 1));
     let title = 'LIQUIDATED';
     let blurb = `Everyone died by day ${this.day}. The bunker is now a very sad NFT.`;
     if (tent) {
@@ -1512,7 +1544,7 @@ export class Game {
       else if (alive <= 2) { title = 'LAST DEGENS STANDING'; blurb = 'Two survivors. Zero friends. Infinite trauma. Still bullish.'; }
       else { title = 'TOUCHED GRASS'; blurb = 'You climbed out of the porta-potty and touched grass. It was radioactive grass. Still counts.'; }
     }
-    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily, tent, mutator: this.config.mutator };
+    this.ending = { title, blurb, score, breakdown, survived, defcon: this.config.defcon, daily: this.config.daily, tent, mutator: this.config.mutator, weather: this.config.weather };
     this.fx.push('end');
     this.touch();
   }
@@ -1522,9 +1554,13 @@ export class Game {
  * Re-run a recorded game from its seed: apply each input at its tick, step in between.
  * Same seed + config + inputs = the same game, so this is the server's source of truth.
  */
-export function replay(seed: number, config: Partial<RunConfig>, inputs: Input[], ticks: number, daySeeds?: Map<number, number>): Game {
+export function replay(
+  seed: number, config: Partial<RunConfig>, inputs: Input[], ticks: number,
+  daySeeds?: Map<number, number>, dayEvents?: Map<number, MarketEvent>,
+): Game {
   const g = new Game(seed, config);
   for (const [d, s] of daySeeds ?? []) g.daySeeds.set(d, s);
+  for (const [d, e] of dayEvents ?? []) g.dayEvents.set(d, e);
   const run = g as unknown as Record<ActionName, (...a: unknown[]) => unknown>;
   let i = 0;
   for (let t = 0; t <= ticks && !g.ending; t++) {
