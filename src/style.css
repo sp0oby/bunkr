@@ -830,11 +830,11 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 .revive .card-title { margin: 8px 0 6px; } /* no character art to make room for */
 
 /* ---------- Clip mode (?clip=<scene>) ---------- */
-/* A 9:16 frame in the middle of the window, for vertical social clips. The transform makes the
-   frame the containing block, so the HUD's fixed overlays stay inside it. */
+/* Landscape by default (X's standard video shape). &shape=square: a 1:1 frame in the middle of the
+   window. The transform makes the frame the containing block, so the HUD's fixed overlays stay inside. */
 body.clip { background: #000; }
-body.clip-tall #world, body.clip-tall #ui { left: 50%; right: auto; width: min(100vw, calc(100vh * 9 / 16)); transform: translateX(-50%); }
-body.clip-tall #ui { overflow: hidden; }
+body.clip-square #world, body.clip-square #ui { left: 50%; right: auto; width: min(100vw, 100vh); transform: translateX(-50%); }
+body.clip-square #ui { overflow: hidden; }
 /* min: only the story (bosses, cards, HATCH, the drop). 0: nothing but the scene. */
 body.clip-min .topbar, body.clip-min .dock, body.clip-min .toasts, body.clip-min .home-btn { display: none !important; }
 body.clip-bare #ui > .ui > *:not(.crt):not(.cinematic) { display: none !important; }

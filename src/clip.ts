@@ -1,7 +1,7 @@
 // Clip mode: stages one moment of a run for recording social clips.
-//   /?clip=<scene>              the scene, in a vertical 9:16 frame
+//   /?clip=<scene>              the scene, in the normal landscape frame (X's standard video shape)
+//   &shape=square               a 1:1 frame instead (bigger in the X phone app)
 //   &ui=full|min|0              full HUD (default), just the story (cards, bosses, HATCH), or nothing
-//   &wide=1                     keep the normal landscape frame
 //   &seed=N                     a different take (every take with the same seed is identical)
 //   &bags=overclockgpu,...      carry Bags into it (Stock Bags included)
 // Nothing from a clip run is saved: no Ramen Futures, no stats, no server.
@@ -30,11 +30,11 @@ export function clipConfig(params: URLSearchParams): Partial<RunConfig> {
   return { defcon: 5, daily: false, deedTier: 3, loadout: bags, rocket: true, mutator: null };
 }
 
-/** Frame the page (vertical by default) and trim the HUD for recording. */
+/** Frame the page (landscape by default, or square) and trim the HUD for recording. */
 export function frameClip(params: URLSearchParams): void {
   const b = document.body.classList;
   b.add('clip');
-  if (params.get('wide') !== '1') b.add('clip-tall');
+  if (params.get('shape') === 'square') b.add('clip-square');
   const ui = params.get('ui');
   if (ui === 'min') b.add('clip-min');
   if (ui === '0') b.add('clip-bare');
