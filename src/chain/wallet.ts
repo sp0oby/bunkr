@@ -221,6 +221,8 @@ export function loadConfig(): Promise<void> {
     const dripCost: Record<number, bigint> = {};
     dripRows.forEach(([cost, , enabled], i) => enabled && (dripCost[COSMETICS[i].id] = cost));
     set({ thresholds: [...thresholds], ticketPrice, dailyFee, dailyPotBps, recipes, dripCost });
+    // The Stonk Exchange's prices and pot show before a wallet connects too (balances come with refresh).
+    if (!state.address) set(await readStocks(null));
   })().catch((e) => {
     config = null; // try again next time
     set({ error: friendly(e) });
