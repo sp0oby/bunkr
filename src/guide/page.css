@@ -186,7 +186,7 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
 @keyframes g-wiggle { 25% { rotate: -8deg; } 75% { rotate: 8deg; } }
 
 /* This week */
-.g-week { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.g-week { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .g-wk { position: relative; padding: 18px 14px; border-radius: 18px; background: #ffffff07; border: 2px solid #ffffff10; }
 .g-wk b { display: block; font: 19px/1.1 var(--display); font-weight: 400; margin-bottom: 6px; }
 .g-wk p { margin: 0; font-size: 13.5px; color: var(--dim); }
@@ -269,8 +269,11 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
 /* ---------- Narrow screens ---------- */
 @media (max-width: 860px) {
   .g-flows { grid-template-columns: 1fr; }
-  .g-week { grid-template-columns: 1fr 1fr; }
-  .g-wk.now { grid-column: span 2; }
+  /* This week goes first and full width, the other four fill a 2x2 below it. */
+  .g-week { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; padding-top: 6px; }
+  .g-wk.now { grid-column: 1 / -1; order: -1; }
+  .g-wk.now b { font-size: 22px; }
+  .g-wk.now p { font-size: 15px; }
   .g-bags { grid-template-columns: minmax(0, 1fr); }
   .g-palette { grid-template-columns: repeat(3, 1fr); }
 }
