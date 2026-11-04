@@ -152,10 +152,11 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
 .g-fkey:active { translate: 0 4px; box-shadow: 0 4px 0 var(--ink); }
 
 /* Bags */
-.g-bags { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; padding: 24px; }
-.g-bag-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-.g-bag { aspect-ratio: 1; padding: 8px; border-radius: 14px; background: #ffffff08; border: 2px solid #ffffff12; cursor: pointer; transition: transform .15s, border-color .15s; }
-.g-bag img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 0 var(--ink)); }
+.g-bags { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 22px; padding: 24px; }
+.g-bag-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+/* The image is laid out absolutely so Safari sizes the tile from the column, not the 1024px art. */
+.g-bag { position: relative; min-width: 0; width: 100%; height: auto; aspect-ratio: 1; padding: 0; border-radius: 14px; background: #ffffff08; border: 2px solid #ffffff12; cursor: pointer; transition: transform .15s, border-color .15s; }
+.g-bag img { position: absolute; inset: 8px; width: calc(100% - 16px); height: calc(100% - 16px); max-width: none; object-fit: contain; filter: drop-shadow(0 3px 0 var(--ink)); }
 .g-bag.rare { border-color: #3ff0ff44; }
 .g-bag.legendary { border-color: #ffbe3d88; background: #ffbe3d12; }
 .g-bag:hover, .g-bag.on { transform: translateY(-3px) rotate(-4deg); border-color: var(--rad); }
@@ -270,7 +271,7 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
   .g-flows { grid-template-columns: 1fr; }
   .g-week { grid-template-columns: 1fr 1fr; }
   .g-wk.now { grid-column: span 2; }
-  .g-bags { grid-template-columns: 1fr; }
+  .g-bags { grid-template-columns: minmax(0, 1fr); }
   .g-palette { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 640px) {
@@ -284,7 +285,7 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
   .g-grid { grid-template-columns: repeat(2, 1fr); }
   .g-hatch img { width: 56px; height: 56px; }
   .g-bubble { font-size: 14px; }
-  .g-bag-grid { grid-template-columns: repeat(4, 1fr); }
+  .g-bag-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .g-ladder { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
   .g-rung { padding: 10px 2px; }
   .g-rung b { font-size: 11px; }
