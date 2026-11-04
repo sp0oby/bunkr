@@ -1,0 +1,28 @@
+{
+  "name": "The Seeing Stone",
+  "description": "Surveillance: warns you a day before every raid, raiders arrive 20% weaker, and fraud forms are flagged in the S.E.C. audit. It sees everything. It has opinions about your spending. A legendary Stock Bag from BUNKR, bought with tokenized PLTR on Robinhood Chain plus a $BUNKR burn. Bring it into any run: it never shatters.",
+  "image": "http://localhost:5173/nft/seeingstone.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Stock Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Stock",
+      "value": "PLTR"
+    },
+    {
+      "trait_type": "Shatters",
+      "value": "Never"
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Surveillance: warns you a day before every raid, raiders arrive 20% weaker, and fraud forms are flagged in the S.E.C. audit."
+    }
+  ]
+}

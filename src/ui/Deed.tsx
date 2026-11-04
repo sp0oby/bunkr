@@ -3,7 +3,7 @@ import { BAGS } from '../sim/content';
 import type { BagId } from '../sim/types';
 import { LOADOUT_SLOTS, TIERS, TIER_PERKS, deployment, devWalletAllowed, explorerTx, tokenGate } from '../chain/config';
 import {
-  buyTickets, clearPass, connect, disconnect, enterRun, equippedDrip, faucet, forgeBag, forgeDrip, loadout, playTier, savePass,
+  bagMinTier, buyTickets, clearPass, connect, disconnect, enterRun, equippedDrip, faucet, forgeBag, forgeDrip, loadout, playTier, savePass,
   setPlayTier, switchChain, toggleDrip, toggleLoadout, useWallet, wallet, type WalletState,
 } from '../chain/wallet';
 import { COSMETICS } from '../chain/constants';
@@ -81,7 +81,7 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
   const play = playTier(s);
   const slots = LOADOUT_SLOTS[play] ?? 0;
   const picked = loadout(s);
-  const forged = (Object.keys(s.forged) as BagId[]).sort((a, b) => (s.recipes[a]?.minTier ?? 0) - (s.recipes[b]?.minTier ?? 0));
+  const forged = (Object.keys(s.forged) as BagId[]).sort((a, b) => bagMinTier(s, a) - bagMinTier(s, b));
   const tx = s.lastTx ? explorerTx(s.lastTx) : null;
 
   return (
@@ -180,7 +180,7 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
             {forged.length === 0 && <div class="drawer-hint">No forged Bags yet. Finish a run holding a Bag, then forge it by burning $BUNKR.</div>}
             <div class="deed-bags">
               {forged.map((b) => {
-                const need = s.recipes[b]?.minTier ?? 1;
+                const need = bagMinTier(s, b);
                 const locked = need > play;
                 const on = picked.includes(b);
                 return (
@@ -198,7 +198,7 @@ export function DeedModal({ onClose }: { onClose: () => void }) {
                 );
               })}
             </div>
-            <div class="deed-note">Bags you bring are locked in for the run. Survive and they come back; get liquidated and each can shatter. Daily Doom always uses standard issue.</div>
+            <div class="deed-note">Bags you bring are locked in for the run. Survive and they come back; get liquidated and each can shatter (Stock Bags never do). Daily Doom always uses standard issue.</div>
           </div>
         )}
 

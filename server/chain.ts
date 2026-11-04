@@ -5,7 +5,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { forgeAbi, ticketsAbi } from '../src/chain/abi';
-import { FORGE_ORDER } from '../src/chain/constants';
+import { FORGE_ORDER, STOCK_BAGS } from '../src/chain/constants';
 import type { BagId } from '../src/sim/types';
 import { ORACLE_KEY, RPC_URL, deployment } from './env';
 
@@ -55,7 +55,46 @@ export async function bagTiers(): Promise<Map<BagId, number>> {
   );
   const minTier = new Map<BagId, number>();
   recipes.forEach(([, tier, enabled], i) => enabled && minTier.set(FORGE_ORDER[i], tier));
+  // Stock Bags have no Forge recipe (they're bought, not forged): their Deed tier is on the listing.
+  const sf = deployment.stockForge;
+  if (sf) {
+    const listings = await Promise.all(STOCK_BAGS.map((b) =>
+      pub.readContract({ address: sf, abi: stockAbi, functionName: 'listings', args: [BigInt(FORGE_ORDER.indexOf(b))] })));
+    listings.forEach((l, i) => l[0] !== '0x0000000000000000000000000000000000000000' && minTier.set(STOCK_BAGS[i], l[5]));
+  }
   return minTier;
+}
+
+/** The Stonk Exchange's side for the oracle: weekly Stonk Pot payouts. */
+const stockAbi = parseAbi([
+  'function listings(uint256 id) view returns (address stock, uint128 price, uint128 burn, uint32 cap, uint32 sold, uint8 minTier, bool enabled)',
+  'function week() view returns (uint256)',
+  'function weekSettled(uint256 wk) view returns (bool)',
+  'function potOf(uint256 wk) view returns (address[] tokens, uint256[] amounts)',
+  'function settleWeek(uint256 wk, address[] winners, uint16[] shareBps)',
+  'function rollWeek(uint256 wk)',
+  'error NotOracle()',
+  'error WeekNotOver()',
+  'error AlreadySettled()',
+  'error BadShares()',
+]);
+
+export const stockWeek = (sf: Address) => pub.readContract({ address: sf, abi: stockAbi, functionName: 'week' }).then(Number);
+export const weekIsSettled = (sf: Address, wk: number) =>
+  pub.readContract({ address: sf, abi: stockAbi, functionName: 'weekSettled', args: [BigInt(wk)] });
+export async function stonkPotOf(sf: Address, wk: number): Promise<{ token: Address; amount: bigint }[]> {
+  const [tokens, amounts] = await pub.readContract({ address: sf, abi: stockAbi, functionName: 'potOf', args: [BigInt(wk)] });
+  return tokens.map((token, i) => ({ token, amount: amounts[i] })).filter((x) => x.amount > 0n);
+}
+export async function settleWeek(sf: Address, wk: number, winners: Address[], shareBps: number[]): Promise<Hash> {
+  const { request } = await pub.simulateContract({
+    account: oracle, address: sf, abi: stockAbi, functionName: 'settleWeek', args: [BigInt(wk), winners, shareBps],
+  });
+  return sendAndWait(request);
+}
+export async function rollWeek(sf: Address, wk: number): Promise<Hash> {
+  const { request } = await pub.simulateContract({ account: oracle, address: sf, abi: stockAbi, functionName: 'rollWeek', args: [BigInt(wk)] });
+  return sendAndWait(request);
 }
 
 /** The Bags a run's player locked into the Forge for it (empty if none). */

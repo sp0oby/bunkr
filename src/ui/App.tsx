@@ -1134,6 +1134,7 @@ function AuditModal({ game }: { game: Game }) {
             <div class="audit-form" key={a.idx}>
               <div class="af-title">FORM {a.idx + 1}/6 · {form.title.toUpperCase()}</div>
               <div class="af-claim">{form.claim}</div>
+              {form.flagged && <div class="af-flag">SEEING STONE: FRAUD</div>}
               <div class="af-timer"><span style={{ width: `${(a.timer / AUDIT_FORM_SECONDS) * 100}%` }} /></div>
             </div>
             <div class="audit-btns">

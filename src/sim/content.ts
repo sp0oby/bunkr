@@ -213,6 +213,8 @@ export interface BagDef {
   rarity: Rarity;
   /** What the inspect view's button does. `consume` removes the Bag. */
   action: { label: string; consume: boolean };
+  /** Stock Bags: the Robinhood stock ticker it's bought with. Never dropped in runs, never shatters. */
+  stock?: string;
 }
 
 export const BAGS: Record<BagId, BagDef> = {
@@ -236,7 +238,16 @@ export const BAGS: Record<BagId, BagDef> = {
   moonmap: { id: 'moonmap', name: 'Map to the Moon', rarity: 'legendary', desc: 'Unlocks the Rocket Room this run.', flavor: 'It is mostly arrows pointing up.', action: { label: 'Study it', consume: false } },
   tuningfork: { id: 'tuningfork', name: 'Vibe Tuning Fork', rarity: 'rare', desc: 'The vibe pendulum swings half as hard.', flavor: 'Hums at exactly 432 hopium.', action: { label: 'Strike it', consume: false } },
   airdropcrate: { id: 'airdropcrate', name: 'Unopened Airdrop Crate', rarity: 'common', desc: 'Open it. Could be loot. Could be a landmine.', flavor: 'Eligibility: you, probably.', action: { label: 'Crack it open', consume: true } },
+  seeingstone: { id: 'seeingstone', name: 'The Seeing Stone', rarity: 'legendary', stock: 'PLTR', desc: 'Surveillance: warns you a day before every raid, raiders arrive 20% weaker, and fraud forms are flagged in the S.E.C. audit.', flavor: 'It sees everything. It has opinions about your spending.', action: { label: 'Gaze into it', consume: false } },
+  overclockgpu: { id: 'overclockgpu', name: 'Overclocked GPU', rarity: 'legendary', stock: 'NVDA', desc: 'Every room makes 25% more. Every room also eats 30% more power.', flavor: 'Runs at 98°C. Doubles as the bunker\'s heating.', action: { label: 'Check the temps', consume: false } },
+  bunkercinema: { id: 'bunkercinema', name: 'Bunker Cinema', rarity: 'legendary', stock: 'AMC', desc: 'Vibe swings are halved, and Movie Night every evening pulls the mood back toward the middle.', flavor: 'Now showing: the same movie, forever. Nobody minds.', action: { label: 'Start the projector', consume: false } },
+  starshippass: { id: 'starshippass', name: 'Starship Boarding Pass', rarity: 'legendary', stock: 'SPCX', desc: 'The Rocket Room is unlocked from day 1 and builds twice as fast. A Moon Mission scores +1,000 more.', flavor: 'Seat 1A. Window. Destination: up.', action: { label: 'Check the gate', consume: false } },
+  cybertruckkeys: { id: 'cybertruckkeys', name: 'Cybertruck Keys', rarity: 'legendary', stock: 'TSLA', desc: 'Expeditions are 40% faster and armored: a third less likely to end in a funeral.', flavor: 'The windows are bulletproof. Allegedly.', action: { label: 'Honk', consume: false } },
+  execmembership: { id: 'execmembership', name: 'Executive Membership', rarity: 'legendary', stock: 'COST', desc: 'Bulk pricing: every room costs 15% less, and Cold Storage holds twice as much.', flavor: 'The hot dog combo is still $1.50. After the apocalypse.', action: { label: 'Flash the card', consume: false } },
 };
+
+/** Stock Bags: bought, never found. */
+export const isStockBag = (b: BagId) => !!BAGS[b].stock;
 
 /** What happens when you fiddle with a passive Bag (pure flavor, no effect). */
 export const BAG_FIDGETS: Partial<Record<BagId, string[]>> = {
@@ -256,6 +267,12 @@ export const BAG_FIDGETS: Partial<Record<BagId, string[]>> = {
   hazmat: ['Zipped. You feel 50% less glowy.', 'It has feet. Fleece feet. You are unstoppable.'],
   moonmap: ['Every arrow points up. You are starting to understand.', 'There is a little doodle of a porta-potty with flames under it.'],
   tuningfork: ['Hmmmmmmm. The vibes settle a little.', 'Ting. Somewhere, a degen stops panic-selling.'],
+  seeingstone: ['It shows you Kevin eating ramen at 3am. You did not need to see that.', 'The stone blinks. Three raiders, somewhere, feel watched.'],
+  overclockgpu: ['The fans spin up. The whole bunker gets 2 degrees warmer.', 'It renders one frame of a cat. The reactor dims.'],
+  bunkercinema: ['The projector clicks on. Everyone stops arguing for 90 minutes.', 'Now playing: a documentary about grass. Degens weep.'],
+  starshippass: ['Boarding group: you. Gate: the porta-potty.', 'It says "now boarding" every time you look at it.'],
+  cybertruckkeys: ['HONK. A raccoon on the surface files a complaint.', 'You press unlock. Somewhere, a truck the shape of a doorstop flashes its lights.'],
+  execmembership: ['You flash the card. A pallet of ramen appears in your heart.', 'Membership verified. You may now buy 48 rolls of toilet paper.'],
 };
 
 // ---------- DEFCON difficulty ladder ----------

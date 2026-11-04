@@ -46,6 +46,9 @@ interface Data {
   /** Highest UTC day whose pot has been settled or rolled. */
   settledThrough: number | null;
   settlements: Record<string, { tx: Hex; winners: Address[]; amount: string; kind: 'settled' | 'rolled' }>;
+  /** Highest week whose Stonk Pot has been settled or rolled. */
+  weeksSettledThrough?: number | null;
+  weekSettlements?: Record<string, { tx: Hex | null; winners: Address[]; kind: 'settled' | 'rolled' | 'empty' }>;
 }
 
 let data: Data = { runs: {}, settledThrough: null, settlements: {} };
@@ -78,7 +81,33 @@ export const db = {
     save();
   },
   settlement: (day: number) => data.settlements[day],
+  get weeksSettledThrough() {
+    return data.weeksSettledThrough ?? null;
+  },
+  markWeek(wk: number, rec: NonNullable<Data['weekSettlements']>[string]): void {
+    data.weekSettlements = { ...data.weekSettlements, [wk]: rec };
+    data.weeksSettledThrough = Math.max(data.weeksSettledThrough ?? wk, wk);
+    save();
+  },
+  weekSettlement: (wk: number) => data.weekSettlements?.[wk],
 };
+
+/** UTC days in week `wk` (weeks start Monday, like the game's weekly rotation). */
+export const daysOfWeek = (wk: number): number[] => Array.from({ length: 7 }, (_, i) => wk * 7 - 3 + i);
+export const weekOfDay = (day: number): number => Math.floor((day + 3) / 7);
+
+/** Best Daily Doom result per player across a whole week, highest score first. */
+export function weeklyBoard(wk: number): RunRecord[] {
+  const best = new Map<string, RunRecord>();
+  for (const day of daysOfWeek(wk)) {
+    for (const r of dailyBoard(day)) {
+      const key = r.player.toLowerCase();
+      const cur = best.get(key);
+      if (!cur || r.result!.score > cur.result!.score) best.set(key, r);
+    }
+  }
+  return [...best.values()].sort((a, b) => b.result!.score - a.result!.score || a.finishedAt! - b.finishedAt!);
+}
 
 /** Best finished Daily Doom result per player for a day, highest score first. */
 export function dailyBoard(day: number): RunRecord[] {

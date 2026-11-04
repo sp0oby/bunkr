@@ -333,3 +333,19 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
 .g-tk-left { justify-content: flex-start; margin: 0 0 16px; }
 .g-tk .tk-buy { font-size: 18px; padding: 9px 20px; }
 .g-tk .tk-ca { font-size: 16px; }
+
+/* Stock Bags (Stonk Exchange) */
+.g-stocks { padding: 24px; margin-bottom: 16px; background: linear-gradient(160deg, #3a2a10, #1a130a); border: 2px solid #ffbe3d55; border-radius: 24px; }
+.g-stock-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.g-stock { position: relative; aspect-ratio: 1; min-width: 0; padding: 0; border-radius: 16px; background: #0d0a12; border: 2px solid #ffbe3d44; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.g-stock img { position: absolute; inset: 12px; width: calc(100% - 24px); height: calc(100% - 24px); max-width: none; object-fit: contain; filter: drop-shadow(0 4px 0 var(--ink)); }
+.g-stock-tk { position: absolute; top: -9px; left: 50%; translate: -50% 0; z-index: 1; font: 12px var(--display); letter-spacing: 0.06em; color: var(--ink); background: var(--amber); border-radius: 6px; padding: 2px 8px; }
+.g-stock:hover, .g-stock.on { transform: translateY(-4px); border-color: var(--amber); box-shadow: 0 0 30px #ffbe3d44; }
+.g-stock-info { margin-top: 18px; animation: g-in .3s ease-out; }
+.g-stock-info b { display: block; font: 26px/1.1 var(--display); font-weight: 400; color: var(--amber); }
+.g-stock-info p { margin: 6px 0; font-size: 17px; }
+.g-stock-info small { color: var(--dim); }
+@media (max-width: 640px) {
+  .g-stocks { padding: 18px; }
+  .g-stock-row { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 16px; }
+}

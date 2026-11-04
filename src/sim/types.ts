@@ -54,7 +54,14 @@ export type BagId =
   | 'hazmat'
   | 'moonmap'
   | 'tuningfork'
-  | 'airdropcrate';
+  | 'airdropcrate'
+  // Stock Bags: bought at the Stonk Exchange with a Robinhood stock token, never found in runs.
+  | 'seeingstone'
+  | 'overclockgpu'
+  | 'bunkercinema'
+  | 'starshippass'
+  | 'cybertruckkeys'
+  | 'execmembership';
 
 // Index into the HATCH expression sprite sheet (4x2 grid, row-major).
 export type HatchMood = 'neutral' | 'smug' | 'laugh' | 'panic' | 'angry' | 'cry' | 'dead' | 'sleep';
@@ -185,6 +192,8 @@ export interface AuditForm {
   claim: string;
   /** True if the form is legit and should be approved. */
   legit: boolean;
+  /** The Seeing Stone spotted it as fraud. */
+  flagged?: boolean;
 }
 
 export interface Audit {

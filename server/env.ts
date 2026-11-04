@@ -13,6 +13,8 @@ export interface Deployment {
   bunkr: Address;
   tickets: Address;
   forge: Address;
+  /** The Stonk Exchange (Stock Bags), on deployments that have one. */
+  stockForge?: Address;
   block: number;
 }
 

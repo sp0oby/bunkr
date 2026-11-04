@@ -441,6 +441,7 @@ button.brand:hover { transform: rotate(-4deg) scale(1.08); }
 .audit-form { background: #fff; border: 3px solid var(--ink); border-radius: 12px; padding: 12px 14px; box-shadow: 4px 4px 0 var(--ink); transform: rotate(-1deg); animation: pop 0.25s cubic-bezier(.2,1.6,.4,1); margin-bottom: 14px; }
 .af-title { font: 14px var(--display); color: #a33; letter-spacing: 0.08em; }
 .af-claim { font: 800 19px/1.3 var(--body); margin: 6px 0 10px; }
+.af-flag { display: inline-block; margin: -4px 0 10px; padding: 3px 10px; border-radius: 8px; font: 13px var(--display); letter-spacing: 0.08em; color: #fff; background: var(--red); border: 2px solid var(--ink); transform: rotate(-2deg); }
 .af-timer { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
 .af-timer span { display: block; height: 100%; background: var(--red); transition: width 0.1s linear; }
 .audit-btns { display: flex; gap: 10px; }
@@ -680,6 +681,26 @@ body.drip-goldhatch .hatch-img { filter: sepia(1) saturate(3.2) hue-rotate(-12de
 .drip-card b { font: 14px var(--display); }
 .drip-card small { color: var(--dim); font-size: 10px; line-height: 1.25; flex: 1; }
 .drip-card .btn { font-size: 12px; padding: 4px 8px; }
+
+/* ---------- Stonk Exchange ---------- */
+.btn-stonk { background: linear-gradient(#2fb67a, #146b48); }
+.modal.stonk { width: min(880px, 94vw); }
+.stonk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin: 12px 0 4px; }
+.stonk-card { position: relative; display: flex; flex-direction: column; gap: 5px; padding: 10px; border-radius: 14px; border: 3px solid var(--ink); background: linear-gradient(170deg, #4a3612, #241a0c); box-shadow: 0 0 0 2px #ffbe3d55 inset; }
+.stonk-card.owned { box-shadow: 0 0 0 2px var(--green) inset; }
+.stonk-tk { position: absolute; top: 8px; right: 8px; font: 13px var(--display); letter-spacing: 0.06em; color: var(--ink); background: var(--amber); border-radius: 6px; padding: 2px 7px; }
+.stonk-card img { width: 96px; height: 96px; object-fit: contain; align-self: center; filter: drop-shadow(0 4px 0 var(--ink)); }
+.stonk-card > b { font: 17px var(--display); color: var(--amber); }
+.stonk-card > p { margin: 0; font-size: 12px; line-height: 1.3; color: #efe7d4; flex: 1; }
+.stonk-price { display: flex; flex-direction: column; font-size: 12px; color: var(--dim); }
+.stonk-price b { font: 18px var(--display); color: var(--text); }
+.stonk-price small { font-size: 10.5px; }
+.stonk-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.stonk-btns .btn { flex: 1; font-size: 12px; padding: 5px 8px; }
+.stonk-pot { display: flex; gap: 8px; flex-wrap: wrap; }
+.stonk-pot div { display: flex; align-items: baseline; gap: 6px; padding: 6px 12px; border-radius: 10px; background: var(--panel); border: 2px solid var(--ink); }
+.stonk-pot b { font: 20px var(--display); color: var(--amber); }
+.stonk-pot span { font: 13px var(--display); color: var(--dim); }
 .drip-thumb { height: 96px; border: 2px solid var(--ink); border-radius: 8px; background: center / cover no-repeat var(--panel-2); display: grid; place-items: center; overflow: hidden; }
 .drip-thumb.hatchy img { height: 50px; filter: sepia(1) saturate(3.2) hue-rotate(-12deg) brightness(1.08); }
 .swatch-gold { background: repeating-linear-gradient(45deg, #ffd36b 0 12px, #e2a92b 12px 24px); }

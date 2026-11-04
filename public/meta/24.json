@@ -1,0 +1,28 @@
+{
+  "name": "Cybertruck Keys",
+  "description": "Expeditions are 40% faster and armored: a third less likely to end in a funeral. The windows are bulletproof. Allegedly. A legendary Stock Bag from BUNKR, bought with tokenized TSLA on Robinhood Chain plus a $BUNKR burn. Bring it into any run: it never shatters.",
+  "image": "http://localhost:5173/nft/cybertruckkeys.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Stock Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Stock",
+      "value": "TSLA"
+    },
+    {
+      "trait_type": "Shatters",
+      "value": "Never"
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Expeditions are 40% faster and armored: a third less likely to end in a funeral."
+    }
+  ]
+}

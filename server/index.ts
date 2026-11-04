@@ -15,7 +15,7 @@ import { ABANDON_MS, PORT, TICK_MS, deployment } from './env';
 import { HttpError, daySeed, finishRun, startRun, sweepAbandoned } from './runs';
 import { getWeather } from './weather';
 import { getProgress, linkProgress, saveProgress } from './progress';
-import { settleFinishedDays } from './settle';
+import { settleFinishedDays, settleFinishedWeeks } from './settle';
 import { dailyBoard, db } from './store';
 
 const MAX_BODY = 4 * 1024 * 1024;
@@ -102,6 +102,7 @@ async function tick(): Promise<void> {
     const swept = await sweepAbandoned(Date.now(), ABANDON_MS);
     if (swept) console.log(`swept ${swept} abandoned run(s)`);
     for (const line of await settleFinishedDays()) console.log(line);
+    for (const line of await settleFinishedWeeks()) console.log(line);
   } catch (err) {
     console.error('tick failed:', (err as Error).message.split('\n')[0]);
   } finally {

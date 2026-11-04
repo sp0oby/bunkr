@@ -1,11 +1,12 @@
 // End to end on a local Anvil chain with the results server running (npm run server):
 // tickets -> /run/start -> play -> /run/finish, a shatter, cheating attempts, and a
-// Daily Doom payout after the chain's clock moves past midnight.
+// Daily Doom payout after the chain's clock moves past midnight, Stock Bags that never shatter,
+// and the weekly Stonk Pot paid to the week's Daily Doom leaders.
 import { readFileSync } from 'node:fs';
 import { createPublicClient, createWalletClient, encodeAbiParameters, recoverMessageAddress, http, keccak256, parseAbi, parseAbiParameters, toBytes, toHex, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
-import { forgeAbi, ticketsAbi, tokenAbi } from '../../src/chain/abi';
+import { forgeAbi, stockForgeAbi, ticketsAbi, tokenAbi } from '../../src/chain/abi';
 import { FORGE_ORDER, LOADOUT_SLOTS } from '../../src/chain/constants';
 import { Game } from '../../src/sim/game';
 import type { RunConfig } from '../../src/sim/types';
@@ -215,6 +216,35 @@ async function main() {
     }
   }
 
+  // --- Stock Bags: bought at the Stonk Exchange, carried into a lost run, never shatter.
+  const NVDA_BAG = BigInt(FORGE_ORDER.indexOf('overclockgpu'));
+  const [nvda] = await pub.readContract({ address: dep.stockForge, abi: stockForgeAbi, functionName: 'listings', args: [NVDA_BAG] });
+  const stonkWeek = await pub.readContract({ address: dep.stockForge, abi: stockForgeAbi, functionName: 'week' });
+  {
+    await alice.write(nvda, tokenAbi, 'faucet').catch(() => {});
+    await alice.write(nvda, tokenAbi, 'approve', [dep.stockForge, 10n ** 30n]);
+    await alice.write(dep.bunkr, tokenAbi, 'approve', [dep.stockForge, 10n ** 30n]);
+    const potBefore = await pub.readContract({ address: dep.stockForge, abi: stockForgeAbi, functionName: 'potOf', args: [stonkWeek] });
+    await alice.write(dep.stockForge, stockForgeAbi, 'buy', [NVDA_BAG]);
+    const owned = () => pub.readContract({ address: dep.forge, abi: forgeAbi, functionName: 'bagsOf', args: [alice.account.address, [NVDA_BAG]] }).then((r) => r[0]);
+    const had = await owned();
+    check(had >= 1n, 'alice bought the NVDA Stock Bag');
+    const potAfter = await pub.readContract({ address: dep.stockForge, abi: stockForgeAbi, functionName: 'potOf', args: [stonkWeek] });
+    const sum = (x: readonly [readonly Address[], readonly bigint[]]) => x[1].reduce((a, b) => a + b, 0n);
+    check(sum(potAfter) - sum(potBefore) === 10n ** 17n, 'a fifth of the NVDA went into this week\'s Stonk Pot');
+
+    const t = await enter(alice, false);
+    const receipt = await pub.getTransactionReceipt({ hash: t.txHash });
+    const runId = BigInt(receipt.logs.find((l) => l.address.toLowerCase() === dep.tickets.toLowerCase())!.topics[2]!);
+    await alice.write(dep.forge, forgeAbi, 'lockLoadout', [runId, [NVDA_BAG]]);
+    const start = await api('/run/start', { ...t, defcon: 5 });
+    check((start.json.config.loadout as string[]).includes('overclockgpu'), 'the server counts a locked Stock Bag in the loadout');
+    const g = await playIdle(start.json.seed, start.json.config, start.json.runId, t.secret);
+    const fin = await api('/run/finish', { runId: start.json.runId, secret: t.secret, ticks: g.tick, inputs: g.inputs });
+    check(fin.status === 200 && !fin.json.survived, `alice got liquidated carrying it (${fin.json.title})`);
+    check(!fin.json.shattered.includes('overclockgpu') && (await owned()) === had, 'the Stock Bag came home: Stock Bags never shatter');
+  }
+
   // --- Daily payout: move the chain clock past midnight and let the server settle.
   const board = await api('/leaderboard');
   const day = board.json.day;
@@ -231,6 +261,23 @@ async function main() {
   check(settled, `day ${day} settled by the server`);
   const after = await pub.readContract({ address: dep.bunkr, abi: tokenAbi, functionName: 'balanceOf', args: [winner] });
   check(after - before === (pot * 6000n) / 10000n, `winner got 60% of the pot (${(after - before) / 10n ** 18n} $BUNKR)`);
+
+  // --- Weekly Stonk Pot: move past Monday and let the server pay the week's Daily Doom leader.
+  {
+    const [, amounts] = await pub.readContract({ address: dep.stockForge, abi: stockForgeAbi, functionName: 'potOf', args: [stonkWeek] });
+    const potNvda = amounts.reduce((a, b) => a + b, 0n);
+    const nvdaBefore = await pub.readContract({ address: nvda, abi: tokenAbi, functionName: 'balanceOf', args: [winner] });
+    for (let i = 0; i < 7; i++) await nextDay();
+    const wabi = parseAbi(['function weekSettled(uint256) view returns (bool)']);
+    let paid = false;
+    for (let i = 0; i < 90 && !paid; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      paid = await pub.readContract({ address: dep.stockForge, abi: wabi, functionName: 'weekSettled', args: [stonkWeek] });
+    }
+    check(paid, `week ${stonkWeek} Stonk Pot settled by the server`);
+    const nvdaAfter = await pub.readContract({ address: nvda, abi: tokenAbi, functionName: 'balanceOf', args: [winner] });
+    check(nvdaAfter - nvdaBefore === (potNvda * 6000n) / 10000n, `the week's Daily Doom leader got 60% of the Stonk Pot (${Number(nvdaAfter - nvdaBefore) / 1e18} NVDA)`);
+  }
 
   console.log(failures ? `\n${failures} failure(s)` : '\nall good');
   process.exit(failures ? 1 : 0);

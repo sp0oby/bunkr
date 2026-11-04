@@ -1,0 +1,28 @@
+{
+  "name": "Starship Boarding Pass",
+  "description": "The Rocket Room is unlocked from day 1 and builds twice as fast. A Moon Mission scores +1,000 more. Seat 1A. Window. Destination: up. A legendary Stock Bag from BUNKR, bought with tokenized SPCX on Robinhood Chain plus a $BUNKR burn. Bring it into any run: it never shatters.",
+  "image": "http://localhost:5173/nft/starshippass.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Stock Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Stock",
+      "value": "SPCX"
+    },
+    {
+      "trait_type": "Shatters",
+      "value": "Never"
+    },
+    {
+      "trait_type": "Effect",
+      "value": "The Rocket Room is unlocked from day 1 and builds twice as fast. A Moon Mission scores +1,000 more."
+    }
+  ]
+}

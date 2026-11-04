@@ -234,9 +234,10 @@ export class Game {
     const c = { ...BASE_CAPS };
     for (const r of this.rooms) {
       if (r.type === 'storage') {
-        c.ramen += 150 * r.width;
-        c.water += 100 * r.width;
-        c.copium += 20 * r.width;
+        const bulk = this.bags.includes('execmembership') ? 2 : 1;
+        c.ramen += 150 * r.width * bulk;
+        c.water += 100 * r.width * bulk;
+        c.copium += 20 * r.width * bulk;
       }
     }
     if (this.present.some((d) => d.arch === 'coldcarl')) {
@@ -312,7 +313,7 @@ export class Game {
   }
 
   buildCost(type: RoomType): number {
-    return Math.round(ROOMS[type].cost * (1 + 0.08 * this.roomsBuilt) * this.panicMult * this.priceMult);
+    return Math.round(ROOMS[type].cost * (1 + 0.08 * this.roomsBuilt) * this.panicMult * this.priceMult * (this.bags.includes('execmembership') ? 0.85 : 1));
   }
 
   digCost(): number {
@@ -328,7 +329,7 @@ export class Game {
     if (type === 'silo') return this.underground && this.day >= SILO_DAY && !this.rooms.some((r) => r.type === 'silo');
     if (type === 'memelab') return !this.rooms.some((r) => r.type === 'memelab'); // one per bunker
     if (type !== 'rocket') return true;
-    return (this.config.rocket || this.bags.includes('moonmap')) && !this.rooms.some((r) => r.type === 'rocket');
+    return (this.config.rocket || this.bags.includes('moonmap') || this.bags.includes('starshippass')) && !this.rooms.some((r) => r.type === 'rocket');
   }
 
   /** Meme Lab research per unit of room output. Every Bag it has made makes the next 50% slower. */
@@ -437,7 +438,7 @@ export class Game {
       this.post(`${d.name} refuses to go outside. "The outside is where the hackers live."`, 'info');
       return false;
     }
-    const dur = loc.dur * (this.bags.includes('lambokeys') ? 0.7 : 1);
+    const dur = loc.dur * (this.bags.includes('lambokeys') ? 0.7 : 1) * (this.bags.includes('cybertruckkeys') ? 0.6 : 1);
     d.status = 'expedition';
     d.roomId = null;
     d.exp = { locId, returnAt: this.time + dur, leftAt: this.time };
@@ -749,7 +750,8 @@ export class Game {
   }
 
   giveBag(id?: BagId): BagId | null {
-    const pool = (Object.keys(BAGS) as BagId[]).filter((b) => !this.bags.includes(b));
+    // Stock Bags are bought at the Stonk Exchange, never found.
+    const pool = (Object.keys(BAGS) as BagId[]).filter((b) => !this.bags.includes(b) && !BAGS[b].stock);
     const bag = id ?? (pool.length ? this.rng.pick(pool) : null);
     if (!bag || this.bags.includes(bag)) return null;
     this.bags.push(bag);
@@ -1020,6 +1022,12 @@ export class Game {
       }
     }
     if (this.day > 1 && this.bags.includes('tradewatch')) this.addRes('ramen', 12);
+    if (this.day > 1 && this.bags.includes('bunkercinema')) {
+      this.vibe *= 0.5;
+      this.vibeVel *= 0.5;
+      this.post('Movie Night in the Bunker Cinema. Everyone calmed down for 90 minutes.', 'good');
+    }
+    if (this.bags.includes('seeingstone')) this.surveil();
     if (this.day > 1) this.morningMods();
     if (this.day > 1 && this.config.mutator === 'airdrop' && this.rng.chance(0.6)) this.airdropCrate();
     if (this.day === 24 && !this.dwellers.some((d) => d.arch === 'larry')) {
@@ -1053,7 +1061,8 @@ export class Game {
   outputMult(): number {
     return this.vibeMult() * (this.bags.length > this.bagCap ? 0.9 : 1) * (this.time < this.wifiUntil ? 0.5 : 1)
       * (this.underground && this.station() === 'blues' ? 1.1 : 1)
-      * (this.config.mutator === 'bull' ? 1.25 : this.config.mutator === 'halving' ? 0.75 : 1);
+      * (this.config.mutator === 'bull' ? 1.25 : this.config.mutator === 'halving' ? 0.75 : 1)
+      * (this.bags.includes('overclockgpu') ? 1.25 : 1);
   }
 
   /** How hard a room is working right now (0 = idle / unpowered). */
@@ -1117,7 +1126,7 @@ export class Game {
     const vm = this.outputMult();
     const powered = this.res.power > 0;
     for (const room of this.rooms) {
-      if (room.type !== 'reactor' && room.type !== 'storage') rates.power -= 0.035 * room.width * (room.type === 'copium' && room.mod ? 2.5 : 1);
+      if (room.type !== 'reactor' && room.type !== 'storage') rates.power -= 0.035 * room.width * (room.type === 'copium' && room.mod ? 2.5 : 1) * (this.bags.includes('overclockgpu') ? 1.3 : 1);
       const eff = this.roomEff(room, vm, powered);
       if (eff <= 0) continue;
       const out = (n: number) => this.roomOut.set(room.id, (this.roomOut.get(room.id) ?? 0) + n * dt);
@@ -1131,7 +1140,7 @@ export class Game {
         }
         case 'rocket':
           if (this.underground && this.rocketProg < 100) {
-            this.rocketProg = Math.min(100, this.rocketProg + 0.35 * eff * dt);
+            this.rocketProg = Math.min(100, this.rocketProg + 0.35 * eff * dt * (this.bags.includes('starshippass') ? 2 : 1));
             if (this.rocketProg >= 100) {
               this.post('THE ROCKET IS READY. Open the Rocket Room to launch. This ends the run.', 'good');
               this.fx.push('bag');
@@ -1220,7 +1229,7 @@ export class Game {
     }
     // Spring pulls toward the middle, but degens amplify momentum (negative damping),
     // so the swing grows unless you dampen it with copium or grass.
-    const fork = this.bags.includes('tuningfork') ? 0.5 : 1;
+    const fork = (this.bags.includes('tuningfork') ? 0.5 : 1) * (this.bags.includes('bunkercinema') ? 0.5 : 1);
     this.vibeVel += (-0.011 * this.vibe + pressure + this.rng.range(-1.6, 1.6) * fork) * dt;
     this.vibeVel *= 1 + 0.006 * fork * dt;
     this.vibe += this.vibeVel * dt;
@@ -1276,7 +1285,7 @@ export class Game {
       const loc = LOCATIONS.find((l) => l.id === d.exp!.locId)!;
       d.exp = null;
       d.status = 'active';
-      const deathChance = Math.max(0.02, loc.risk * (1 + this.rads / 100) - 0.015 * this.stat(d, 'hands')) * (this.bags.includes('seedtattoo') ? 0.5 : 1);
+      const deathChance = Math.max(0.02, loc.risk * (1 + this.rads / 100) - 0.015 * this.stat(d, 'hands')) * (this.bags.includes('seedtattoo') ? 0.5 : 1) * (this.bags.includes('cybertruckkeys') ? 0.67 : 1);
       if (this.rng.chance(deathChance)) {
         this.kill(d, `lost at ${loc.name}`);
         this.post(`${d.name}'s last message from ${loc.name}: "wagmi".`, 'bad');
@@ -1307,10 +1316,18 @@ export class Game {
     }
   }
 
+  /** The Seeing Stone: a day's warning before every boss. */
+  private surveil(): void {
+    const next = this.day + 1;
+    const rug = this.config.mutator === 'rugseason' && (next === 5 || next === 16);
+    const what = next === 10 || rug ? 'The Liquidators raid tomorrow' : next === 20 ? 'The S.E.C. audits you tomorrow' : next === 28 ? 'The Mutant Whale surfaces tomorrow' : null;
+    if (what) this.post(`SEEING STONE: ${what}. Staff the Rug Detector and stock up.`, 'info');
+  }
+
   private startRaid(kind: 'liquidators' | 'whale'): void {
     const tough = this.config.defcon <= 4 ? 1.4 : 1;
     const whale = kind === 'whale';
-    const hp = (whale ? 380 : 130) * this.raidMod * tough * (this.config.weather === 'winter' ? 0.8 : 1);
+    const hp = (whale ? 380 : 130) * this.raidMod * tough * (this.config.weather === 'winter' ? 0.8 : 1) * (this.bags.includes('seeingstone') ? 0.8 : 1);
     this.raid = { kind, name: whale ? 'THE MUTANT WHALE' : 'The Liquidators', hp, maxHp: hp, power: whale ? 9 : 5, t: 0, hitTimer: 0, stolen: 0, smashes: 0, lastSmash: -1 };
     this.raidMod = 1;
     this.say(whale ? 'whale' : 'raid');
@@ -1330,7 +1347,7 @@ export class Game {
       const isLegit = i < nLegit;
       const pool = isLegit ? legit : fraud;
       const [title, claim] = pool.splice(this.rng.int(0, pool.length - 1), 1)[0];
-      forms.push({ title, claim, legit: isLegit });
+      forms.push({ title, claim, legit: isLegit, flagged: !isLegit && this.bags.includes('seeingstone') });
     }
     for (let i = forms.length - 1; i > 0; i--) {
       const j = this.rng.int(0, i);
@@ -1564,6 +1581,7 @@ export class Game {
     const breakdown: [string, number][] = [
       rug ? ['Survivors (you left them)', 0] : ['Survivors x 250', alive * 250],
       ...(this.stats.launched ? [['Moon Mission', 2500] as [string, number]] : []),
+      ...(this.stats.launched && this.bags.includes('starshippass') ? [['Starship Boarding Pass', 1000] as [string, number]] : []),
       ...(this.stats.whaleSlain ? [['Mutant Whale slain', 1000] as [string, number]] : []),
       ...(this.stats.auditsPassed ? [['Clean S.E.C. audit', 400] as [string, number]] : []),
       [rug ? 'Ramen in the duffel bag x 3' : 'Ramen', Math.round(this.res.ramen * (rug ? 3 : 1))],

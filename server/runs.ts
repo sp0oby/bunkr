@@ -3,7 +3,7 @@
 import { createHmac } from 'node:crypto';
 import { keccak256, type Hash, type Hex } from 'viem';
 import { ACTIONS, replay, type Input } from '../src/sim/game';
-import { mutatorForDay } from '../src/sim/content';
+import { isStockBag, mutatorForDay } from '../src/sim/content';
 import { FORGE_ORDER, LOADOUT_SLOTS, SHATTER_CHANCE } from '../src/chain/constants';
 import { dailySeed } from '../src/meta';
 import type { BagId, Defcon, MarketEvent, RunConfig } from '../src/sim/types';
@@ -192,7 +192,7 @@ export async function finishRun(body: FinishBody): Promise<FinishResult> {
   const start = new Set(new Game(rec.seed, rec.config).bags);
   rec.vouchers = {};
   for (const b of g.bags) {
-    if (start.has(b) || rec.loadout.includes(b) || !FORGE_ORDER.includes(b)) continue;
+    if (start.has(b) || rec.loadout.includes(b) || !FORGE_ORDER.includes(b) || isStockBag(b)) continue;
     rec.vouchers[b] = await signVoucher(rec.player, b, rec.runId);
   }
   db.putRun(rec);
@@ -210,7 +210,8 @@ export async function settleBags(rec: RunRecord): Promise<void> {
   if (!lock || !lock.bags.length || lock.settled) return;
   const lost = rec.status === 'abandoned' || !rec.result?.survived;
   // Only Bags that counted as carried at the start can break; anything locked later just goes home.
-  const broken = lost ? rec.loadout.filter((b) => lock.bags.includes(b) && hmac32(`shatter:${rec.runId}:${b}`) / 2 ** 32 < SHATTER_CHANCE) : [];
+  // Stock Bags never break (the Forge refuses too).
+  const broken = lost ? rec.loadout.filter((b) => lock.bags.includes(b) && !isStockBag(b) && hmac32(`shatter:${rec.runId}:${b}`) / 2 ** 32 < SHATTER_CHANCE) : [];
   try {
     rec.shatterTxs = [await settleRun(rec.runId, broken)];
     rec.shattered = broken;

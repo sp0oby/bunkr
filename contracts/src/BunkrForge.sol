@@ -71,6 +71,8 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
     mapping(address => bool) public minters;
     /// @notice A voucher (one Bag found in one run) can be used once.
     mapping(uint256 => mapping(uint256 => bool)) public voucherUsed;
+    /// @notice Items that never shatter, whatever the oracle says (Stock Bags, bought with real stock).
+    mapping(uint256 => bool) public unbreakable;
     bytes32 private constant VOUCHER_TAG = keccak256("BUNKR found Bag");
 
     event Forged(address indexed player, uint256 indexed bagId, uint256 burned);
@@ -84,6 +86,7 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
     event ForgedFrom(address indexed player, uint256 indexed bagId, uint256 indexed runId);
     event FoundOnlySet(uint256 indexed bagId, bool foundOnly);
     event Awarded(address indexed to, uint256 indexed id, uint256 amount, address indexed minter);
+    event UnbreakableSet(uint256 indexed id, bool unbreakable);
     /// @dev ERC-7572: tells marketplaces the collection metadata changed.
     event ContractURIUpdated();
 
@@ -202,7 +205,7 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
         for (uint256 i; i < shatterIds.length; i++) {
             uint256 k = _indexOf(ids, shatterIds[i]);
             if (broken[k]) revert BadLoadout();
-            broken[k] = true;
+            broken[k] = !unbreakable[ids[k]]; // unbreakable items always go home
         }
         _close(runId, broken);
     }
@@ -226,6 +229,13 @@ contract BunkrForge is ERC1155Burnable, ERC1155Supply, ERC2981, Ownable2Step, Re
         if (!minters[msg.sender]) revert NotMinter();
         _mint(to, id, amount, "");
         emit Awarded(to, id, amount, msg.sender);
+    }
+
+    function setUnbreakable(uint256[] calldata ids, bool value) external onlyOwner {
+        for (uint256 i; i < ids.length; i++) {
+            unbreakable[ids[i]] = value;
+            emit UnbreakableSet(ids[i], value);
+        }
     }
 
     function setMinter(address minter, bool allowed) external onlyOwner {

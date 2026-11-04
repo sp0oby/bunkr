@@ -6,9 +6,10 @@ import {
   decodeEventLog, http, keccak256, numberToHex, parseSignature, toHex, type Abi, type Account, type Address, type Hash, type Hex, type WalletClient,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { forgeAbi, ticketsAbi, tokenAbi } from './abi';
+import { forgeAbi, stockForgeAbi, ticketsAbi, tokenAbi } from './abi';
 import { DEV_KEY, FORGE_ORDER, LOADOUT_SLOTS, chain, deployment, devWalletAllowed } from './config';
-import { COSMETICS, type CosmeticSlot } from './constants';
+import { COSMETICS, STOCK_BAGS, type CosmeticSlot } from './constants';
+import { BAGS } from '../sim/content';
 import type { BagId, RunConfig } from '../sim/types';
 
 type Kind = 'injected' | 'dev';
@@ -18,6 +19,19 @@ export interface Recipe {
   minTier: number;
   /** Has to be found in a verified run before it can be forged. */
   foundOnly: boolean;
+}
+
+/** One Stock Bag on the Stonk Exchange, plus how much of its stock this wallet holds. */
+export interface StockListing {
+  token: Address;
+  /** Stock token per Bag (18 decimals) and $BUNKR burned per Bag. */
+  price: bigint;
+  burn: bigint;
+  cap: number;
+  sold: number;
+  minTier: number;
+  enabled: boolean;
+  held: bigint;
 }
 
 export interface WalletState {
@@ -41,6 +55,10 @@ export interface WalletState {
   dailyFee: bigint;
   dailyPotBps: number;
   recipes: Partial<Record<BagId, Recipe>>;
+  /** The Stonk Exchange's listings, and this week's Stonk Pot (stock token amounts by Bag). */
+  stocks: Partial<Record<BagId, StockListing>>;
+  stonkPot: Partial<Record<BagId, bigint>>;
+  stonkPotBps: number;
   /** Label of the transaction in flight, if any. */
   busy: string | null;
   error: string | null;
@@ -61,7 +79,7 @@ let state: WalletState = {
   status: deployment && chain ? 'disconnected' : 'off',
   kind: null, address: null, wrongChain: false,
   tier: 0, balance: 0n, tickets: 0, freeAvailable: false, dailyAvailable: true, pot: 0n, forged: {}, drip: {}, dripCost: {},
-  thresholds: [], ticketPrice: 0n, dailyFee: 0n, dailyPotBps: 0, recipes: {},
+  thresholds: [], ticketPrice: 0n, dailyFee: 0n, dailyPotBps: 0, recipes: {}, stocks: {}, stonkPot: {}, stonkPotBps: 0,
   busy: null, error: null, lastTx: null,
 };
 const subs = new Set<() => void>();
@@ -228,11 +246,40 @@ export async function refresh(): Promise<void> {
       if (n > 0n) forged[FORGE_ORDER[i]] = Number(n);
     });
     const [tier, balance, tickets, freeAvailable, pot] = ps;
-    set({ tier, balance, tickets: Number(tickets), freeAvailable, dailyAvailable, pot, forged, drip });
+    set({ tier, balance, tickets: Number(tickets), freeAvailable, dailyAvailable, pot, forged, drip, ...(await readStocks(who)) });
   } catch (e) {
     set({ error: friendly(e) });
   }
 }
+
+/** Stonk Exchange listings (sold counts move, so this is read on every refresh) and this week's pot. */
+async function readStocks(who: Address | null): Promise<Pick<WalletState, 'stocks' | 'stonkPot' | 'stonkPotBps'>> {
+  const sf = deployment?.stockForge;
+  if (!pub || !sf) return { stocks: {}, stonkPot: {}, stonkPotBps: 0 };
+  const [rows, wk, potBps] = await Promise.all([
+    Promise.all(STOCK_BAGS.map((b) => pub.readContract({ address: sf, abi: stockForgeAbi, functionName: 'listings', args: [BigInt(FORGE_ORDER.indexOf(b))] }))),
+    pub.readContract({ address: sf, abi: stockForgeAbi, functionName: 'week' }),
+    pub.readContract({ address: sf, abi: stockForgeAbi, functionName: 'potBps' }),
+  ]);
+  const [tokens, amounts] = await pub.readContract({ address: sf, abi: stockForgeAbi, functionName: 'potOf', args: [wk] });
+  const held = await Promise.all(rows.map(([token]) =>
+    who && token !== '0x0000000000000000000000000000000000000000'
+      ? pub.readContract({ address: token, abi: tokenAbi, functionName: 'balanceOf', args: [who] })
+      : Promise.resolve(0n)));
+  const stocks: Partial<Record<BagId, StockListing>> = {};
+  const stonkPot: Partial<Record<BagId, bigint>> = {};
+  rows.forEach(([token, price, burn, cap, sold, minTier, enabled], i) => {
+    if (token === '0x0000000000000000000000000000000000000000') return;
+    const bag = STOCK_BAGS[i];
+    stocks[bag] = { token, price, burn, cap, sold, minTier, enabled, held: held[i] };
+    const k = tokens.findIndex((t) => t.toLowerCase() === token.toLowerCase());
+    if (k >= 0) stonkPot[bag] = amounts[k];
+  });
+  return { stocks, stonkPot, stonkPotBps: potBps };
+}
+
+/** Deed tier a Bag needs to be carried: its Forge recipe, or its Stonk Exchange listing. */
+export const bagMinTier = (s: WalletState, b: BagId): number => s.recipes[b]?.minTier ?? s.stocks[b]?.minTier ?? 9;
 
 async function readRecipes(): Promise<Partial<Record<BagId, Recipe>>> {
   const rows = await Promise.all(
@@ -277,6 +324,33 @@ async function run<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
 /** Testnet only: free MockBUNKR once a day. */
 export const faucet = () =>
   run('Claiming test $BUNKR', () => send('Claiming test $BUNKR', deployment!.bunkr, tokenAbi, 'faucet', []));
+
+/** Testnet only: free mock shares of a Stock Bag's stock, once a day. */
+export const stockFaucet = (bag: BagId) =>
+  run(`Claiming test ${bagTicker(bag)}`, () => send(`Claiming test ${bagTicker(bag)}`, state.stocks[bag]!.token, tokenAbi, 'faucet', []));
+
+const bagTicker = (bag: BagId) => BAGS[bag].stock ?? 'stock';
+
+/**
+ * Buy a Stock Bag at the Stonk Exchange: the stock token (most to the treasury, some to the
+ * weekly Stonk Pot) plus a $BUNKR burn. $BUNKR gets a plain approve; the stock uses Permit.
+ */
+export const buyStockBag = (bag: BagId) =>
+  run(`Buying the ${bagTicker(bag)} Bag`, async () => {
+    const sf = deployment!.stockForge!;
+    const l = state.stocks[bag]!;
+    const id = BigInt(FORGE_ORDER.indexOf(bag));
+    if (l.burn > 0n) await ensureApproval(deployment!.bunkr, '$BUNKR', sf, l.burn);
+    const permit = await maybePermit(sf, l.price, l.token, bagTicker(bag));
+    return permit
+      ? send(`Buying the ${bagTicker(bag)} Bag`, sf, stockForgeAbi, 'buyWithPermit', [id, ...permit])
+      : send(`Buying the ${bagTicker(bag)} Bag`, sf, stockForgeAbi, 'buy', [id]);
+  });
+
+async function ensureApproval(token: Address, label: string, spender: Address, value: bigint): Promise<void> {
+  const allowance = await pub!.readContract({ address: token, abi: tokenAbi, functionName: 'allowance', args: [state.address!, spender] });
+  if (allowance < value) await send(`Approving ${label}`, token, tokenAbi, 'approve', [spender, value]);
+}
 
 export const buyTickets = (qty: number) =>
   run(`Buying ${qty} ticket${qty > 1 ? 's' : ''}`, async () => {
@@ -399,23 +473,25 @@ async function lockBags(runId: number, bags: BagId[]): Promise<BagId[]> {
  * One signature instead of an approve transaction. Returns null when the allowance is
  * already enough; falls back to a plain approve if the wallet can't sign typed data.
  */
-async function maybePermit(spender: Address, value: bigint): Promise<[bigint, number, Hash, Hash] | null> {
+async function maybePermit(
+  spender: Address, value: bigint, token: Address = deployment!.bunkr, label = '$BUNKR',
+): Promise<[bigint, number, Hash, Hash] | null> {
   const owner = state.address!;
-  const allowance = await pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'allowance', args: [owner, spender] });
+  const allowance = await pub!.readContract({ address: token, abi: tokenAbi, functionName: 'allowance', args: [owner, spender] });
   if (allowance >= value) return null;
   const approve = async () => {
-    await send('Approving $BUNKR', deployment!.bunkr, tokenAbi, 'approve', [spender, value]);
+    await send(`Approving ${label}`, token, tokenAbi, 'approve', [spender, value]);
     return null;
   };
   // Not every launchpad token has Permit: no nonces() means a plain approve.
   let name: string, version: string, nonce: bigint;
   try {
-    nonce = await pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'nonces', args: [owner] });
+    nonce = await pub!.readContract({ address: token, abi: tokenAbi, functionName: 'nonces', args: [owner] });
     // Sign for the token's real EIP-712 domain (ERC-5267) when it publishes one.
     [name, version] = await pub!
-      .readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'eip712Domain' })
+      .readContract({ address: token, abi: tokenAbi, functionName: 'eip712Domain' })
       .then((d) => [d[1], d[2]] as [string, string])
-      .catch(async () => [await pub!.readContract({ address: deployment!.bunkr, abi: tokenAbi, functionName: 'name' }), '1'] as [string, string]);
+      .catch(async () => [await pub!.readContract({ address: token, abi: tokenAbi, functionName: 'name' }), '1'] as [string, string]);
   } catch {
     return approve();
   }
@@ -425,7 +501,7 @@ async function maybePermit(spender: Address, value: bigint): Promise<[bigint, nu
     set({ busy: 'Sign the approval in your wallet' });
     const sig = await client!.signTypedData({
       account: account!,
-      domain: { name, version, chainId: chain!.id, verifyingContract: deployment!.bunkr },
+      domain: { name, version, chainId: chain!.id, verifyingContract: token },
       types: {
         Permit: [
           { name: 'owner', type: 'address' },
@@ -456,11 +532,13 @@ const REVERTS: Record<string, string> = {
   NoDeed: 'You need a Bunker Deed (hold at least the Shed amount of $BUNKR).',
   DailyAlreadyPlayed: 'You already played today\'s Daily Doom. One attempt per day.',
   NoTicket: 'Out of Ration Tickets. Buy more, or wait for tomorrow\'s free one.',
-  TierTooLow: 'Your Deed tier is too low to forge that Bag.',
+  TierTooLow: 'Your Deed tier is too low for that Bag.',
+  SoldOut: 'That Stock Bag is sold out.',
+  NotListed: 'That Stock Bag isn\'t for sale right now.',
   UnknownBag: 'That Bag can\'t be forged.',
   FaucetCooldown: 'Faucet already used today. Come back tomorrow.',
   FaucetEmpty: 'The faucet is dry.',
-  ERC20InsufficientBalance: 'Not enough $BUNKR.',
+  ERC20InsufficientBalance: 'Not enough tokens for that.',
   ERC20InsufficientAllowance: 'The approval didn\'t go through. Try again.',
 };
 
@@ -513,7 +591,7 @@ export function loadout(s: WalletState = state): BagId[] {
     /* ignore */
   }
   return picked
-    .filter((b) => (s.forged[b] ?? 0) > 0 && (s.recipes[b]?.minTier ?? 9) <= playTier(s))
+    .filter((b) => (s.forged[b] ?? 0) > 0 && bagMinTier(s, b) <= playTier(s))
     .slice(0, LOADOUT_SLOTS[playTier(s)] ?? 0);
 }
 

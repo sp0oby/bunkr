@@ -1,0 +1,28 @@
+{
+  "name": "Executive Membership",
+  "description": "Bulk pricing: every room costs 15% less, and Cold Storage holds twice as much. The hot dog combo is still $1.50. After the apocalypse. A legendary Stock Bag from BUNKR, bought with tokenized COST on Robinhood Chain plus a $BUNKR burn. Bring it into any run: it never shatters.",
+  "image": "http://localhost:5173/nft/execmembership.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Stock Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Stock",
+      "value": "COST"
+    },
+    {
+      "trait_type": "Shatters",
+      "value": "Never"
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Bulk pricing: every room costs 15% less, and Cold Storage holds twice as much."
+    }
+  ]
+}

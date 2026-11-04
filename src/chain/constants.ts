@@ -1,12 +1,19 @@
 // Token-layer constants shared by the game and the results server. No browser or Vite APIs here.
 import type { BagId } from '../sim/types';
 
-/** Token id of each Bag on BunkrForge. Must match RARITY in contracts/script/Deploy.s.sol. */
+/**
+ * Token id of each Bag on BunkrForge. The first 20 must match RARITY in contracts/script/Deploy.s.sol;
+ * ids 20+ are Stock Bags, sold by BunkrStockForge (STOCK_BAGS below, same order as the deploy script).
+ */
 export const FORGE_ORDER: BagId[] = [
   'hwnecklace', 'whitepaper', 'lambokeys', 'ledger', 'laserpointer', 'safu', 'fewunderstand', 'mrenft', 'pickaxe',
   'diamondgloves', 'inhaler', 'bearspray', 'bullhorn', 'tradewatch', 'ramenprinter', 'seedtattoo', 'hazmat',
   'moonmap', 'tuningfork', 'airdropcrate',
+  'seeingstone', 'overclockgpu', 'bunkercinema', 'starshippass', 'cybertruckkeys', 'execmembership',
 ];
+
+/** Stock Bags in Stonk Exchange order (token ids 20+). */
+export const STOCK_BAGS: BagId[] = FORGE_ORDER.slice(20);
 
 export const TIERS = ['TENT', 'SHED', 'BASEMENT', 'BUNKER', 'SILO'] as const;
 export const TIER_PERKS = [

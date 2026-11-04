@@ -1,0 +1,28 @@
+{
+  "name": "Bunker Cinema",
+  "description": "Vibe swings are halved, and Movie Night every evening pulls the mood back toward the middle. Now showing: the same movie, forever. Nobody minds. A legendary Stock Bag from BUNKR, bought with tokenized AMC on Robinhood Chain plus a $BUNKR burn. Bring it into any run: it never shatters.",
+  "image": "http://localhost:5173/nft/bunkercinema.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Stock Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Stock",
+      "value": "AMC"
+    },
+    {
+      "trait_type": "Shatters",
+      "value": "Never"
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Vibe swings are halved, and Movie Night every evening pulls the mood back toward the middle."
+    }
+  ]
+}

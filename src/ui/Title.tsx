@@ -6,6 +6,7 @@ import { VAULT, buyVault, dailyPlayed, exportCode, importCode, todayKey, vaultLe
 import { audio } from '../audio/audio';
 import { Icon } from './icons';
 import { TokenLinks } from './TokenLinks';
+import { StonkButton, StonkModal } from './Stonk';
 import { DeedChip, DeedModal, enterAndGo, fmtBunkr, hasDeed } from './Deed';
 import { DailyModal } from './Daily';
 import { tokenGate } from '../chain/config';
@@ -95,6 +96,7 @@ export function Title({ meta }: { meta: Meta }) {
   const [defcon, setDefcon] = useState<Defcon>(meta.unlocked);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [deedOpen, setDeedOpen] = useState(false);
+  const [stonkOpen, setStonkOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [wastelandOpen, setWastelandOpen] = useState(false);
   const w = useWallet();
@@ -173,6 +175,7 @@ export function Title({ meta }: { meta: Meta }) {
             </small>
           </button>
           <DeedChip onOpen={() => setDeedOpen(true)} />
+          <StonkButton onOpen={() => setStonkOpen(true)} />
           <button class="btn btn-pink" onClick={() => setVaultOpen(true)}>
             VAULT
             <small>{meta.rf} RF</small>
@@ -206,6 +209,7 @@ export function Title({ meta }: { meta: Meta }) {
       </div>
 
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
+      {stonkOpen && <StonkModal onClose={() => setStonkOpen(false)} />}
       {wastelandOpen && (
         <div class="modal-bg" onClick={() => setWastelandOpen(false)}>
           <div class="modal wasteland" onClick={(e) => e.stopPropagation()}>

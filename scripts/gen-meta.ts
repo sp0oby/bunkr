@@ -22,6 +22,24 @@ const DRIP_COST: Record<number, number> = { 100: 50_000, 101: 50_000, 102: 75_00
 let n = 0;
 FORGE_ORDER.forEach((bagId, id) => {
   const b = BAGS[bagId];
+  if (b.stock) {
+    // Stock Bags: bought at the Stonk Exchange with a Robinhood stock token, never shatter.
+    writeFileSync(`${OUT}/${id}.json`, JSON.stringify({
+      name: b.name,
+      description: `${b.desc} ${b.flavor} A legendary Stock Bag from BUNKR, bought with tokenized ${b.stock} on Robinhood Chain plus a $BUNKR burn. Bring it into any run: it never shatters.`,
+      image: `${SITE}/nft/${bagId}.png`,
+      external_url: SITE,
+      attributes: [
+        { trait_type: 'Type', value: 'Stock Bag' },
+        { trait_type: 'Rarity', value: 'Legendary' },
+        { trait_type: 'Stock', value: b.stock },
+        { trait_type: 'Shatters', value: 'Never' },
+        { trait_type: 'Effect', value: b.desc },
+      ],
+    }, null, 2));
+    n++;
+    return;
+  }
   writeFileSync(`${OUT}/${id}.json`, JSON.stringify({
     name: b.name,
     description: `${b.desc} ${b.flavor} A forged Bag from BUNKR: bring it into a run, but get liquidated while carrying it and it can shatter.`,

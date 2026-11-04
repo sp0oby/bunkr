@@ -1,0 +1,28 @@
+{
+  "name": "Overclocked GPU",
+  "description": "Every room makes 25% more. Every room also eats 30% more power. Runs at 98°C. Doubles as the bunker's heating. A legendary Stock Bag from BUNKR, bought with tokenized NVDA on Robinhood Chain plus a $BUNKR burn. Bring it into any run: it never shatters.",
+  "image": "http://localhost:5173/nft/overclockgpu.png",
+  "external_url": "http://localhost:5173",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Stock Bag"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Stock",
+      "value": "NVDA"
+    },
+    {
+      "trait_type": "Shatters",
+      "value": "Never"
+    },
+    {
+      "trait_type": "Effect",
+      "value": "Every room makes 25% more. Every room also eats 30% more power."
+    }
+  ]
+}

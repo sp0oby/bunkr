@@ -37,6 +37,20 @@ export const ticketsAbi = parseAbi([
   'error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)',
 ]);
 
+export const stockForgeAbi = parseAbi([
+  'function listings(uint256 id) view returns (address stock, uint128 price, uint128 burn, uint32 cap, uint32 sold, uint8 minTier, bool enabled)',
+  'function week() view returns (uint256)',
+  'function potOf(uint256 wk) view returns (address[] tokens, uint256[] amounts)',
+  'function potBps() view returns (uint16)',
+  'function buy(uint256 id)',
+  'function buyWithPermit(uint256 id, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
+  'error NotListed()',
+  'error SoldOut()',
+  'error TierTooLow(uint8 need, uint8 have)',
+  'error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)',
+  'error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)',
+]);
+
 export const forgeAbi = parseAbi([
   'function recipes(uint256 id) view returns (uint128 cost, uint8 minTier, bool enabled, bool foundOnly)',
   'function forgeFound(uint256 bagId, uint256 runId, bytes voucher)',

@@ -12,7 +12,7 @@ import {
   archTitle, mutatorForDay, spriteFile, utcDayNow,
 } from '../sim/content';
 import { REVIVE_PRESSES, REVIVE_SECONDS } from '../sim/game';
-import { TIERS, TIER_PERKS } from '../chain/constants';
+import { STOCK_BAGS, TIERS, TIER_PERKS } from '../chain/constants';
 import type { ArchId, BagId, MutatorId, RoomType } from '../sim/types';
 import '../style.css';
 import './page.css';
@@ -477,6 +477,29 @@ function WeatherSlider() {
   );
 }
 
+/** The Stonk Exchange's six legendary Stock Bags: tap one to see its power. */
+function StockBags() {
+  const [pick, setPick] = useState<BagId>(STOCK_BAGS[0]);
+  const b = BAGS[pick];
+  return (
+    <div class="g-stocks g-rv">
+      <div class="g-stock-row">
+        {STOCK_BAGS.map((id) => (
+          <button key={id} class={`g-stock ${id === pick ? 'on' : ''}`} onClick={() => setPick(id)} onMouseEnter={() => setPick(id)}>
+            <span class="g-stock-tk">{BAGS[id].stock}</span>
+            <img src={art(`bags/${id}.webp`)} alt={BAGS[id].name} />
+          </button>
+        ))}
+      </div>
+      <div class="g-stock-info" key={pick}>
+        <b>{b.name}</b>
+        <p>{b.desc}</p>
+        <small>Bought with tokenized {b.stock} plus a $BUNKR burn. Limited supply. Never shatters.</small>
+      </div>
+    </div>
+  );
+}
+
 function Flows() {
   return (
     <div class="g-flows">
@@ -709,6 +732,7 @@ function Page() {
         <Section id="token" kick="07 · $BUNKR" title="Your bag is your bunker.">
           <TokenLinks class="g-tk g-tk-left g-rv" />
           <DeedSlider />
+          <StockBags />
           <Flows />
           <WeatherSlider />
           <p class="g-fine-print g-rv">Finish a run holding a Bag you found and you can forge it into a real token (ERC-1155). Burn $BUNKR for cosmetics like the Good Boy Nuke. Testnet numbers, may change at launch.</p>
