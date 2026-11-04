@@ -16,7 +16,15 @@ html, body.memes-site { margin: 0; min-height: 100%; background: #0d0a12; color:
 .mk-moods img { width: 100%; height: 100%; object-fit: contain; }
 .mk-row { display: flex; gap: 6px; }
 .mk-row button { flex: 1; }
-.mk-side .mk-dl { margin-top: 6px; font-size: 20px; padding: 12px; color: var(--ink); background: var(--rad); border: 3px solid var(--ink); box-shadow: 0 4px 0 var(--ink); }
+.mk-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.mk-head nav { display: flex; gap: 12px; }
+.mk-head a { font: 13px 'Lilita One', sans-serif; color: var(--dim); text-decoration: none; letter-spacing: 0.04em; }
+.mk-head a:hover { color: var(--rad); }
+.mk-sub { margin: -6px 0 0; color: var(--dim); font-size: 13px; }
+.mk-btns { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 6px; }
+.mk-side .mk-dl { font-size: 20px; padding: 12px; color: var(--ink); background: var(--rad); border: 3px solid var(--ink); box-shadow: 0 4px 0 var(--ink); }
+.mk-side .mk-save { font-size: 15px; padding: 9px; }
+.mk-hint { color: var(--amber) !important; }
 .mk-side small { color: var(--dim); text-align: center; }
 
 .mk-main { display: grid; place-items: center; padding: 28px; }
@@ -25,5 +33,6 @@ html, body.memes-site { margin: 0; min-height: 100%; background: #0d0a12; color:
 @media (max-width: 860px) {
   .mk { grid-template-columns: minmax(0, 1fr); }
   .mk-side { border-right: 0; border-bottom: 2px solid #ffffff12; }
-  .mk-main { padding: 16px; }
+  .mk-main { padding: 16px; order: -1; position: sticky; top: 0; z-index: 2; background: #0d0a12; }
+  .mk-main canvas { max-height: 42vh; }
 }

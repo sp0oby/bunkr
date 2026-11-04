@@ -17,7 +17,7 @@ function seo(): Plugin {
       const robots = ['User-agent: *', 'Allow: /', ...(SITE_URL ? [`Sitemap: ${SITE_URL}/sitemap.xml`] : [])];
       this.emitFile({ type: 'asset', fileName: 'robots.txt', source: robots.join('\n') + '\n' });
       if (!SITE_URL) return;
-      const urls = ['/', '/guide.html'].map((p) => `  <url><loc>${SITE_URL}${p}</loc></url>`).join('\n');
+      const urls = ['/', '/guide.html', '/memes.html'].map((p) => `  <url><loc>${SITE_URL}${p}</loc></url>`).join('\n');
       this.emitFile({
         type: 'asset',
         fileName: 'sitemap.xml',
@@ -31,7 +31,7 @@ export default defineConfig({
   plugins: [preact(), seo()],
   server: { port: 5173 },
   build: {
-    // The game, the public How to Play guide, and the meme kit (unlisted: not in the sitemap).
+    // The game, the public How to Play guide, and the community meme kit.
     rollupOptions: { input: { main: 'index.html', guide: 'guide.html', memes: 'memes.html' } },
   },
 });

@@ -208,6 +208,7 @@ export function Title({ meta }: { meta: Meta }) {
       <div class="title-foot">
         Runs {meta.runs} · Survived {meta.wins} · Earn 1 Ramen Future per 1,000 score ·{' '}
         <button class="link-btn" onClick={() => { toggleCrt(); bump((n) => n + 1); }}>CRT effect: {document.body.classList.contains('no-crt') ? 'off' : 'on'}</button>
+        {' · '}<a class="link-btn" href="/memes.html">Meme kit</a>
       </div>
 
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}

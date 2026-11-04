@@ -1,4 +1,4 @@
-// The meme kit (memes.html, unlisted): pick a template, type, download a PNG sized for X.
+// The community meme kit (memes.html): pick a template, type, download or share a PNG sized for X.
 // Everything is drawn from the game's own art, so posts look like the game, not generic AI.
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -366,6 +366,8 @@ const TEMPLATES: Record<string, Template> = {
 
 // ---------- the page ----------
 
+const POST_TEXT = 'Made in the BUNKR Meme Kit ☢ bunkr.run/memes.html';
+
 const ARCH_IDS = Object.keys(ARCHS) as ArchId[];
 
 function Page() {
@@ -399,20 +401,45 @@ function Page() {
     setState((s) => ({ ...s, ...TEMPLATES[id].defaults }));
   };
   const set = <K extends keyof State>(k: K, v: State[K]) => setState((s) => ({ ...s, [k]: v }));
-  const download = () => canvas.current?.toBlob((b) => {
+  const blob = () => new Promise<Blob | null>((ok) => canvas.current ? canvas.current.toBlob(ok, 'image/png') : ok(null));
+  const fileName = () => `bunkr-${tid}-${Date.now()}.png`;
+  const download = async () => {
+    const b = await blob();
     if (!b) return;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(b);
-    a.download = `bunkr-${tid}-${Date.now()}.png`;
+    a.download = fileName();
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }, 'image/png');
+  };
+  const [shared, setShared] = useState(false);
+  /** Phones: the share sheet with the image attached. Elsewhere: save it, then open a post on X to attach it to. */
+  const share = async () => {
+    const b = await blob();
+    if (!b) return;
+    const file = new File([b], fileName(), { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], text: POST_TEXT });
+      } catch {
+        /* cancelled */
+      }
+      return;
+    }
+    await download();
+    window.open(`https://x.com/intent/post?text=${encodeURIComponent(POST_TEXT)}`, '_blank', 'noopener');
+    setShared(true);
+  };
 
   const has = (f: keyof State) => t.fields.includes(f);
   return (
     <div class="mk">
       <aside class="mk-side">
-        <h1>BUNKR MEME KIT</h1>
+        <header class="mk-head">
+          <h1>BUNKR MEME KIT</h1>
+          <nav><a href="/">PLAY</a><a href="/guide.html">HOW TO PLAY</a></nav>
+        </header>
+        <p class="mk-sub">Make a meme from the game's own art. It's so over. We're so back. Post it.</p>
         <div class="mk-tpls">
           {Object.entries(TEMPLATES).map(([id, tp]) => (
             <button key={id} class={id === tid ? 'on' : ''} onClick={() => pick(id)}>{tp.name}</button>
@@ -463,7 +490,11 @@ function Page() {
             </select>
           </label>
         )}
-        <button class="mk-dl" onClick={download}>DOWNLOAD PNG</button>
+        <div class="mk-btns">
+          <button class="mk-dl" onClick={() => void share()}>SHARE ON X</button>
+          <button class="mk-save" onClick={() => void download()}>DOWNLOAD PNG</button>
+        </div>
+        {shared && <small class="mk-hint">Saved. Attach the image to the post that just opened on X.</small>}
         <small>{t.size.label}</small>
       </aside>
       <main class="mk-main">

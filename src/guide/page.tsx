@@ -798,6 +798,7 @@ function Page() {
           <p>The bombs drop in {PREP_SECONDS} seconds.</p>
           <a class="btn btn-green" href="/">GET IN</a>
           <TokenLinks class="g-tk" />
+          <a class="g-memes" href="/memes.html">Make a BUNKR meme →</a>
           <small>$BUNKR on Robinhood Chain · contracts testnet-only until audited · not financial advice, obviously</small>
         </div>
       </footer>

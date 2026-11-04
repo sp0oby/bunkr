@@ -368,3 +368,5 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
   .g-steps { grid-template-columns: minmax(0, 1fr); row-gap: 22px; }
   .g-tent { flex-wrap: wrap; }
 }
+.g-memes { display: block; margin-top: 18px; font: 18px var(--display); color: var(--amber); text-decoration: none; text-shadow: 0 2px 0 var(--ink); }
+.g-memes:hover { color: var(--rad); }
