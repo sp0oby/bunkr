@@ -7,6 +7,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Icon } from '../ui/icons';
 import { TokenLinks } from '../ui/TokenLinks';
+import { LAUNCH, launched } from '../chain/launch';
 import {
   ARCHS, BAGS, MUTATORS, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS, TENT_DAYS,
   archTitle, mutatorForDay, spriteFile, utcDayNow,
@@ -50,6 +51,7 @@ function Hero() {
         <Countdown />
         <h1 class="g-logo">BUNKR</h1>
         <p class="g-tag">The world is ending. The chart is green. Get in.</p>
+        <p class="g-need">Hold <b>$BUNKR</b> to play the full game · free 3-day demo without it</p>
         <div class="g-ctas">
           <a class="btn btn-green" href="/">PLAY NOW</a>
           <a class="btn btn-amber" href="/?play=1&tutorial=1">TUTORIAL</a>
@@ -77,6 +79,39 @@ function Drop() {
         <div class="g-drop-d">Down there, you have <b>{RUN_DAYS} days</b>.</div>
       </div>
     </section>
+  );
+}
+
+// ---------- Get in: what you need to play ----------
+
+function GetIn() {
+  const steps = [
+    {
+      n: '1', title: 'Get $BUNKR',
+      body: launched
+        ? 'Buy it on Urufu Labs, on Robinhood Chain.'
+        : 'It launches on Urufu Labs, on Robinhood Chain. On testnet, the FAUCET in the Deed panel gives you free test $BUNKR every day.',
+    },
+    { n: '2', title: 'Hold it: that\'s your Deed', body: `Connect your wallet. Holding ${fmt(TIER_MIN[1])}+ $BUNKR is a Shed Deed: the full ${RUN_DAYS}-day game. Hold more for a bigger bunker. You don't spend it to play.` },
+    { n: '3', title: 'Enter the bunker', body: 'Every Deed gets 1 free run a day. Want more? Ration Tickets. Want the pot? Daily Doom.' },
+  ];
+  return (
+    <div class="g-getin">
+      <div class="g-steps">
+        {steps.map((st) => (
+          <div key={st.n} class="g-step g-rv">
+            <span class="g-step-n">{st.n}</span>
+            <b>{st.title}</b>
+            <p>{st.body}</p>
+          </div>
+        ))}
+      </div>
+      <div class="g-tent g-rv">
+        <img src={art('hatch/cry.webp')} alt="" />
+        <p><b>No $BUNKR yet?</b> Play Tent Mode: no wallet, free, and the tent collapses after {TENT_DAYS} days. A taste of the apocalypse.</p>
+        {launched && LAUNCH.buyUrl && <a class="btn btn-green" href={LAUNCH.buyUrl} target="_blank" rel="noreferrer">BUY $BUNKR</a>}
+      </div>
+    </div>
   );
 }
 
@@ -540,18 +575,27 @@ function Week() {
 // ---------- FAQ ----------
 
 const FAQ: [string, string][] = [
-  ['Do I need $BUNKR to play?', `No. Tent Mode is free, no wallet. The tent lasts ${TENT_DAYS} days. Hold $BUNKR for the full ${RUN_DAYS}.`],
-  ['Can I lose my forged Bags?', 'Only the ones you bring into a run, and only if you get liquidated: each has a 35% chance to shatter. Daily Doom never risks them.'],
+  ['Do I need $BUNKR to play?', `For the full game, yes: hold at least ${fmt(TIER_MIN[1])} $BUNKR in your wallet. That's your Bunker Deed, and holding it is the whole requirement: you don't spend it to play. No wallet? Tent Mode is free, but the tent collapses after ${TENT_DAYS} days.`],
+  ['Where do I get $BUNKR?', launched
+    ? 'Buy it on Urufu Labs, on Robinhood Chain. The BUY $BUNKR button on this page and on the title screen goes straight there.'
+    : 'It launches on Urufu Labs, on Robinhood Chain. Until then the game runs on testnet: connect a wallet and hit FAUCET in the Deed panel for free test $BUNKR every day.'],
+  ['What happens if I sell my $BUNKR?', 'Your Deed follows your balance live. Sell below a tier and that bunker is foreclosed: you drop to the tier you can still afford, or back to a tent.'],
+  ['How many runs do I get?', 'Every Deed gets 1 free run a day. Extra runs take a Ration Ticket (2,500 $BUNKR: half burned, half to the Daily Doom pot). Daily Doom is its own thing: 10,000 $BUNKR, one shot a day, top 3 split the pot.'],
+  ['What are Stock Bags?', 'Six legendary Bags from the Stonk Exchange, bought with tokenized stocks on Robinhood Chain (PLTR, NVDA, AMC, SPCX, TSLA, COST) plus a $BUNKR burn. Each has its own power, supply is limited, and they never shatter.'],
+  ['What is the Stonk Pot?', 'A fifth of the stock from every Stock Bag sale goes into the week\'s Stonk Pot. Every Monday (00:00 UTC) the week\'s Daily Doom top 3, by their best run, split it 50/30/20. Real stock, sent to their wallets.'],
+  ['Where do my Bags go during a run?', 'Forged and Stock Bags you bring are locked in the Forge for the run, so they drop out of your wallet until it ends. Finish the run and they come straight back. Close the tab mid-run and they come back about 3 hours later.'],
+  ['Can I lose my forged Bags?', 'Only the ones you bring into a run, and only if you get liquidated: each has a 35% chance to shatter. Stock Bags never shatter, and Daily Doom never risks anything.'],
   ['Can people cheat the leaderboard?', 'Every ticketed run is replayed on our server before it counts. Your browser\'s score is not trusted.'],
-  ['Is my progress saved?', 'In your browser, and to your wallet if you link it in the Vault. Deeds, tickets and forged items live on chain.'],
-  ['What chain?', 'Robinhood Chain. $BUNKR launches on Urufu Labs. Game contracts stay on testnet until audited.'],
+  ['Is my progress saved?', 'Ramen Futures and Vault upgrades live in your browser, and in your wallet once you link it in the Vault. Deeds, tickets and Bags are on chain.'],
+  ['Can I play on my phone?', 'Not yet: the bunker is PC-only for now. This guide works on your phone, though.'],
+  ['What chain is this?', 'Robinhood Chain. $BUNKR launches on Urufu Labs. The game contracts stay on testnet until they pass an outside audit.'],
 ];
 
 // ---------- Page ----------
 
 /** Each section tints the page's ambient light as you scroll into it. */
 const TINT: Record<string, string> = {
-  build: '#ffbe3d', vibes: '#ff6fbf', degens: '#3ff0ff', fight: '#ff4b3e', bags: '#a463ff', week: '#8cff4f', token: '#ffbe3d', faq: '#8cff4f',
+  getin: '#8cff4f', build: '#ffbe3d', vibes: '#ff6fbf', degens: '#3ff0ff', fight: '#ff4b3e', bags: '#a463ff', week: '#8cff4f', token: '#ffbe3d', faq: '#8cff4f',
 };
 
 function Section({ id, kick, title, children }: { id: string; kick: string; title: string; children: preact.ComponentChildren }) {
@@ -607,7 +651,7 @@ function useScenes() {
       if (motion) {
         gsap.timeline()
           .from('.g-logo', { y: -260, rotate: -18, scale: 0.5, duration: 1.1, ease: 'bounce.out' })
-          .from('.g-tag, .g-ctas, .g-count, .g-hero .g-tk', { y: 24, opacity: 0, stagger: 0.12, duration: 0.5 }, '-=0.3');
+          .from('.g-tag, .g-need, .g-ctas, .g-count, .g-hero .g-tk', { y: 24, opacity: 0, stagger: 0.12, duration: 0.5 }, '-=0.3');
         gsap.to('.g-hero-art', { yPercent: 18, scale: 1.08, ease: 'none', scrollTrigger: { trigger: '.g-hero', start: 'top top', end: 'bottom top', scrub: true } });
         gsap.to('.g-hero-in', { yPercent: -30, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.g-hero', start: 'top top', end: 'bottom top', scrub: true } });
       }
@@ -700,6 +744,10 @@ function Page() {
       <Drop />
       <Ticker words={['GM', 'IT\'S SO OVER', 'WE\'RE SO BACK', 'HODL THE RAMEN', 'WAGMI (SOME OF US)', 'NUKES INBOUND']} />
       <main>
+        <Section id="getin" kick="00 · GET IN" title="No Deed, no bunker.">
+          <Hatch mood="smug" line="Hold $BUNKR and you own a bunker. Sell it and you're living in a tent. Those are the rules." />
+          <GetIn />
+        </Section>
         <Section id="build" kick="01 · YOUR BUNKER" title="Build rooms. Rooms make stuff.">
           <Hatch mood="smug" line="Tap a room. Watch number go up. That's the whole economy." />
           <Builder />

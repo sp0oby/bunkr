@@ -349,3 +349,22 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
   .g-stocks { padding: 18px; }
   .g-stock-row { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 16px; }
 }
+
+/* Hero: the one thing to know before you click play */
+.g-need { margin: -14px 0 22px; font-size: clamp(14px, 1.8vw, 17px); color: var(--text); text-shadow: 0 2px 0 var(--ink); }
+.g-need b { color: var(--rad); }
+
+/* 00 · Get in */
+.g-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.g-step { position: relative; padding: 22px 20px 20px; border-radius: 22px; background: linear-gradient(160deg, #221c30, #18131f); border: 2px solid #ffffff12; }
+.g-step-n { position: absolute; top: -14px; left: 18px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; font: 18px var(--display); color: var(--ink); background: var(--rad); border: 3px solid var(--ink); }
+.g-step b { display: block; font: 22px/1.1 var(--display); font-weight: 400; margin: 6px 0 6px; }
+.g-step p { margin: 0; font-size: 15px; color: #e9e3f5; }
+.g-tent { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 14px 18px; border-radius: 18px; background: #ffffff07; border: 2px dashed #ffffff22; }
+.g-tent img { width: 56px; height: 56px; object-fit: contain; flex: none; }
+.g-tent p { margin: 0; flex: 1; font-size: 15px; color: var(--dim); }
+.g-tent p b { color: var(--text); }
+@media (max-width: 760px) {
+  .g-steps { grid-template-columns: minmax(0, 1fr); row-gap: 22px; }
+  .g-tent { flex-wrap: wrap; }
+}
