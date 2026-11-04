@@ -323,3 +323,9 @@ body.guide-site { font: 700 16px/1.5 var(--body); color: var(--text); }
 .g-ticker.flip span { color: var(--text); text-shadow: 0 3px 0 var(--ink); }
 .g-ticker span i { display: inline-block; width: 14px; height: 14px; margin-left: 44px; rotate: 45deg; background: var(--ink); }
 .g-ticker.flip span i { background: var(--text); }
+
+/* Buy $BUNKR + contract address (hidden until launch) */
+.g-tk { margin-top: 16px; }
+.g-tk-left { justify-content: flex-start; margin: 0 0 16px; }
+.g-tk .tk-buy { font-size: 18px; padding: 9px 20px; }
+.g-tk .tk-ca { font-size: 16px; }

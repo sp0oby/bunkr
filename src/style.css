@@ -382,6 +382,13 @@ button.brand:hover { transform: rotate(-4deg) scale(1.08); }
 .title-fade { position: absolute; inset: 0; background: linear-gradient(#0000 40%, #0b0b10e8 88%); }
 .title-logo { position: absolute; top: 7vh; left: 0; right: 0; text-align: center; }
 .tl-word { font: clamp(72px, 12vw, 170px)/0.9 var(--display); color: var(--rad); -webkit-text-stroke: 4px var(--ink); text-shadow: 0 10px 0 var(--ink), 0 0 60px #8cff4f66; transform: rotate(-3deg); animation: floaty 4s ease-in-out infinite; }
+.token-links { display: flex; gap: 10px; justify-content: center; align-items: stretch; flex-wrap: wrap; pointer-events: auto; }
+.title-logo .token-links { margin-top: 12px; }
+.tk-buy { text-decoration: none; display: inline-flex; align-items: center; }
+.tk-ca { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 12px; border: 3px solid var(--ink); background: #0b0b10cc; color: var(--text); box-shadow: 0 4px 0 var(--ink); cursor: pointer; font: 15px var(--display); }
+.tk-ca:hover { border-color: var(--rad); }
+.tk-label { font-size: 11px; letter-spacing: 0.1em; color: var(--ink); background: var(--rad); border-radius: 5px; padding: 2px 6px; }
+.tk-addr { font-variant-numeric: tabular-nums; min-width: 11ch; }
 .tl-tag { margin-top: 14px; font: 22px var(--display); color: #fff8ec; -webkit-text-stroke: 1px var(--ink); text-shadow: 0 3px 0 var(--ink); letter-spacing: 0.03em; }
 .title-bar { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); width: min(900px, 94vw); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: stretch; padding: 8px; background: #19162acc; backdrop-filter: blur(4px); border: 3px solid var(--ink); border-radius: 16px; box-shadow: var(--pop); }
 .tb-difficulty { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 6px; min-width: 0; }

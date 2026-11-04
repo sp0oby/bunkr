@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Icon } from '../ui/icons';
+import { TokenLinks } from '../ui/TokenLinks';
 import {
   ARCHS, BAGS, MUTATORS, PREP_SECONDS, RARITY_WEIGHT, ROOMS, RUN_DAYS, STARTER_ARCHS, TENT_DAYS,
   archTitle, mutatorForDay, spriteFile, utcDayNow,
@@ -53,6 +54,7 @@ function Hero() {
           <a class="btn btn-green" href="/">PLAY NOW</a>
           <a class="btn btn-amber" href="/?play=1&tutorial=1">TUTORIAL</a>
         </div>
+        <TokenLinks class="g-tk" />
       </div>
       <div class="g-scroll">scroll to learn how not to die</div>
     </header>
@@ -582,7 +584,7 @@ function useScenes() {
       if (motion) {
         gsap.timeline()
           .from('.g-logo', { y: -260, rotate: -18, scale: 0.5, duration: 1.1, ease: 'bounce.out' })
-          .from('.g-tag, .g-ctas, .g-count', { y: 24, opacity: 0, stagger: 0.12, duration: 0.5 }, '-=0.3');
+          .from('.g-tag, .g-ctas, .g-count, .g-hero .g-tk', { y: 24, opacity: 0, stagger: 0.12, duration: 0.5 }, '-=0.3');
         gsap.to('.g-hero-art', { yPercent: 18, scale: 1.08, ease: 'none', scrollTrigger: { trigger: '.g-hero', start: 'top top', end: 'bottom top', scrub: true } });
         gsap.to('.g-hero-in', { yPercent: -30, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.g-hero', start: 'top top', end: 'bottom top', scrub: true } });
       }
@@ -705,6 +707,7 @@ function Page() {
         <Ticker words={['$BUNKR', 'NUMBER GO UP', 'BURN IT', 'FORGE IT', 'NOT FINANCIAL ADVICE', 'PRICE ACTION IS THE WEATHER']} />
         <main>
         <Section id="token" kick="07 · $BUNKR" title="Your bag is your bunker.">
+          <TokenLinks class="g-tk g-tk-left g-rv" />
           <DeedSlider />
           <Flows />
           <WeatherSlider />
@@ -722,6 +725,7 @@ function Page() {
           <div class="g-logo small">BUNKR</div>
           <p>The bombs drop in {PREP_SECONDS} seconds.</p>
           <a class="btn btn-green" href="/">GET IN</a>
+          <TokenLinks class="g-tk" />
           <small>$BUNKR on Robinhood Chain · contracts testnet-only until audited · not financial advice, obviously</small>
         </div>
       </footer>

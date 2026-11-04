@@ -5,6 +5,7 @@ import type { Defcon } from '../sim/types';
 import { VAULT, buyVault, dailyPlayed, exportCode, importCode, todayKey, vaultLevel, type Meta } from '../meta';
 import { audio } from '../audio/audio';
 import { Icon } from './icons';
+import { TokenLinks } from './TokenLinks';
 import { DeedChip, DeedModal, enterAndGo, fmtBunkr, hasDeed } from './Deed';
 import { DailyModal } from './Daily';
 import { tokenGate } from '../chain/config';
@@ -124,6 +125,7 @@ export function Title({ meta }: { meta: Meta }) {
         <div class="tl-word">BUNKR</div>
         <div class="tl-tag">the world is ending. the chart is green. get in.</div>
         <a class={`btn btn-dark htp-btn ${meta.runs === 0 ? 'fresh' : ''}`} href="/guide.html">HOW TO PLAY</a>
+        <TokenLinks />
       </div>
 
       <div class="title-bar">
