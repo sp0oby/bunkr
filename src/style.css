@@ -828,3 +828,13 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 @keyframes tutPulse { 50% { outline-color: var(--amber); outline-offset: 7px; } }
 .guide-tut { font-size: 13px; padding: 4px 12px; margin-left: 8px; }
 .revive .card-title { margin: 8px 0 6px; } /* no character art to make room for */
+
+/* ---------- Clip mode (?clip=<scene>) ---------- */
+/* A 9:16 frame in the middle of the window, for vertical social clips. The transform makes the
+   frame the containing block, so the HUD's fixed overlays stay inside it. */
+body.clip { background: #000; }
+body.clip-tall #world, body.clip-tall #ui { left: 50%; right: auto; width: min(100vw, calc(100vh * 9 / 16)); transform: translateX(-50%); }
+body.clip-tall #ui { overflow: hidden; }
+/* min: only the story (bosses, cards, HATCH, the drop). 0: nothing but the scene. */
+body.clip-min .topbar, body.clip-min .dock, body.clip-min .toasts, body.clip-min .home-btn { display: none !important; }
+body.clip-bare #ui > .ui > *:not(.crt):not(.cinematic) { display: none !important; }

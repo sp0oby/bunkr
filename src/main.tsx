@@ -14,11 +14,14 @@ import { fetchWeather, serverDay, serverFinish, serverStart } from './chain/serv
 import { ServerProblem } from './ui/ServerProblem';
 import { CALM_ART, blastArt, preload } from './ui/preload';
 import { tutorialHolds, tutorialSeen } from './ui/Tutorial';
+import { clipConfig, frameClip, isClipScene, stageClip } from './clip';
 import './chain/progress'; // keeps a linked wallet's copy of progress up to date
 import './style.css';
 
 const params = new URLSearchParams(location.search);
 const meta = loadMeta();
+/** Clip mode (?clip=<scene>): a staged moment for recording social clips. Nothing is saved. */
+const clip = isClipScene(params.get('clip')) ? params.get('clip') as Parameters<typeof stageClip>[1] : null;
 
 // Audio needs a user gesture before it can start.
 for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => audio.unlock(), { capture: true });
@@ -41,7 +44,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') audio.toggleMute();
 });
 
-const playing = params.has('play') || params.has('daily') || params.has('seed');
+const playing = params.has('play') || params.has('daily') || params.has('seed') || !!clip;
 const restored = restore();
 // Handy for checking sound from the console.
 Object.assign(window, { audio });
@@ -53,7 +56,7 @@ function boot(): void {
   } else void startRun();
 }
 // Phones get HATCH's "play it on PC" screen until the real mobile version ships.
-if (isPhone() && !phoneOverride()) render(<PhoneGate onAnyway={boot} />, document.getElementById('ui')!);
+if (isPhone() && !phoneOverride() && !clip) render(<PhoneGate onAnyway={boot} />, document.getElementById('ui')!);
 else boot();
 
 /** Ticketed runs get their seed and official config from the results server. */
@@ -78,14 +81,17 @@ async function startRun(): Promise<void> {
   let seed = daily ? dailySeed() : seedParam ? Number(seedParam) : undefined;
   // With the token layer on, a run needs a pass from spending a Ration Ticket. No pass: Tent Mode.
   // The tutorial is always a free practice run (Tent Mode when the token layer is on).
-  const tutorial = !daily && (params.has('tutorial') || (meta.runs === 0 && !tutorialSeen()));
-  let pass = tokenGate && !params.has('tutorial') ? readPass(daily) : null;
+  const tutorial = !clip && !daily && (params.has('tutorial') || (meta.runs === 0 && !tutorialSeen()));
+  let pass = tokenGate && !clip && !params.has('tutorial') ? readPass(daily) : null;
   if (daily && !pass && tokenGate) {
     location.search = '';
     return;
   }
   let cfg: Partial<RunConfig> = { ...runConfig(meta, defcon, daily), mutator: mutatorForDay(utcDayNow()) };
-  if (pass) {
+  if (clip) {
+    seed = seedParam ? Number(seedParam) : 4242;
+    cfg = { ...runConfig(meta, 5, false), ...clipConfig(params) };
+  } else if (pass) {
     pass = await officialPass(pass, defcon);
     if (!pass) return;
     seed = pass.seed;
@@ -94,6 +100,10 @@ async function startRun(): Promise<void> {
     cfg = { ...cfg, tent: true, weather: (await fetchWeather())?.kind ?? null };
   }
   const game = new Game(seed, cfg);
+  if (clip) {
+    stageClip(game, clip);
+    frameClip(params);
+  }
   if (pass?.tier === 4) document.body.classList.add('silo');
   const ui: UiState = { selected: null, buildAt: null, speed: 1, drawer: null, roomView: null, inspectBag: null, rewards: null, tutorial: tutorial ? 0 : null };
 
@@ -212,7 +222,10 @@ async function startRun(): Promise<void> {
     }
     // Bank the run exactly once when it ends.
     if (game.ending && !ui.rewards) {
-      ui.rewards = recordRun(meta, game.ending);
+      // A clip run is a staged take: it never counts.
+      ui.rewards = clip
+        ? { rf: Math.max(1, Math.floor(game.ending.score / 1000) + (game.ending.survived ? 5 : 0)), newBest: false, unlockedDefcon: null }
+        : recordRun(meta, game.ending);
       if (pass) {
         const p = pass;
         // The server replays the inputs to get the real result. Retry-able from the end screen.
