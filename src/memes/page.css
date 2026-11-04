@@ -1,0 +1,29 @@
+:root { --ink: #0b0b10; --rad: #8cff4f; --amber: #ffbe3d; --text: #fff8ec; --dim: #b9b2d6; --panel: #221c30; }
+* { box-sizing: border-box; }
+html, body.memes-site { margin: 0; min-height: 100%; background: #0d0a12; color: var(--text); font: 800 15px/1.4 'Nunito', system-ui, sans-serif; }
+
+.mk { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: 100vh; }
+.mk-side { display: flex; flex-direction: column; gap: 14px; padding: 22px; background: #16121e; border-right: 2px solid #ffffff12; }
+.mk-side h1 { margin: 0; font: 30px 'Lilita One', sans-serif; font-weight: 400; color: var(--rad); letter-spacing: 0.02em; }
+.mk-tpls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mk-side button { font: 14px 'Lilita One', sans-serif; color: var(--text); background: var(--panel); border: 2px solid #ffffff18; border-radius: 10px; padding: 8px 6px; cursor: pointer; }
+.mk-side button.on { border-color: var(--rad); background: #8cff4f1c; color: var(--rad); }
+.mk-side label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--dim); }
+.mk-side textarea, .mk-side select { font: 800 15px 'Nunito', sans-serif; color: var(--text); background: #0d0a12; border: 2px solid #ffffff20; border-radius: 10px; padding: 8px 10px; resize: vertical; }
+.mk-side input[type=range] { accent-color: var(--amber); }
+.mk-moods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.mk-moods button { padding: 4px; aspect-ratio: 1; }
+.mk-moods img { width: 100%; height: 100%; object-fit: contain; }
+.mk-row { display: flex; gap: 6px; }
+.mk-row button { flex: 1; }
+.mk-side .mk-dl { margin-top: 6px; font-size: 20px; padding: 12px; color: var(--ink); background: var(--rad); border: 3px solid var(--ink); box-shadow: 0 4px 0 var(--ink); }
+.mk-side small { color: var(--dim); text-align: center; }
+
+.mk-main { display: grid; place-items: center; padding: 28px; }
+.mk-main canvas { display: block; max-width: 100%; max-height: calc(100vh - 56px); border-radius: 12px; box-shadow: 0 10px 40px #0008; background: #000; }
+
+@media (max-width: 860px) {
+  .mk { grid-template-columns: minmax(0, 1fr); }
+  .mk-side { border-right: 0; border-bottom: 2px solid #ffffff12; }
+  .mk-main { padding: 16px; }
+}

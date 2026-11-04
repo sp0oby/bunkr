@@ -31,7 +31,7 @@ export default defineConfig({
   plugins: [preact(), seo()],
   server: { port: 5173 },
   build: {
-    // Two pages: the game, and the public How to Play guide.
-    rollupOptions: { input: { main: 'index.html', guide: 'guide.html' } },
+    // The game, the public How to Play guide, and the meme kit (unlisted: not in the sitemap).
+    rollupOptions: { input: { main: 'index.html', guide: 'guide.html', memes: 'memes.html' } },
   },
 });
