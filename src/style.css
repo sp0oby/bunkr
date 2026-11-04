@@ -504,7 +504,8 @@ button.brand:hover { transform: rotate(-4deg) scale(1.08); }
 .pg-title { font: 30px/1 var(--display); margin: 6px 0 10px; }
 .pg-card p { font: 800 15px/1.4 var(--body); margin: 0 0 10px; }
 .pg-dim { color: #666; }
-.pg-btn { width: 100%; font-size: 18px; margin-top: 4px; }
+.pg-btn { display: block; width: 100%; font-size: 18px; margin-top: 4px; text-align: center; text-decoration: none; }
+.pg-btn + .pg-btn { margin-top: 10px; }
 .pg-foot { font: 12px var(--display); color: #a33; letter-spacing: 0.06em; margin-top: 12px; }
 .pg-anyway { margin-top: 6px; background: none; border: none; color: #888; font: 700 12px var(--body); text-decoration: underline; }
 .nowrap { white-space: nowrap; }
@@ -742,7 +743,7 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 .brand-confirm span { flex-basis: 100%; }
 
 /* ---------- How to play ---------- */
-.htp-btn { margin-top: 14px; font-size: 16px; padding: 6px 18px; pointer-events: auto; }
+.htp-btn { display: inline-block; margin-top: 14px; font-size: 16px; padding: 6px 18px; pointer-events: auto; text-decoration: none; }
 .htp-btn.fresh { animation: pulseScale 1.4s infinite; background: var(--amber); color: var(--ink); text-shadow: none; }
 .guide { width: min(980px, 95vw); height: min(680px, 90vh); display: flex; flex-direction: column; padding: 16px 18px; }
 .guide-head { display: flex; align-items: center; gap: 12px; }

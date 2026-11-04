@@ -38,6 +38,7 @@ export function PhoneGate({ onAnyway }: { onAnyway: () => void }) {
           do not fit on the same screen you check charts on in the bathroom.
         </p>
         <p class="pg-dim">Grab a laptop or desktop and come back. The apocalypse will wait. (It will not.)</p>
+        <a class="btn btn-amber pg-btn" href="/guide.html">SEE HOW IT PLAYS</a>
         <button class="btn btn-green pg-btn" onClick={copy}>{copied ? 'LINK COPIED' : 'COPY LINK FOR LATER'}</button>
         <div class="pg-foot">Mobile bunker is under construction.</div>
         <button

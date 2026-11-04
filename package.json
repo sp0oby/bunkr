@@ -18,7 +18,7 @@
     "meta": "tsx scripts/gen-meta.ts"
   },
   "dependencies": {
-    "gsap": "^3.12.5",
+    "gsap": "^3.13.0",
     "preact": "^10.25.4",
     "three": "^0.170.0",
     "tsx": "^4.19.2",
