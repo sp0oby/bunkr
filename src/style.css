@@ -683,7 +683,6 @@ body.drip-goldhatch .hatch-img { filter: sepia(1) saturate(3.2) hue-rotate(-12de
 .drip-card .btn { font-size: 12px; padding: 4px 8px; }
 
 /* ---------- Stonk Exchange ---------- */
-.btn-stonk { background: linear-gradient(#2fb67a, #146b48); }
 .modal.stonk { width: min(880px, 94vw); }
 .stonk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin: 12px 0 4px; }
 .stonk-card { position: relative; display: flex; flex-direction: column; gap: 5px; padding: 10px; border-radius: 14px; border: 3px solid var(--ink); background: linear-gradient(170deg, #4a3612, #241a0c); box-shadow: 0 0 0 2px #ffbe3d55 inset; }
@@ -751,7 +750,26 @@ body:not(.no-crt) .crt-panic .crt { animation-duration: 0.4s; }
 .sync-dot.error { background: #ff4b3e; box-shadow: 0 0 6px #ff4b3e; }
 
 /* ---------- Wasteland teaser ---------- */
-.wasteland-tease { position: absolute; top: 16px; left: 16px; z-index: 3; display: flex; align-items: center; gap: 10px; text-align: left; color: var(--text); background: #0b0b10c8; border: 3px solid var(--ink); border-radius: 14px; padding: 8px 12px; box-shadow: var(--pop); }
+/* Top-left column: the Wasteland teaser, then the Stonk Exchange. */
+.title-left { position: absolute; top: 16px; left: 16px; z-index: 3; display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+.stonk-tease { display: flex; align-items: center; gap: 10px; text-align: left; color: var(--text); background: linear-gradient(135deg, #3a2a10e8, #0b0b10d8); border: 3px solid var(--ink); border-radius: 14px; padding: 6px 12px 6px 8px; box-shadow: var(--pop), inset 0 0 0 2px #ffbe3d55; cursor: pointer; transition: transform .12s; }
+.stonk-tease:hover { transform: translateY(-2px); box-shadow: var(--pop), inset 0 0 0 2px var(--amber); }
+.stonk-tease b { display: block; font: 18px var(--display); letter-spacing: 0.04em; color: var(--amber); }
+.stonk-tease small { font-size: 11px; color: var(--dim); }
+.stonk-tease-art { display: flex; flex: none; }
+.stonk-tease-art img { width: 34px; height: 34px; object-fit: contain; margin-right: -10px; filter: drop-shadow(0 2px 0 var(--ink)); }
+.stonk-tease-art img:nth-child(2) { transform: translateY(-4px); }
+.stonk-tease-art img:last-child { margin-right: 0; }
+/* Narrower windows: the corner cards shrink to stay clear of the logo. */
+@media (max-width: 1080px) {
+  .title-left { top: 10px; left: 10px; gap: 6px; }
+  .title-left small { display: none; }
+  .wasteland-tease, .stonk-tease { padding: 5px 9px; gap: 7px; }
+  .wasteland-tease b, .stonk-tease b { font-size: 14px; }
+  .wasteland-tease .doom-clock { width: 30px; height: 30px; }
+  .stonk-tease-art img { width: 26px; height: 26px; margin-right: -8px; }
+}
+.wasteland-tease { display: flex; align-items: center; gap: 10px; text-align: left; color: var(--text); background: #0b0b10c8; border: 3px solid var(--ink); border-radius: 14px; padding: 8px 12px; box-shadow: var(--pop); }
 .wasteland-tease b { display: block; font: 18px var(--display); letter-spacing: 0.04em; color: var(--red); }
 .wasteland-tease small { font-size: 11px; color: var(--dim); }
 .doom-clock { display: block; flex: none; filter: drop-shadow(0 0 8px #ff4b3e55); }

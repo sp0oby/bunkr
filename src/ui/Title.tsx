@@ -175,7 +175,6 @@ export function Title({ meta }: { meta: Meta }) {
             </small>
           </button>
           <DeedChip onOpen={() => setDeedOpen(true)} />
-          <StonkButton onOpen={() => setStonkOpen(true)} />
           <button class="btn btn-pink" onClick={() => setVaultOpen(true)}>
             VAULT
             <small>{meta.rf} RF</small>
@@ -183,14 +182,17 @@ export function Title({ meta }: { meta: Meta }) {
           <button class="btn btn-dark tp-sound" onClick={() => { audio.toggleMute(); bump((n) => n + 1); }} title="Sound (M)"><Icon name={audio.muted ? 'mute' : 'sound'} size={26} /></button>
         </div>
       </div>
-      <button class="wasteland-tease" onClick={() => setWastelandOpen(true)}>
-        <span class="lock" />
-        <span>
-          <b>THE WASTELAND</b>
-          <small>Season 1 · coming soon</small>
-        </span>
-        <DoomClock size={42} />
-      </button>
+      <div class="title-left">
+        <button class="wasteland-tease" onClick={() => setWastelandOpen(true)}>
+          <span class="lock" />
+          <span>
+            <b>THE WASTELAND</b>
+            <small>Season 1 · coming soon</small>
+          </span>
+          <DoomClock size={42} />
+        </button>
+        <StonkButton onOpen={() => setStonkOpen(true)} />
+      </div>
       <div class="title-mutator">
         <span>THIS WEEK</span>
         <b>{MUTATORS[weekMut].name}</b>

@@ -9,13 +9,18 @@ import { fmtBunkr } from './Deed';
 /** 0.25e18 -> "0.25". Stock tokens are fractional shares. */
 export const fmtShares = (v: bigint) => (+Number(formatUnits(v, 18)).toFixed(4)).toLocaleString();
 
-/** Title-bar button for the Stonk Exchange. Hidden on deployments without one. */
+/** Title-screen card for the Stonk Exchange, under the Wasteland card. Hidden on deployments without one. */
 export function StonkButton({ onOpen }: { onOpen: () => void }) {
   if (!deployment?.stockForge) return null;
   return (
-    <button class="btn btn-stonk" onClick={onOpen} title="Legendary Stock Bags, bought with tokenized stocks">
-      STONK EXCHANGE
-      <small>stock bags</small>
+    <button class="stonk-tease" onClick={onOpen} title="Legendary Stock Bags, bought with tokenized stocks">
+      <span class="stonk-tease-art">
+        {['overclockgpu', 'seeingstone', 'starshippass'].map((b) => <img key={b} src={`/art/bags/${b}.webp`} alt="" draggable={false} />)}
+      </span>
+      <span>
+        <b>STONK EXCHANGE</b>
+        <small>6 legendary Stock Bags</small>
+      </span>
     </button>
   );
 }
