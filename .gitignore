@@ -10,3 +10,6 @@ contracts/lib
 .env
 server/data
 .vercel
+
+# Marketing renders (trailers, overlays): large, not part of the site
+promo/

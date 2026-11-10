@@ -90,7 +90,7 @@ function play(g: Game, until: (g: Game) => boolean, maxSteps = 300_000, onStep?:
     play(g, (x) => x.day >= 2);
     const d = g.present.find((x) => x.arch !== 'coldcarl')!;
     g.sendExpedition(d.id, 'gz');
-    return d.exp!.returnAt - d.exp!.leftAt;
+    return d.exp!.returnAt - d.exp!.leftAt!;
   };
   const ta = trip([]), tb = trip(['cybertruckkeys']);
   check(Math.abs(tb / ta - 0.6) < 1e-9, `TSLA: expeditions 40% faster (${ta}s -> ${tb}s)`);
