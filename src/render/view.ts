@@ -28,6 +28,8 @@ const INK = 0x0b0b10;
 
 const HULL_L = -SHAFT_W - HULL_PAD;
 const HULL_R = COLS * CW + HULL_PAD;
+/** Width of the tab bar column on phones held sideways (matches the CSS). */
+const SIDE_DOCK_PX = 66;
 const floorTop = (f: number) => TOP - f * CH;
 const roomX = (col: number) => col * CW;
 const floorY = (f: number) => floorTop(f) - CH + INSET + 0.1; // where feet go
@@ -246,10 +248,10 @@ export class BunkerView {
   private hoverRoom: number | null = null;
   private hoverDweller: number | null = null;
   private dragDweller: { id: number; startX: number; startY: number; active: boolean } | null = null;
-  /** A finger on the bunker: swipes scroll, a press-and-hold on a degen picks them up. */
+  /** A finger on the bunker: from a degen it drags them, from anywhere else it scrolls. */
   private touch: {
     id: number; startX: number; startY: number; startCx: number; startCy: number; moved: boolean;
-    dweller: number | null; hold: number; lastY: number; lastT: number; vy: number;
+    dweller: number | null; lastY: number; lastT: number; vy: number;
   } | null = null;
   private pointer = new THREE.Vector2();
   private popupTimer = 0;
@@ -731,27 +733,38 @@ export class BunkerView {
 
   private fitZoom(): number {
     const worldW = HULL_R - HULL_L + 1.2;
-    return worldW / this.aspect() / this.zoomMul;
+    // Sideways phones fit the bunker into the space left of the tab bar column.
+    const w = this.host.clientWidth - (this.sidewaysPhone() ? SIDE_DOCK_PX : 0);
+    return worldW / (Math.max(1, w) / Math.max(1, this.host.clientHeight)) / this.zoomMul;
   }
 
   /** Keep the view over the bunker sideways; centered when it all fits. */
   private clampX(x: number): number {
     const half = (this.zoom * this.aspect()) / 2;
+    // Sideways phones: the tab bar column on the right covers a strip of the scene.
+    const right = this.sidewaysPhone() ? (this.zoom * SIDE_DOCK_PX) / Math.max(1, this.host.clientHeight) : 0;
     const lo = HULL_L - 0.6 + half;
-    const hi = HULL_R + 0.6 - half;
-    return lo >= hi ? (HULL_L + HULL_R) / 2 : Math.max(lo, Math.min(hi, x));
+    const hi = HULL_R + 0.6 - half + right;
+    return lo >= hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, x));
+  }
+
+  private sidewaysPhone(): boolean {
+    return this.aspect() >= 1 && this.host.clientHeight <= 500 && matchMedia('(pointer: coarse)').matches;
   }
 
   /** On phones the HUD sits over the scene: how much of the top and bottom it covers (world units). */
   private hudInset(): { top: number; bottom: number } {
-    if (this.aspect() >= 0.8) return { top: 0, bottom: 0 };
+    const upright = this.aspect() < 0.8;
+    // Phones on their side: the tab bar moves to the right edge, so only the top bar covers the scene.
+    const sideways = !upright && this.host.clientHeight <= 500 && matchMedia('(pointer: coarse)').matches;
+    if (!upright && !sideways) return { top: 0, bottom: 0 };
     const now = performance.now();
     if (now - this.insetAt > 500) {
       this.insetAt = now;
       const h = Math.max(1, this.host.clientHeight);
       const top = document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0;
-      const dock = document.querySelector('.dock-row')?.getBoundingClientRect().top ?? h;
-      this.insetPx = { top: Math.max(0, top + 4), bottom: Math.max(0, h - dock + 4) };
+      const dock = upright ? document.querySelector('.dock-row')?.getBoundingClientRect().top ?? h : h;
+      this.insetPx = { top: Math.max(0, top + 4), bottom: Math.max(0, h - dock + (upright ? 4 : 0)) };
     }
     const k = this.zoom / Math.max(1, this.host.clientHeight);
     return { top: this.insetPx.top * k, bottom: this.insetPx.bottom * k };
@@ -777,6 +790,17 @@ export class BunkerView {
     const step = this.zoom * 1.1 * dt;
     if (this.keys.has('w') || this.keys.has('arrowup')) this.tcy += step;
     if (this.keys.has('s') || this.keys.has('arrowdown')) this.tcy -= step;
+    // Carrying a degen with a finger: hold them near an edge to scroll that way.
+    if (this.dragDweller?.active && this.touch) {
+      const w = this.host.clientWidth, h = this.host.clientHeight;
+      const inset = this.insetPx;
+      const edge = 56;
+      const { x, y } = this.pointer;
+      if (y < inset.top + edge) this.tcy += step * 0.9;
+      else if (y > h - inset.bottom - edge) this.tcy -= step * 0.9;
+      if (x < edge) this.cx -= step * 0.9;
+      else if (x > w - edge) this.cx += step * 0.9;
+    }
     // Newly dug floor: glide down to it.
     if (this.game.floorsDug !== this.lastFloors) {
       if (this.started && this.game.floorsDug > this.lastFloors) this.scrollToFloor(this.game.floorsDug - 1);
@@ -792,7 +816,11 @@ export class BunkerView {
       }
       // Open on the street with floor 0 fully in view (above the HUD); scroll up for the skyline.
       const r = this.scrollRange();
-      this.tcy = this.cy = Math.max(r.min, Math.min(r.max, floorTop(0) - CH - 0.5 + this.zoom / 2 - this.hudInset().bottom));
+      // Phones are short on room: open with only the street's edge above floor 0 (scroll up for the skyline).
+      const inset = this.hudInset();
+      const phone = this.aspect() < 0.8 || this.sidewaysPhone();
+      const want = phone ? floorTop(0) - this.zoom * (this.sidewaysPhone() ? 0.12 : 0.24) + inset.top : floorTop(0) - CH - 0.5 + this.zoom / 2;
+      this.tcy = this.cy = Math.max(r.min, Math.min(r.max, want));
     }
     this.cx = this.clampX(this.cx);
     const { min, max } = this.scrollRange();
@@ -886,23 +914,26 @@ export class BunkerView {
   private bindInput(): void {
     const el = this.labels.domElement;
 
-    // ---- Touch: swipe to scroll, tap to open, press-and-hold a degen to carry them.
-    const HOLD_MS = 280;
+    // ---- Touch: a finger on a degen drags them; anywhere else it scrolls. Taps open things.
     const SLOP = 9;
-    const pickUp = () => {
-      const t = this.touch;
-      if (!t || t.moved || t.dweller == null) return;
-      this.dragDweller = { id: t.dweller, startX: t.startX, startY: t.startY, active: true };
+    const pickUp = (t: NonNullable<typeof this.touch>) => {
+      this.dragDweller = { id: t.dweller!, startX: t.startX, startY: t.startY, active: true };
       audio.play('pickup');
       navigator.vibrate?.(12);
-      this.cb.onDweller(t.dweller);
+    };
+    /** Degens are small under a fingertip: look a little around the touch too. */
+    const dwellerNear = (x: number, y: number): number | null => {
+      for (const [dx, dy] of [[0, 0], [0, -14], [0, 14], [-12, 0], [12, 0], [0, -26]]) {
+        const d = this.hitTest(x + dx, y + dy).dweller;
+        if (d != null) return d;
+      }
+      return null;
     };
     const perPx = () => this.zoom / Math.max(1, this.renderer.domElement.getBoundingClientRect().height);
     const touchDown = (e: PointerEvent) => {
       this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       // Second finger: pinch to zoom. Whatever the first finger was doing stops.
       if (this.fingers.size === 2 && !this.dragDweller?.active) {
-        if (this.touch) clearTimeout(this.touch.hold);
         this.touch = null;
         const [a, b] = [...this.fingers.entries()];
         this.pinch = { a: a[0], b: b[0], dist: Math.hypot(a[1].x - b[1].x, a[1].y - b[1].y), mul: this.zoomMul };
@@ -917,8 +948,7 @@ export class BunkerView {
       }
       this.touch = {
         id: e.pointerId, startX: e.clientX, startY: e.clientY, startCx: this.cx, startCy: this.tcy, moved: false,
-        dweller: hit.dweller, hold: hit.dweller != null ? window.setTimeout(pickUp, HOLD_MS) : 0,
-        lastY: e.clientY, lastT: performance.now(), vy: 0,
+        dweller: dwellerNear(e.clientX, e.clientY), lastY: e.clientY, lastT: performance.now(), vy: 0,
       };
     };
     const touchMove = (e: PointerEvent) => {
@@ -941,7 +971,11 @@ export class BunkerView {
       }
       if (!t.moved && Math.hypot(e.clientX - t.startX, e.clientY - t.startY) > SLOP) {
         t.moved = true;
-        clearTimeout(t.hold);
+        if (t.dweller != null) {
+          pickUp(t);
+          this.hoverRoom = this.hitTest(e.clientX, e.clientY).room;
+          return;
+        }
       }
       if (!t.moved) return;
       const k = perPx();
@@ -961,7 +995,6 @@ export class BunkerView {
       }
       const t = this.touch;
       if (!t || t.id !== e.pointerId) return;
-      clearTimeout(t.hold);
       this.touch = null;
       const dd = this.dragDweller;
       this.dragDweller = null;
@@ -975,9 +1008,9 @@ export class BunkerView {
         this.tcy += t.vy * 260; // a little fling
         return;
       }
-      const hit = this.hitTest(e.clientX, e.clientY);
-      if (hit.dweller != null) this.cb.onDweller(hit.dweller);
-      else if (hit.room != null) this.cb.onRoom(hit.room);
+      if (t.dweller != null) return this.cb.onDweller(t.dweller);
+      const room = this.hitTest(e.clientX, e.clientY).room;
+      if (room != null) this.cb.onRoom(room);
     };
 
     el.addEventListener('pointerdown', (e) => {
@@ -1036,7 +1069,6 @@ export class BunkerView {
     };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', (e) => {
-      if (this.touch) clearTimeout(this.touch.hold);
       this.fingers.delete(e.pointerId);
       this.pinch = null;
       this.touch = null;

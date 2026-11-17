@@ -18,11 +18,11 @@ Things that have to happen before launch. Not optional.
 - [ ] The Wasteland season mode — LATER update; only a teaser on the title screen for now
 - [ ] Outside audit before mainnet
 
-## 2. Real mobile version — DONE (portrait)
-Played upright, since links from X open that way; phones on their side get "turn your phone upright".
+## 2. Real mobile version — DONE (upright and sideways)
+Upright by default, since links from X open that way; sideways gets its own layout (thin top bar, tab bar on the right).
 - [x] Compact HUD: clock + speed, five resources in one row, vibe meter; tab bar at the bottom with sheets
 - [x] Rooms readable: opens zoomed in 2x, swipe pans both ways, pinch zooms 1x-3x (desktop keeps the fixed camera)
-- [x] Tap a room to open it; press and hold a degen to carry them; a quick swipe never moves a degen
+- [x] Tap a room to open it; drag a degen straight into a room, or tap the degen then the room; edge-scroll while carrying
 - [x] Modals, room view, build menu, cards, audit, revive, end screen, title screen fit a phone
 - [x] Tutorial and hints say tap / hold on touch screens
 - [x] "Play it on PC" gate removed

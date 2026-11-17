@@ -39,7 +39,7 @@ export const STEPS: Step[] = [
   {
     title: 'Put someone in it',
     text: 'Rooms only work with degens inside. Drag a degen from the street into the Reactor. (Or click the Reactor and hit + Assign.)',
-    touch: 'Rooms only work with degens inside. Tap the Reactor and hit + Assign. (Or press and hold a degen on the street and drag them in.)',
+    touch: 'Rooms only work with degens inside. Drag a degen from the street into the Reactor. (Or tap the degen, then tap the Reactor.)',
     point: '.dweller-tag',
     done: (g) => staffed(g, 'reactor'),
     hold: true,
@@ -145,7 +145,7 @@ export function Tutorial({ game, step, setStep }: { game: Game; step: number; se
       const w = b.offsetWidth;
       const h = b.offsetHeight;
       const targets = els.map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.bottom > 0 && r.top < innerHeight);
-      const atBottom = innerHeight - (phone ? 160 : 78) - h;
+      const atBottom = innerHeight - (phone ? 128 : 78) - h;
       const hits = (x: number, y: number | null) => {
         const yy = y ?? atBottom;
         return targets.some((r) => r.left < x + w && r.right > x && r.top < yy + h && r.bottom > yy);

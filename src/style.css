@@ -875,6 +875,7 @@ body.clip-bare #ui > .ui > *:not(.crt):not(.cinematic) { display: none !importan
   /* World labels shrink with the rooms */
   .room-label { font-size: 10px; padding: 1px 6px 2px; }
   .dweller-tag { font-size: 9px; padding: 0 5px 1px; }
+  .dweller-tag:not(.sel):not(.hurt) { display: none; }
   .sign { font-size: 15px; }
   .cell-btn { width: 52px; height: 48px; border-radius: 12px; border-width: 2px; }
   .cell-btn b { font-size: 22px; }
@@ -914,16 +915,13 @@ body.clip-bare #ui > .ui > *:not(.crt):not(.cinematic) { display: none !importan
   .raid { top: 150px; width: calc(100vw - 16px); }
   .drop-text { font-size: 44px; -webkit-text-stroke: 2px var(--ink); }
 
-  /* Countdown chyron */
-  .chyron { height: 38px; border-top-width: 3px; }
-  .chyron-tag { font-size: 14px; padding: 0 12px 0 10px; }
-  .chyron-clock b { font-size: 14px; }
-  .chyron-clock { font-size: 8px; }
-  .chyron-scroll span { font-size: 14px; }
+  /* No room for the news chyron; one toast at a time */
+  .chyron { display: none; }
+  .toast:not(:last-child) { display: none; }
 
   /* Bottom tab bar, with its panels as sheets */
   .dock { left: 6px; right: 6px; bottom: max(6px, env(safe-area-inset-bottom)); align-items: stretch; gap: 6px; }
-  .prep-on .dock { bottom: 46px; }
+  .prep-on .dock { bottom: max(6px, env(safe-area-inset-bottom)); }
   .dock-row { gap: 5px; }
   .dock-btn { flex: 1; width: auto; min-width: 0; padding: 3px 2px 5px; border-radius: 12px; border-width: 2px; font-size: 11px; box-shadow: 0 3px 0 var(--ink); }
   .dock-btn .ico { width: 26px; height: 26px; }
@@ -934,13 +932,12 @@ body.clip-bare #ui > .ui > *:not(.crt):not(.cinematic) { display: none !importan
   .ui:has(.drawer) .hatch, .ui:has(.dcard) .hatch { display: none; }
 
   /* HATCH: smaller, sitting on the tab bar */
-  .hatch { left: 4px; bottom: 74px; }
-  .prep-on .hatch { bottom: 112px; }
-  .hatch-bot { width: 62px; }
-  .hatch-bubble { max-width: calc(100vw - 84px); margin-bottom: 26px; padding: 6px 10px 8px; }
+  .hatch, .prep-on .hatch { left: 4px; bottom: 72px; }
+  .hatch-bot { width: 46px; }
+  .hatch-bubble { max-width: min(250px, calc(100vw - 70px)); margin-bottom: 16px; padding: 5px 10px 7px; }
   .hatch-bubble p { font-size: 12.5px; }
   .hatch-name { font-size: 12px; }
-  .tutorial { left: 8px; right: 8px; width: auto; bottom: 160px; padding: 8px 12px 10px; }
+  .tutorial { left: 8px; right: 8px; width: auto; bottom: 128px; padding: 8px 12px 10px; }
   .tut-title { font-size: 18px; }
   .tutorial p { font-size: 13px; }
 
@@ -988,7 +985,134 @@ body.clip-bare #ui > .ui > *:not(.crt):not(.cinematic) { display: none !importan
 }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } }
 
-/* Phones on their side: the bunker is built for upright. */
+/* ---------- Phones on their side: one thin top bar, the tab bar down the right edge ---------- */
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
-  body::after { content: 'TURN YOUR PHONE UPRIGHT'; position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: #0b0b10f2; color: var(--rad); font: 26px var(--display); letter-spacing: 0.06em; text-align: center; }
+  .room-label { font-size: 11px; padding: 1px 7px 2px; }
+  .dweller-tag { font-size: 10px; padding: 0 5px 1px; }
+  .dweller-tag:not(.sel):not(.hurt) { display: none; }
+  .cell-btn { width: 58px; height: 50px; border-radius: 12px; border-width: 2px; }
+  .cell-btn b { font-size: 22px; }
+  .cell-btn span { font-size: 9px; }
+  .dig-btn { padding: 6px 12px; font-size: 13px; }
+
+  /* Top bar: one row */
+  .topbar { top: 4px; left: max(6px, env(safe-area-inset-left)); right: max(6px, env(safe-area-inset-right)); gap: 5px; }
+  .brand { font-size: 18px; -webkit-text-stroke: 1.5px var(--ink); text-shadow: 0 3px 0 var(--ink); padding: 0; }
+  .brand-confirm { top: 30px; }
+  .res-row { flex-wrap: nowrap; gap: 4px; }
+  .ticker { min-width: 0; gap: 3px; padding: 2px 6px 2px 2px; border-width: 2px; box-shadow: 0 2px 0 var(--ink); }
+  .ticker .t-icon { width: 22px; height: 22px; border-width: 2px; }
+  .ticker .t-icon .ico { width: 15px; height: 15px; }
+  .ticker .t-val { font-size: 13px; }
+  .ticker .t-rate, .t-val small, .t-candles { display: none; }
+  .vibe { flex: 1 1 0; min-width: 100px; max-width: none; height: 32px; padding: 0 3px 0 8px; border-width: 2px; gap: 5px; }
+  .res-row .ticker:last-child:not(.empty) { display: none; } /* rads: only when they hurt */
+  .speed button:first-child { display: none; } /* sound: on the title screen */
+  .vibe-zone { display: none; }
+  .vibe .cope { font-size: 12px; padding: 2px 7px; }
+  .v-end { display: none; }
+  .clock { margin-left: 0; min-width: 0; height: 32px; gap: 4px; padding: 2px 5px 2px 2px; border-width: 2px; }
+  .clock .t-icon { width: 24px; height: 24px; border-width: 2px; font-size: 12px; }
+  .clock .t-val { font-size: 13px; white-space: nowrap; }
+  .clock .t-rate, .clock-tags, .daybar { display: none; }
+  .skip { height: 24px; font-size: 11px; padding: 0 7px; }
+  .speed { gap: 3px; }
+  .speed button { height: 30px; min-width: 28px; padding: 0 4px; border-radius: 9px; border-width: 2px; font-size: 12px; box-shadow: 0 2px 0 var(--ink); }
+  .speed button .ico { width: 16px; height: 16px; }
+  .speed button:nth-child(4) { display: none; }
+
+  .toasts { top: 44px; width: min(460px, 60vw); }
+  .toast { font-size: 12px; padding: 4px 10px; }
+  .seed-wait { top: 44px; font-size: 12px; }
+  .raid { top: 44px; width: min(380px, 56vw); padding: 6px 10px; }
+  .raid b { font-size: 16px; }
+  .drop-text { font-size: 48px; }
+  .chyron { display: none; }
+  .toast:not(:last-child) { display: none; }
+
+  /* Tab bar: a column down the right edge, its panels open beside it */
+  .dock { top: 44px; right: max(4px, env(safe-area-inset-right)); bottom: 4px; flex-direction: row-reverse; align-items: flex-start; gap: 6px; }
+  .prep-on .dock { bottom: 4px; }
+  .dock-row { flex-direction: column; gap: 5px; width: 60px; }
+  .dock-btn { width: 60px; padding: 2px 2px 4px; border-radius: 11px; border-width: 2px; font-size: 10px; box-shadow: 0 2px 0 var(--ink); }
+  .dock-btn .ico { width: 22px; height: 22px; }
+  .dock-ico { height: 24px; }
+  .badge { font-size: 10px; padding: 0 4px; top: -6px; right: -4px; }
+  .badge.warn { bottom: -7px; }
+  .drawer { width: min(320px, 46vw); max-height: calc(100dvh - 54px); }
+
+  .hatch, .prep-on .hatch { left: max(4px, env(safe-area-inset-left)); bottom: 4px; }
+  .hatch-bot { width: 46px; }
+  .hatch-bubble { max-width: min(340px, 50vw); margin-bottom: 20px; padding: 5px 10px 7px; }
+  .hatch-bubble p { font-size: 12px; }
+  .hatch-name { font-size: 11px; }
+  .tutorial { width: min(360px, 52vw); padding: 7px 12px 9px; }
+  .tut-title { font-size: 16px; margin: 0 0 2px; }
+  .tutorial p { font-size: 12.5px; margin-bottom: 4px; }
+
+  .dcard { width: min(620px, calc(100vw - 150px)); bottom: 4px; max-height: calc(100dvh - 54px); overflow-y: auto; padding: 8px; gap: 8px; }
+  .dc-portrait { width: 64px; height: 84px; }
+  .dc-head b { font-size: 18px; }
+  .dc-exp { width: 190px; }
+
+  /* Short screen: modals scroll, art shrinks */
+  .modal { max-height: calc(100dvh - 12px); overflow-y: auto; padding: 12px 16px; }
+  .modal-title { font-size: 20px; margin-bottom: 6px; }
+  .card { padding-top: 12px; }
+  .card-face { display: none; }
+  .card-title { font-size: 22px; margin: 4px 0; }
+  .card-body { font-size: 14px; margin-bottom: 8px; }
+  .card-opts { gap: 6px; }
+  .card-opts .btn { font-size: 14px; padding: 5px 12px; }
+  .audit-agent { display: none; }
+  .audit-btns small { display: none; }
+  .end-title { font-size: 30px; }
+  .end-score { font-size: 36px; margin: 2px 0 6px; }
+  .build { width: min(720px, calc(100vw - 20px)); }
+  .build-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .build-thumb { height: 44px; }
+  .build-grid small { display: none; }
+  .room-pop { width: min(760px, calc(100vw - 12px)); max-height: calc(100dvh - 10px); overflow-y: auto; padding: 8px; gap: 6px; }
+  .rp-title { font-size: 20px; }
+  .rp-output { font-size: 13px; padding: 3px 10px; }
+  .hotspot { width: 40px; height: 40px; }
+  .bag-reveal, .bag-reveal.legend { width: min(460px, 70vw); padding: 12px 16px; max-height: calc(100dvh - 12px); overflow-y: auto; }
+  .br-item { width: 120px; height: 120px; }
+  .legend-sprite { width: auto; height: 150px; }
+  .br-name { font-size: 22px; }
+  .bag-inspect { max-height: calc(100dvh - 12px); overflow-y: auto; padding: 12px; gap: 12px; }
+  .bi-stage { width: 170px; height: 170px; }
+  .bi-item { width: 140px; height: 140px; }
+  .revive-face { width: 70px; height: 80px; }
+  .revive-key { width: 96px; height: 96px; font-size: 56px; touch-action: manipulation; }
+
+  /* Title: everything in one short screen */
+  .title-logo { top: 8px; left: 30%; right: 30%; }
+  .tl-word { font-size: 50px; -webkit-text-stroke: 2.5px var(--ink); text-shadow: 0 5px 0 var(--ink); }
+  .tl-tag { margin-top: 4px; font-size: 12px; padding: 0; }
+  .htp-btn { margin-top: 5px; font-size: 12px; padding: 3px 12px; }
+  .title-left { top: 8px; left: max(8px, env(safe-area-inset-left)); width: 28%; }
+  .wasteland-tease .doom-clock { display: none; }
+  .title-mutator { top: 8px; right: max(8px, env(safe-area-inset-right)); width: 28%; padding: 5px 9px; border-width: 2px; }
+  .title-mutator b { font-size: 14px; }
+  .title-mutator small { display: none; }
+  .title-bar { grid-template-columns: auto minmax(0, 1fr); bottom: 18px; gap: 6px; padding: 6px; width: min(640px, calc(100vw - 24px)); }
+  .tb-side { grid-column: 1 / -1; display: flex; gap: 6px; }
+  .tb-side .btn { flex: 1; min-width: 0; font-size: 12px; padding: 4px 8px; }
+  .tb-side .tp-sound { flex: 0 0 44px; }
+  .tp-play { font-size: 20px; padding: 6px 10px; }
+  .title-foot { bottom: 3px; font-size: 10px; }
+}
+
+/* Phones: the selected degen as a slim bar, so the rooms stay in sight */
+.dcard-mini { display: flex; align-items: center; gap: 8px; padding: 6px 8px; max-height: none; flex-wrap: nowrap; }
+.dcard-mini .dc-portrait { width: 40px; height: 48px; border-radius: 10px; border-width: 2px; }
+.dcm-text { flex: 1; min-width: 0; display: grid; line-height: 1.15; }
+.dcm-text b { font: 16px var(--display); }
+.dcm-text span { font-size: 11px; color: var(--dim); font-weight: 900; }
+.dcm-text em { font-style: normal; font-size: 12px; color: var(--rad); font-weight: 900; }
+.dcm-more { font-size: 12px; padding: 4px 9px; flex: none; }
+.dcard-mini .x { margin-left: 0; }
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  .dcard-mini { width: min(460px, calc(100vw - 150px)); }
 }
