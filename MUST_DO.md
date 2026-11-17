@@ -18,16 +18,15 @@ Things that have to happen before launch. Not optional.
 - [ ] The Wasteland season mode — LATER update; only a teaser on the title screen for now
 - [ ] Outside audit before mainnet
 
-## 2. Real mobile version
-Today the title screen works on phones, but in-game is broken. Phones currently get a "play it on PC" screen instead.
-- [ ] Top bar resource pills stack down the middle and cover the bunker → compact, icon-only HUD
-- [ ] Fitting all 6 room columns on a narrow screen makes rooms tiny → play in **landscape**, with a "rotate your phone" screen in portrait
-- [ ] Pinch-zoom and swipe-pan on touch screens only (desktop keeps the fixed camera)
-- [ ] Things that rely on mouse hover (gag labels in rooms) need tap equivalents
-- [ ] Tap-to-assign tuned for fingers (bigger hit areas, no tiny targets)
-- [ ] Remove the "play on PC" gate once this ships
-
-Slot: after the token layer, before the tutorial — most crypto players will open the link on their phones.
+## 2. Real mobile version — DONE (portrait)
+Played upright, since links from X open that way; phones on their side get "turn your phone upright".
+- [x] Compact HUD: clock + speed, five resources in one row, vibe meter; tab bar at the bottom with sheets
+- [x] Rooms readable: opens zoomed in 2x, swipe pans both ways, pinch zooms 1x-3x (desktop keeps the fixed camera)
+- [x] Tap a room to open it; press and hold a degen to carry them; a quick swipe never moves a degen
+- [x] Modals, room view, build menu, cards, audit, revive, end screen, title screen fit a phone
+- [x] Tutorial and hints say tap / hold on touch screens
+- [x] "Play it on PC" gate removed
+- [ ] Try it on a real iPhone and Android (tested in emulated 375x812 and 360x740 only)
 
 ## 3. First-run tutorial — DONE
 - [x] HATCH walks a new player through: build a reactor, drag a degen in, kitchen, pool, tickers, vibes, the drop, survive day 1 (prep clock frozen while learning; auto on first run, replay from How to Play, skippable)
@@ -40,4 +39,4 @@ Slot: after the token layer, before the tutorial — most crypto players will op
 - 82 event cards, trading-terminal HUD (candles, order receipts, CRT), surface expeditions
 - Shareable PnL card, save codes (Vault > Backup)
 - 36-second in-game days (was 24s; a minute felt stagnant); boss fights stay full speed
-- Phones get HATCH's "this bunker is PC-only" screen (with an "i like pain" override)
+- Achievements: 20, verified by the results server's replay

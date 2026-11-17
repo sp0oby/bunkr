@@ -587,7 +587,7 @@ const FAQ: [string, string][] = [
   ['Can I lose my forged Bags?', 'Only the ones you bring into a run, and only if you get liquidated: each has a 35% chance to shatter. Stock Bags never shatter, and Daily Doom never risks anything.'],
   ['Can people cheat the leaderboard?', 'Every ticketed run is replayed on our server before it counts. Your browser\'s score is not trusted.'],
   ['Is my progress saved?', 'Ramen Futures and Vault upgrades live in your browser, and in your wallet once you link it in the Vault. Deeds, tickets and Bags are on chain.'],
-  ['Can I play on my phone?', 'Not yet: the bunker is PC-only for now. This guide works on your phone, though.'],
+  ['Can I play on my phone?', 'Yes. Hold it upright. Swipe to look around, pinch to zoom, tap a room to open it, and press and hold a degen to drag them somewhere.'],
   ['What chain is this?', 'Robinhood Chain. $BUNKR launches on Urufu Labs. The game contracts stay on testnet until they pass an outside audit.'],
 ];
 

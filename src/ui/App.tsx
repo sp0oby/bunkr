@@ -18,6 +18,9 @@ import { ACH_BY_ID, type AchId } from '../sim/achievements';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
 
+/** Touch screens: no hover, and dragging a degen starts with a press-and-hold. */
+const TOUCH = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
 export interface UiState {
   selected: number | null;
   buildAt: { floor: number; col: number } | null;
@@ -385,7 +388,7 @@ function Roster({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: S
   return (
     <>
       <div class="drawer-title">DEGENS</div>
-      <div class="drawer-hint">Drag a degen into a room to put them to work.</div>
+      <div class="drawer-hint">{TOUCH ? 'Press and hold a degen, then drag them into a room. Or tap a room to assign.' : 'Drag a degen into a room to put them to work.'}</div>
       {list.map((d) => {
         const room = game.roomById(d.roomId);
         const where = d.status === 'dead' ? `liquidated day ${d.deathDay}` : d.status === 'expedition' ? 'on the surface' : room ? ROOMS[room.type].short : 'IDLE';
@@ -397,6 +400,8 @@ function Roster({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: S
               if (d.status !== 'active') return;
               ui.selected = ui.selected === d.id ? null : d.id;
               focusFloor(room ? room.floor : 0);
+              // Phones: the degen's card and this list share the bottom of the screen.
+              if (ui.selected != null && innerWidth <= 640) ui.drawer = null;
             })}
           >
             <span class={`face r-${ARCHS[d.arch].rarity}`} style={{ backgroundImage: sprite(d) }} />
@@ -577,7 +582,7 @@ function DwellerCard({ game, d, ui, set }: { game: Game; d: Dweller; ui: UiState
             ))}
           </div>
         )}
-        <div class="dc-hint">Drag them into a room · Reactor & Kitchen use GRIND · Pool & Lab use BRAIN · Copium, Grass & Shill use VIBES · Rug Detector uses HANDS</div>
+        <div class="dc-hint">{TOUCH ? 'Hold and drag them into a room' : 'Drag them into a room'} · Reactor & Kitchen use GRIND · Pool & Lab use BRAIN · Copium, Grass & Shill use VIBES · Rug Detector uses HANDS</div>
       </div>
       {game.underground && (
         <div class="dc-exp">
@@ -951,7 +956,7 @@ function ReviveModal({ game }: { game: Game }) {
             <div class="revive-count"><b>{r.presses}</b>/{REVIVE_PRESSES}</div>
             <div class="revive-bar"><span style={{ width: `${pct * 100}%` }} /></div>
             <div class="af-timer"><span style={{ width: `${(r.timer / REVIVE_SECONDS) * 100}%` }} /></div>
-            <div class="revive-tip">Mash F on your keyboard (or click the key). The bunker is paused.</div>
+            <div class="revive-tip">{TOUCH ? 'Tap the F key as fast as you can.' : 'Mash F on your keyboard (or click the key).'} The bunker is paused.</div>
           </>
         ) : (
           <>

@@ -212,6 +212,13 @@ export class BunkerView {
   private cy = 0;
   private tcy = 0;
   private zoom = 14;
+  /** Phones: how far in from "whole bunker fits the width" (1). Pinch changes it; x pans when > 1. */
+  private zoomMul = 1;
+  private cx = (HULL_L + HULL_R) / 2;
+  private pinch: { a: number; b: number; dist: number; mul: number } | null = null;
+  private fingers = new Map<number, { x: number; y: number }>();
+  private insetAt = -Infinity;
+  private insetPx = { top: 0, bottom: 0 };
   private keys = new Set<string>();
   private shake = 0;
   private lastFloors = 0;
@@ -239,6 +246,11 @@ export class BunkerView {
   private hoverRoom: number | null = null;
   private hoverDweller: number | null = null;
   private dragDweller: { id: number; startX: number; startY: number; active: boolean } | null = null;
+  /** A finger on the bunker: swipes scroll, a press-and-hold on a degen picks them up. */
+  private touch: {
+    id: number; startX: number; startY: number; startCx: number; startCy: number; moved: boolean;
+    dweller: number | null; hold: number; lastY: number; lastT: number; vy: number;
+  } | null = null;
   private pointer = new THREE.Vector2();
   private popupTimer = 0;
 
@@ -719,13 +731,37 @@ export class BunkerView {
 
   private fitZoom(): number {
     const worldW = HULL_R - HULL_L + 1.2;
-    return worldW / this.aspect();
+    return worldW / this.aspect() / this.zoomMul;
+  }
+
+  /** Keep the view over the bunker sideways; centered when it all fits. */
+  private clampX(x: number): number {
+    const half = (this.zoom * this.aspect()) / 2;
+    const lo = HULL_L - 0.6 + half;
+    const hi = HULL_R + 0.6 - half;
+    return lo >= hi ? (HULL_L + HULL_R) / 2 : Math.max(lo, Math.min(hi, x));
+  }
+
+  /** On phones the HUD sits over the scene: how much of the top and bottom it covers (world units). */
+  private hudInset(): { top: number; bottom: number } {
+    if (this.aspect() >= 0.8) return { top: 0, bottom: 0 };
+    const now = performance.now();
+    if (now - this.insetAt > 500) {
+      this.insetAt = now;
+      const h = Math.max(1, this.host.clientHeight);
+      const top = document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0;
+      const dock = document.querySelector('.dock-row')?.getBoundingClientRect().top ?? h;
+      this.insetPx = { top: Math.max(0, top + 4), bottom: Math.max(0, h - dock + 4) };
+    }
+    const k = this.zoom / Math.max(1, this.host.clientHeight);
+    return { top: this.insetPx.top * k, bottom: this.insetPx.bottom * k };
   }
 
   private scrollRange(): { min: number; max: number } {
-    const max = SKY_LIMIT - this.zoom / 2;
+    const inset = this.hudInset();
+    const max = SKY_LIMIT - this.zoom / 2 + inset.top;
     const bottom = floorTop(this.game.floorsDug) - 2.2; // leave room for the DIG button
-    const min = Math.min(max, bottom + this.zoom / 2);
+    const min = Math.min(max, bottom + this.zoom / 2 - inset.bottom);
     return { min, max };
   }
 
@@ -746,12 +782,20 @@ export class BunkerView {
       if (this.started && this.game.floorsDug > this.lastFloors) this.scrollToFloor(this.game.floorsDug - 1);
       this.lastFloors = this.game.floorsDug;
     }
-    const { min, max } = this.scrollRange();
-    if (!this.started) {
+    if (!this.started && this.host.clientHeight > 0) {
       this.started = true;
-      // Open on the street with floor 0 fully in view; scroll up for the skyline.
-      this.tcy = this.cy = Math.max(min, Math.min(max, floorTop(0) - CH - 0.5 + this.zoom / 2));
+      // Upright phones open zoomed in on the left of the bunker; pinch out for all of it.
+      if (this.aspect() < 0.8) {
+        this.zoomMul = 2;
+        this.zoom = this.fitZoom();
+        this.cx = this.clampX(HULL_L);
+      }
+      // Open on the street with floor 0 fully in view (above the HUD); scroll up for the skyline.
+      const r = this.scrollRange();
+      this.tcy = this.cy = Math.max(r.min, Math.min(r.max, floorTop(0) - CH - 0.5 + this.zoom / 2 - this.hudInset().bottom));
     }
+    this.cx = this.clampX(this.cx);
+    const { min, max } = this.scrollRange();
     this.tcy = Math.max(min, Math.min(max, this.tcy));
     this.cy += (this.tcy - this.cy) * (1 - Math.pow(0.0008, dt));
   }
@@ -803,7 +847,7 @@ export class BunkerView {
     this.camera.right = h * aspect;
     this.camera.top = h;
     this.camera.bottom = -h;
-    this.camera.position.set((HULL_L + HULL_R) / 2 + sx, this.cy + sy, 20);
+    this.camera.position.set(this.cx + sx, this.cy + sy, 20);
     this.camera.updateProjectionMatrix();
 
     this.renderer.render(this.scene, this.camera);
@@ -836,16 +880,115 @@ export class BunkerView {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
     const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
-    return new THREE.Vector2((HULL_L + HULL_R) / 2 + (nx * this.zoom * this.aspect()) / 2, this.cy + (ny * this.zoom) / 2);
+    return new THREE.Vector2(this.cx + (nx * this.zoom * this.aspect()) / 2, this.cy + (ny * this.zoom) / 2);
   }
 
   private bindInput(): void {
     const el = this.labels.domElement;
 
+    // ---- Touch: swipe to scroll, tap to open, press-and-hold a degen to carry them.
+    const HOLD_MS = 280;
+    const SLOP = 9;
+    const pickUp = () => {
+      const t = this.touch;
+      if (!t || t.moved || t.dweller == null) return;
+      this.dragDweller = { id: t.dweller, startX: t.startX, startY: t.startY, active: true };
+      audio.play('pickup');
+      navigator.vibrate?.(12);
+      this.cb.onDweller(t.dweller);
+    };
+    const perPx = () => this.zoom / Math.max(1, this.renderer.domElement.getBoundingClientRect().height);
+    const touchDown = (e: PointerEvent) => {
+      this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      // Second finger: pinch to zoom. Whatever the first finger was doing stops.
+      if (this.fingers.size === 2 && !this.dragDweller?.active) {
+        if (this.touch) clearTimeout(this.touch.hold);
+        this.touch = null;
+        const [a, b] = [...this.fingers.entries()];
+        this.pinch = { a: a[0], b: b[0], dist: Math.hypot(a[1].x - b[1].x, a[1].y - b[1].y), mul: this.zoomMul };
+        return;
+      }
+      if (this.fingers.size > 1) return;
+      const hit = this.hitTest(e.clientX, e.clientY);
+      if (hit.raider) {
+        this.smashAt(e.clientX, e.clientY);
+        this.smashing = true;
+        return;
+      }
+      this.touch = {
+        id: e.pointerId, startX: e.clientX, startY: e.clientY, startCx: this.cx, startCy: this.tcy, moved: false,
+        dweller: hit.dweller, hold: hit.dweller != null ? window.setTimeout(pickUp, HOLD_MS) : 0,
+        lastY: e.clientY, lastT: performance.now(), vy: 0,
+      };
+    };
+    const touchMove = (e: PointerEvent) => {
+      if (this.fingers.has(e.pointerId)) this.fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const p = this.pinch;
+      if (p) {
+        const a = this.fingers.get(p.a), b = this.fingers.get(p.b);
+        if (!a || !b || p.dist < 1) return;
+        this.zoomMul = Math.max(1, Math.min(3, (p.mul * Math.hypot(a.x - b.x, a.y - b.y)) / p.dist));
+        this.zoom = this.fitZoom();
+        this.cx = this.clampX(this.cx);
+        return;
+      }
+      const t = this.touch;
+      if (!t || t.id !== e.pointerId) return;
+      if (this.dragDweller?.active) {
+        const hit = this.hitTest(e.clientX, e.clientY);
+        this.hoverRoom = hit.room;
+        return;
+      }
+      if (!t.moved && Math.hypot(e.clientX - t.startX, e.clientY - t.startY) > SLOP) {
+        t.moved = true;
+        clearTimeout(t.hold);
+      }
+      if (!t.moved) return;
+      const k = perPx();
+      this.tcy = this.cy = t.startCy + (e.clientY - t.startY) * k;
+      this.cx = this.clampX(t.startCx - (e.clientX - t.startX) * k);
+      const now = performance.now();
+      const dt = Math.max(1, now - t.lastT);
+      t.vy = 0.8 * t.vy + 0.2 * (((e.clientY - t.lastY) * k) / dt);
+      t.lastY = e.clientY;
+      t.lastT = now;
+    };
+    const touchUp = (e: PointerEvent) => {
+      this.fingers.delete(e.pointerId);
+      if (this.pinch) {
+        if (this.fingers.size < 2) this.pinch = null;
+        return;
+      }
+      const t = this.touch;
+      if (!t || t.id !== e.pointerId) return;
+      clearTimeout(t.hold);
+      this.touch = null;
+      const dd = this.dragDweller;
+      this.dragDweller = null;
+      this.hoverRoom = null;
+      if (dd?.active) {
+        const room = this.hitTest(e.clientX, e.clientY).room;
+        if (room != null) this.cb.onDrop(dd.id, room);
+        return;
+      }
+      if (t.moved) {
+        this.tcy += t.vy * 260; // a little fling
+        return;
+      }
+      const hit = this.hitTest(e.clientX, e.clientY);
+      if (hit.dweller != null) this.cb.onDweller(hit.dweller);
+      else if (hit.room != null) this.cb.onRoom(hit.room);
+    };
+
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      el.setPointerCapture(e.pointerId);
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* the pointer is already gone */
+      }
       this.pointer.set(e.clientX, e.clientY);
+      if (e.pointerType !== 'mouse') return touchDown(e);
       const hit = this.hitTest(e.clientX, e.clientY);
       if (hit.raider) {
         this.smashAt(e.clientX, e.clientY);
@@ -857,6 +1000,7 @@ export class BunkerView {
 
     el.addEventListener('pointermove', (e) => {
       this.pointer.set(e.clientX, e.clientY);
+      if (e.pointerType !== 'mouse') return touchMove(e);
       const hit = this.hitTest(e.clientX, e.clientY);
       this.hoverRoom = hit.room;
       this.hoverDweller = hit.dweller;
@@ -875,6 +1019,7 @@ export class BunkerView {
         this.smashing = false;
         return;
       }
+      if (e.pointerType !== 'mouse') return touchUp(e);
       const dd = this.dragDweller;
       this.dragDweller = null;
       if (dd) {
@@ -890,7 +1035,14 @@ export class BunkerView {
       if (room != null) this.cb.onRoom(room);
     };
     el.addEventListener('pointerup', end);
-    el.addEventListener('pointercancel', () => (this.dragDweller = null));
+    el.addEventListener('pointercancel', (e) => {
+      if (this.touch) clearTimeout(this.touch.hold);
+      this.fingers.delete(e.pointerId);
+      this.pinch = null;
+      this.touch = null;
+      this.dragDweller = null;
+      this.smashing = false;
+    });
 
     // The page is the game: the wheel only scrolls the bunker, never the page.
     window.addEventListener('wheel', (e) => {

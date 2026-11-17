@@ -10,6 +10,8 @@ import { audio } from '../audio/audio';
 interface Step {
   title: string;
   text: string;
+  /** The same step said for a touch screen, where it differs. */
+  touch?: string;
   /** Elements to pulse while this step is up. */
   point?: string;
   /** Done when this is true (otherwise the player clicks NEXT). */
@@ -29,6 +31,7 @@ export const STEPS: Step[] = [
   {
     title: 'Build a Hopium Reactor',
     text: 'Everything runs on power. Click a glowing + BUILD bay under the street and pick the Hopium Reactor.',
+    touch: 'Everything runs on power. Tap a glowing + BUILD bay under the street and pick the Hopium Reactor. Swipe to look around.',
     point: '.cell-btn',
     done: (g) => g.rooms.some((r) => r.type === 'reactor'),
     hold: true,
@@ -36,6 +39,7 @@ export const STEPS: Step[] = [
   {
     title: 'Put someone in it',
     text: 'Rooms only work with degens inside. Drag a degen from the street into the Reactor. (Or click the Reactor and hit + Assign.)',
+    touch: 'Rooms only work with degens inside. Tap the Reactor and hit + Assign. (Or press and hold a degen on the street and drag them in.)',
     point: '.dweller-tag',
     done: (g) => staffed(g, 'reactor'),
     hold: true,
@@ -75,6 +79,7 @@ export const STEPS: Step[] = [
   {
     title: 'Day 1 underground',
     text: 'Survive the day. Event cards will pop up: pick an option and live with it. Click any room to look inside. Space pauses.',
+    touch: 'Survive the day. Event cards will pop up: pick an option and live with it. Tap any room to look inside. Pinch to zoom out.',
     done: (g) => g.underground && g.day >= 2,
   },
   {
@@ -86,6 +91,10 @@ export const STEPS: Step[] = [
 const KEY = 'bunkr.tutorial';
 /** Where the bubble sits by default: just right of HATCH, along the bottom. */
 const HOME = { left: 132, top: null as number | null };
+/** Phones: the bubble spans the screen, above the tab bar (or under the top bar). */
+const PHONE_HOME = { left: 8, top: null as number | null };
+const isPhone = () => innerWidth <= 640;
+const TOUCH = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export function tutorialSeen(): boolean {
   try {
@@ -122,27 +131,29 @@ export function Tutorial({ game, step, setStep }: { game: Game; step: number; se
   // HATCH; if that covers the target it slides right along the bottom, past the target, and
   // only goes up under the top bar if there's no room down there.
   const box = useRef<HTMLDivElement>(null);
-  const [spot, setSpot] = useState<{ left: number; top: number | null }>(HOME);
+  const home = isPhone() ? PHONE_HOME : HOME;
+  const [spot, setSpot] = useState<{ left: number; top: number | null }>(home);
   useEffect(() => {
-    setSpot(HOME);
+    setSpot(home);
     if (!s?.point) return;
     const mark = () => {
       const els = [...document.querySelectorAll<HTMLElement>(s.point!)];
       els.forEach((el) => el.classList.add('tut-target'));
       const b = box.current;
       if (!b) return;
+      const phone = isPhone();
       const w = b.offsetWidth;
       const h = b.offsetHeight;
       const targets = els.map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.bottom > 0 && r.top < innerHeight);
-      const atBottom = innerHeight - 78 - h;
+      const atBottom = innerHeight - (phone ? 160 : 78) - h;
       const hits = (x: number, y: number | null) => {
         const yy = y ?? atBottom;
         return targets.some((r) => r.left < x + w && r.right > x && r.top < yy + h && r.bottom > yy);
       };
-      const slid = Math.max(HOME.left, ...targets.map((r) => r.right + 16));
+      const slid = Math.max(home.left, ...targets.map((r) => r.right + 16));
       const atTop = (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 60) + 12;
-      const options = [HOME, ...(slid + w <= innerWidth - 12 ? [{ left: slid, top: null }] : []), { left: HOME.left, top: atTop }];
-      const best = options.find((o) => !hits(o.left, o.top)) ?? HOME;
+      const options = [home, ...(!phone && slid + w <= innerWidth - 12 ? [{ left: slid, top: null }] : []), { left: home.left, top: atTop }];
+      const best = options.find((o) => !hits(o.left, o.top)) ?? home;
       setSpot((cur) => (cur.left === best.left && cur.top === best.top ? cur : best));
     };
     mark();
@@ -161,12 +172,12 @@ export function Tutorial({ game, step, setStep }: { game: Game; step: number; se
   return (
     <div
       ref={box}
-      class={`tutorial ${spot.top != null ? 'at-top' : spot.left !== HOME.left ? 'slid' : ''}`}
+      class={`tutorial ${spot.top != null ? 'at-top' : spot.left !== home.left ? 'slid' : ''}`}
       style={{ left: `${spot.left}px`, ...(spot.top != null ? { top: `${spot.top}px`, bottom: 'auto' } : {}) }}
     >
       <div class="tut-kicker">HATCH · TUTORIAL {step + 1}/{STEPS.length}</div>
       <b class="tut-title">{s.title}</b>
-      <p><Rich text={s.text} size={18} /></p>
+      <p><Rich text={(TOUCH && s.touch) || s.text} size={18} /></p>
       <div class="tut-row">
         {!last && <button class="tut-skip" onClick={() => finish('skipped')}>skip tutorial</button>}
         {!s.done && (
