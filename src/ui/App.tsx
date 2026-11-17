@@ -18,10 +18,8 @@ import { ACH_BY_ID, type AchId } from '../sim/achievements';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
 
-/** Touch screens: no hover, and dragging a degen starts with a press-and-hold. */
+/** Touch screens (tablets): no hover, and fingers instead of a mouse. */
 const TOUCH = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-/** A phone either way up: too small for the full-size panels. */
-const smallScreen = () => innerWidth <= 640 || (TOUCH && innerHeight <= 500);
 
 export interface UiState {
   selected: number | null;
@@ -93,7 +91,7 @@ export function App({ game, ui, view }: { game: Game; ui: UiState; view: BunkerV
       <Hatch game={game} quiet={ui.tutorial != null} />
       {ui.tutorial != null && <Tutorial game={game} step={ui.tutorial} setStep={(s) => set(() => (ui.tutorial = s))} />}
       <Dock game={game} ui={ui} set={set} focusFloor={focusFloor} />
-      {sel && !popped && <DwellerCard key={sel.id} game={game} d={sel} ui={ui} set={set} />}
+      {sel && !popped && <DwellerCard game={game} d={sel} ui={ui} set={set} />}
       {popped && <RoomPopup key={popped.id} game={game} room={popped} ui={ui} set={set} view={view} />}
       {ui.buildAt && <BuildMenu game={game} ui={ui} set={set} />}
       {game.newLegend != null && !game.card && <LegendReveal game={game} set={set} />}
@@ -390,7 +388,7 @@ function Roster({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: S
   return (
     <>
       <div class="drawer-title">DEGENS</div>
-      <div class="drawer-hint">{TOUCH ? 'Tap a degen, then tap a room. Or drag them in from the bunker.' : 'Drag a degen into a room to put them to work.'}</div>
+      <div class="drawer-hint">{TOUCH ? 'Drag a degen into a room, or tap the degen and then the room.' : 'Drag a degen into a room to put them to work.'}</div>
       {list.map((d) => {
         const room = game.roomById(d.roomId);
         const where = d.status === 'dead' ? `liquidated day ${d.deathDay}` : d.status === 'expedition' ? 'on the surface' : room ? ROOMS[room.type].short : 'IDLE';
@@ -402,8 +400,6 @@ function Roster({ game, ui, set, focusFloor }: { game: Game; ui: UiState; set: S
               if (d.status !== 'active') return;
               ui.selected = ui.selected === d.id ? null : d.id;
               focusFloor(room ? room.floor : 0);
-              // Phones: the degen's card and this list share the bottom of the screen.
-              if (ui.selected != null && smallScreen()) ui.drawer = null;
             })}
           >
             <span class={`face r-${ARCHS[d.arch].rarity}`} style={{ backgroundImage: sprite(d) }} />
@@ -558,22 +554,6 @@ function Log({ game }: { game: Game }) {
 function DwellerCard({ game, d, ui, set }: { game: Game; d: Dweller; ui: UiState; set: Set }) {
   const a = ARCHS[d.arch];
   const room = game.roomById(d.roomId);
-  // Phones: a slim bar so the rooms stay in sight; MORE opens the full card.
-  const [more, setMore] = useState(false);
-  if (smallScreen() && !more) {
-    return (
-      <div class="dcard dcard-mini panel">
-        <span class="dc-portrait" style={{ backgroundImage: sprite(d) }} />
-        <div class="dcm-text">
-          <b>{d.name}</b>
-          <span>{room ? ROOMS[room.type].short : 'IDLE'} · HP {Math.round(d.hp)}</span>
-          <em>Tap a room to send them there</em>
-        </div>
-        <button class="btn btn-dark dcm-more" onClick={() => setMore(true)}>MORE</button>
-        <button class="x" onClick={() => set(() => (ui.selected = null))}>✕</button>
-      </div>
-    );
-  }
   return (
     <div class="dcard panel">
       <span class="dc-portrait" style={{ backgroundImage: sprite(d) }} />

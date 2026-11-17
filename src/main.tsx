@@ -5,6 +5,7 @@ import type { Defcon, RunConfig } from './sim/types';
 import { BunkerView } from './render/view';
 import { App, type UiState } from './ui/App';
 import { Title } from './ui/Title';
+import { PhoneGate, isPhone, phoneOverride } from './ui/PhoneGate';
 import { audio } from './audio/audio';
 import { dailySeed, loadMeta, recordRun, runConfig } from './meta';
 import { recordAch } from './achievements';
@@ -56,7 +57,9 @@ function boot(): void {
     audio.setMusic('bunker');
   } else void startRun();
 }
-boot();
+// Phones get HATCH's "bigger screen" card; computers and tablets play.
+if (isPhone() && !phoneOverride() && !clip) render(<PhoneGate onAnyway={boot} />, document.getElementById('ui')!);
+else boot();
 
 /** Ticketed runs get their seed and official config from the results server. */
 async function officialPass(pass: RunPass, defcon: Defcon): Promise<RunPass | null> {

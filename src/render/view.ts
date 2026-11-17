@@ -28,8 +28,6 @@ const INK = 0x0b0b10;
 
 const HULL_L = -SHAFT_W - HULL_PAD;
 const HULL_R = COLS * CW + HULL_PAD;
-/** Width of the tab bar column on phones held sideways (matches the CSS). */
-const SIDE_DOCK_PX = 66;
 const floorTop = (f: number) => TOP - f * CH;
 const roomX = (col: number) => col * CW;
 const floorY = (f: number) => floorTop(f) - CH + INSET + 0.1; // where feet go
@@ -214,13 +212,11 @@ export class BunkerView {
   private cy = 0;
   private tcy = 0;
   private zoom = 14;
-  /** Phones: how far in from "whole bunker fits the width" (1). Pinch changes it; x pans when > 1. */
+  /** Touch screens: how far in from "whole bunker fits the width" (1). Pinch changes it; x pans when > 1. */
   private zoomMul = 1;
   private cx = (HULL_L + HULL_R) / 2;
   private pinch: { a: number; b: number; dist: number; mul: number } | null = null;
   private fingers = new Map<number, { x: number; y: number }>();
-  private insetAt = -Infinity;
-  private insetPx = { top: 0, bottom: 0 };
   private keys = new Set<string>();
   private shake = 0;
   private lastFloors = 0;
@@ -733,48 +729,21 @@ export class BunkerView {
 
   private fitZoom(): number {
     const worldW = HULL_R - HULL_L + 1.2;
-    // Sideways phones fit the bunker into the space left of the tab bar column.
-    const w = this.host.clientWidth - (this.sidewaysPhone() ? SIDE_DOCK_PX : 0);
-    return worldW / (Math.max(1, w) / Math.max(1, this.host.clientHeight)) / this.zoomMul;
+    return worldW / this.aspect() / this.zoomMul;
   }
 
   /** Keep the view over the bunker sideways; centered when it all fits. */
   private clampX(x: number): number {
     const half = (this.zoom * this.aspect()) / 2;
-    // Sideways phones: the tab bar column on the right covers a strip of the scene.
-    const right = this.sidewaysPhone() ? (this.zoom * SIDE_DOCK_PX) / Math.max(1, this.host.clientHeight) : 0;
     const lo = HULL_L - 0.6 + half;
-    const hi = HULL_R + 0.6 - half + right;
+    const hi = HULL_R + 0.6 - half;
     return lo >= hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, x));
   }
 
-  private sidewaysPhone(): boolean {
-    return this.aspect() >= 1 && this.host.clientHeight <= 500 && matchMedia('(pointer: coarse)').matches;
-  }
-
-  /** On phones the HUD sits over the scene: how much of the top and bottom it covers (world units). */
-  private hudInset(): { top: number; bottom: number } {
-    const upright = this.aspect() < 0.8;
-    // Phones on their side: the tab bar moves to the right edge, so only the top bar covers the scene.
-    const sideways = !upright && this.host.clientHeight <= 500 && matchMedia('(pointer: coarse)').matches;
-    if (!upright && !sideways) return { top: 0, bottom: 0 };
-    const now = performance.now();
-    if (now - this.insetAt > 500) {
-      this.insetAt = now;
-      const h = Math.max(1, this.host.clientHeight);
-      const top = document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0;
-      const dock = upright ? document.querySelector('.dock-row')?.getBoundingClientRect().top ?? h : h;
-      this.insetPx = { top: Math.max(0, top + 4), bottom: Math.max(0, h - dock + (upright ? 4 : 0)) };
-    }
-    const k = this.zoom / Math.max(1, this.host.clientHeight);
-    return { top: this.insetPx.top * k, bottom: this.insetPx.bottom * k };
-  }
-
   private scrollRange(): { min: number; max: number } {
-    const inset = this.hudInset();
-    const max = SKY_LIMIT - this.zoom / 2 + inset.top;
+    const max = SKY_LIMIT - this.zoom / 2;
     const bottom = floorTop(this.game.floorsDug) - 2.2; // leave room for the DIG button
-    const min = Math.min(max, bottom + this.zoom / 2 - inset.bottom);
+    const min = Math.min(max, bottom + this.zoom / 2);
     return { min, max };
   }
 
@@ -793,11 +762,10 @@ export class BunkerView {
     // Carrying a degen with a finger: hold them near an edge to scroll that way.
     if (this.dragDweller?.active && this.touch) {
       const w = this.host.clientWidth, h = this.host.clientHeight;
-      const inset = this.insetPx;
       const edge = 56;
       const { x, y } = this.pointer;
-      if (y < inset.top + edge) this.tcy += step * 0.9;
-      else if (y > h - inset.bottom - edge) this.tcy -= step * 0.9;
+      if (y < edge) this.tcy += step * 0.9;
+      else if (y > h - edge) this.tcy -= step * 0.9;
       if (x < edge) this.cx -= step * 0.9;
       else if (x > w - edge) this.cx += step * 0.9;
     }
@@ -808,19 +776,9 @@ export class BunkerView {
     }
     if (!this.started && this.host.clientHeight > 0) {
       this.started = true;
-      // Upright phones open zoomed in on the left of the bunker; pinch out for all of it.
-      if (this.aspect() < 0.8) {
-        this.zoomMul = 2;
-        this.zoom = this.fitZoom();
-        this.cx = this.clampX(HULL_L);
-      }
-      // Open on the street with floor 0 fully in view (above the HUD); scroll up for the skyline.
+      // Open on the street with floor 0 fully in view; scroll up for the skyline.
       const r = this.scrollRange();
-      // Phones are short on room: open with only the street's edge above floor 0 (scroll up for the skyline).
-      const inset = this.hudInset();
-      const phone = this.aspect() < 0.8 || this.sidewaysPhone();
-      const want = phone ? floorTop(0) - this.zoom * (this.sidewaysPhone() ? 0.12 : 0.24) + inset.top : floorTop(0) - CH - 0.5 + this.zoom / 2;
-      this.tcy = this.cy = Math.max(r.min, Math.min(r.max, want));
+      this.tcy = this.cy = Math.max(r.min, Math.min(r.max, floorTop(0) - CH - 0.5 + this.zoom / 2));
     }
     this.cx = this.clampX(this.cx);
     const { min, max } = this.scrollRange();
