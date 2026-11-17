@@ -7,6 +7,7 @@ import { audio } from '../audio/audio';
 import { Icon } from './icons';
 import { TokenLinks } from './TokenLinks';
 import { StonkButton, StonkModal } from './Stonk';
+import { AchButton, AchModal } from './Achievements';
 import { DeedChip, DeedModal, enterAndGo, fmtBunkr, hasDeed } from './Deed';
 import { DailyModal } from './Daily';
 import { tokenGate } from '../chain/config';
@@ -99,6 +100,7 @@ export function Title({ meta }: { meta: Meta }) {
   const [stonkOpen, setStonkOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [wastelandOpen, setWastelandOpen] = useState(false);
+  const [achOpen, setAchOpen] = useState(false);
   const w = useWallet();
   useProgressSync(); // re-render when a pull brings in progress from another device
   useEffect(() => {
@@ -192,6 +194,7 @@ export function Title({ meta }: { meta: Meta }) {
           <DoomClock size={42} />
         </button>
         <StonkButton onOpen={() => setStonkOpen(true)} />
+        <AchButton onOpen={() => setAchOpen(true)} />
       </div>
       <div class="title-mutator">
         <span>THIS WEEK</span>
@@ -213,6 +216,7 @@ export function Title({ meta }: { meta: Meta }) {
 
       {deedOpen && <DeedModal onClose={() => setDeedOpen(false)} />}
       {stonkOpen && <StonkModal onClose={() => setStonkOpen(false)} />}
+      {achOpen && <AchModal onClose={() => setAchOpen(false)} />}
       {wastelandOpen && (
         <div class="modal-bg" onClick={() => setWastelandOpen(false)}>
           <div class="modal wasteland" onClick={(e) => e.stopPropagation()}>

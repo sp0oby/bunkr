@@ -11,7 +11,8 @@ import { bagTiers, lockedBags, runFromTx, settleRun, signVoucher } from './chain
 import { Game } from '../src/sim/game';
 import { MIN_DAY_GAP_MS, SERVER_SECRET, deployment } from './env';
 import { getWeather, marketEventNow } from './weather';
-import { db, dailyBoard, type RunRecord } from './store';
+import { achievementsOf, db, dailyBoard, type RunRecord } from './store';
+import { earnedBy, type AchId } from '../src/sim/achievements';
 
 export class HttpError extends Error {
   constructor(readonly status: number, message: string) {
@@ -161,6 +162,10 @@ export interface FinishResult {
   dailyRank: number | null;
   /** Signed proof for each Bag found this run, so it can be forged (forgeFound). */
   vouchers: Partial<Record<BagId, Hex>>;
+  /** Achievements this run earned (verified by replay). */
+  achievements: AchId[];
+  /** The ones this wallet had never earned before this run. */
+  newAchievements: AchId[];
 }
 
 /** Replay the run, record the real result, and roll shatters if it ended in liquidation. */
@@ -187,7 +192,7 @@ export async function finishRun(body: FinishBody): Promise<FinishResult> {
   const e = g.ending;
   rec.status = 'finished';
   rec.finishedAt = Date.now();
-  rec.result = { score: e.score, title: e.title, survived: e.survived, day: g.day, tent: !!e.tent, ticks, inputs: inputs.length };
+  rec.result = { score: e.score, title: e.title, survived: e.survived, day: g.day, tent: !!e.tent, ticks, inputs: inputs.length, achievements: earnedBy(g) };
   // Bags found this run (held at the end, not carried in or handed out at the start) can be forged.
   const start = new Set(new Game(rec.seed, rec.config).bags);
   rec.vouchers = {};
@@ -225,9 +230,14 @@ export async function settleBags(rec: RunRecord): Promise<void> {
 function summary(rec: RunRecord): FinishResult {
   const board = rec.daily ? dailyBoard(rec.day) : [];
   const rank = rec.daily ? board.findIndex((r) => r.player.toLowerCase() === rec.player.toLowerCase()) : -1;
+  const achievements = rec.result!.achievements ?? [];
+  // New = no run of theirs that finished before this one had it (stable if asked twice).
+  const prior = achievementsOf(rec.player, rec.runId);
+  const newAchievements = achievements.filter((id) => prior[id] == null || prior[id]! > (rec.finishedAt ?? 0));
   return {
     runId: rec.runId, score: rec.result!.score, title: rec.result!.title, survived: rec.result!.survived, verified: true,
     shattered: rec.shattered ?? [], dailyRank: rank >= 0 ? rank + 1 : null, vouchers: rec.vouchers ?? {},
+    achievements, newAchievements,
   };
 }
 

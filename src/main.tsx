@@ -8,6 +8,8 @@ import { Title } from './ui/Title';
 import { PhoneGate, isPhone, phoneOverride } from './ui/PhoneGate';
 import { audio } from './audio/audio';
 import { dailySeed, loadMeta, recordRun, runConfig } from './meta';
+import { recordAch } from './achievements';
+import { earnedBy } from './sim/achievements';
 import { tokenGate } from './chain/config';
 import { clearPass, equippedDrip, readPass, refresh, restore, savePass, type RunPass } from './chain/wallet';
 import { fetchWeather, serverDay, serverFinish, serverStart } from './chain/server';
@@ -226,6 +228,10 @@ async function startRun(): Promise<void> {
       ui.rewards = clip
         ? { rf: Math.max(1, Math.floor(game.ending.score / 1000) + (game.ending.survived ? 5 : 0)), newBest: false, unlockedDefcon: null }
         : recordRun(meta, game.ending);
+      if (!clip) {
+        const earned = earnedBy(game);
+        ui.ach = { earned, fresh: recordAch(earned) };
+      }
       if (pass) {
         const p = pass;
         // The server replays the inputs to get the real result. Retry-able from the end screen.

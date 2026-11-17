@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path';
 import type { Address, Hex } from 'viem';
 import type { BagId, MarketEvent, RunConfig } from '../src/sim/types';
+import type { AchId } from '../src/sim/achievements';
 import { DATA_FILE } from './env';
 
 export interface RunResult {
@@ -14,6 +15,8 @@ export interface RunResult {
   tent: boolean;
   ticks: number;
   inputs: number;
+  /** Achievements the replayed run earned. */
+  achievements?: AchId[];
 }
 
 export interface RunRecord {
@@ -107,6 +110,20 @@ export function weeklyBoard(wk: number): RunRecord[] {
     }
   }
   return [...best.values()].sort((a, b) => b.result!.score - a.result!.score || a.finishedAt! - b.finishedAt!);
+}
+
+/** Every achievement a player has earned on verified runs, with when they first earned it. */
+export function achievementsOf(player: string, exceptRunId?: number): Partial<Record<AchId, number>> {
+  const who = player.toLowerCase();
+  const out: Partial<Record<AchId, number>> = {};
+  for (const r of Object.values(data.runs)) {
+    if (r.runId === exceptRunId || r.status !== 'finished' || r.player.toLowerCase() !== who) continue;
+    for (const id of r.result?.achievements ?? []) {
+      const at = r.finishedAt ?? 0;
+      if (out[id] == null || at < out[id]!) out[id] = at;
+    }
+  }
+  return out;
 }
 
 /** Best finished Daily Doom result per player for a day, highest score first. */

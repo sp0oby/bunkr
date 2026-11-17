@@ -1,6 +1,7 @@
 // Talking to the results server, which hands out run seeds and verifies results by replay.
 import type { Input } from '../sim/game';
 import type { BagId, MarketEvent, RunConfig, Weather } from '../sim/types';
+import type { AchId } from '../sim/achievements';
 
 export const SERVER_URL: string = import.meta.env.VITE_BUNKR_SERVER ?? (import.meta.env.DEV ? 'http://localhost:8787' : '');
 
@@ -55,6 +56,20 @@ export interface FinishReply {
   dailyRank: number | null;
   /** Proof per Bag found this run; forging a found Bag needs it. */
   vouchers?: Partial<Record<BagId, `0x${string}`>>;
+  /** Achievements the replayed run earned, and the ones new to this wallet. */
+  achievements?: AchId[];
+  newAchievements?: AchId[];
+}
+
+/** A wallet's verified achievements (id -> first earned, ms). null if the server can't be reached. */
+export async function fetchAchievements(player: string): Promise<Partial<Record<AchId, number>> | null> {
+  if (!SERVER_URL) return null;
+  try {
+    const res = await fetch(`${SERVER_URL}/achievements?player=${encodeURIComponent(player)}`);
+    return res.ok ? (((await res.json()) as { earned: Partial<Record<AchId, number>> }).earned) : null;
+  } catch {
+    return null;
+  }
 }
 
 export const serverFinish = (body: { runId: number; secret: string; ticks: number; inputs: Input[] }) =>

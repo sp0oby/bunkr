@@ -7,6 +7,7 @@
 //   GET  /progress?address=0x…                                    -> progress saved to that wallet
 //   POST /progress/link { address, issued, signature }            -> save token (free signature)
 //   POST /progress      { token, meta }                           -> save, merged with what's there
+//   GET  /achievements?player=0x…                                 -> verified achievements, first earned at
 //   GET  /health
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { formatUnits } from 'viem';
@@ -16,7 +17,7 @@ import { HttpError, daySeed, finishRun, startRun, sweepAbandoned } from './runs'
 import { getWeather } from './weather';
 import { getProgress, linkProgress, saveProgress } from './progress';
 import { settleFinishedDays, settleFinishedWeeks } from './settle';
-import { dailyBoard, db } from './store';
+import { achievementsOf, dailyBoard, db } from './store';
 
 const MAX_BODY = 4 * 1024 * 1024;
 
@@ -82,6 +83,11 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/run/start') return send(res, 200, await startRun(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/run/day') return send(res, 200, await daySeed(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/run/finish') return send(res, 200, await finishRun(await readJson(req)));
+    if (req.method === 'GET' && url.pathname === '/achievements') {
+      const player = url.searchParams.get('player') ?? '';
+      if (!/^0x[0-9a-fA-F]{40}$/.test(player)) throw new HttpError(400, 'Bad player address.');
+      return send(res, 200, { player: player.toLowerCase(), earned: achievementsOf(player) });
+    }
     if (req.method === 'GET' && url.pathname === '/progress') return send(res, 200, getProgress(url.searchParams.get('address')));
     if (req.method === 'POST' && url.pathname === '/progress/link') return send(res, 200, await linkProgress(await readJson(req)));
     if (req.method === 'POST' && url.pathname === '/progress') return send(res, 200, saveProgress(await readJson(req)));

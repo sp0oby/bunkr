@@ -14,6 +14,7 @@ import { PnlModal } from './PnlCard';
 import { Tutorial } from './Tutorial';
 import { CALM_ART, blastArt, preload } from './preload';
 import type { FinishReply } from '../chain/server';
+import { ACH_BY_ID, type AchId } from '../sim/achievements';
 
 export type Drawer = 'degens' | 'bags' | 'log' | null;
 
@@ -28,6 +29,8 @@ export interface UiState {
   inspectBag: BagId | null;
   /** What the finished run earned (set once the run is banked). */
   rewards: RunRewards | null;
+  /** Achievements the finished run earned, and which of them are new to this browser. */
+  ach?: { earned: AchId[]; fresh: AchId[] };
   /** The results server's verdict on a ticketed run. Absent for Tent Mode and offline play. */
   verdict?: { state: 'pending' } | { state: 'ok'; reply: FinishReply } | { state: 'error'; error: string };
   verify?: () => void;
@@ -1061,6 +1064,21 @@ function End({ game, ui }: { game: Game; ui: UiState }) {
           </tbody>
         </table>
         {ui.verdict && <Verdict ui={ui} />}
+        {ui.ach && ui.ach.earned.length > 0 && (
+          <div class="end-ach">
+            {ui.ach.earned.map((id) => {
+              const fresh = ui.ach!.fresh.includes(id);
+              const verified = ui.verdict?.state === 'ok' && (ui.verdict.reply.achievements ?? []).includes(id);
+              return (
+                <span key={id} class={`ach-chip ${fresh ? 'fresh' : ''}`} title={ACH_BY_ID[id].desc}>
+                  {fresh && <i>NEW</i>}
+                  {ACH_BY_ID[id].name}
+                  {verified && <b class="ach-ok" title="Verified by the results server">✓</b>}
+                </span>
+              );
+            })}
+          </div>
+        )}
         {e.daily && ui.verdict?.state === 'ok' && <DailyEndBoard />}
         {e.tent && (
           <div class="end-tent">

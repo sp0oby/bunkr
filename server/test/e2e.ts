@@ -9,6 +9,7 @@ import { foundry } from 'viem/chains';
 import { forgeAbi, stockForgeAbi, ticketsAbi, tokenAbi } from '../../src/chain/abi';
 import { FORGE_ORDER, LOADOUT_SLOTS } from '../../src/chain/constants';
 import { Game } from '../../src/sim/game';
+import { earnedBy } from '../../src/sim/achievements';
 import type { RunConfig } from '../../src/sim/types';
 
 const API = 'http://localhost:8787';
@@ -111,6 +112,12 @@ async function main() {
     check(wrong.status === 403, `${name}: someone without the secret can't submit`);
     const fin = await api('/run/finish', { runId: start.json.runId, secret: t.secret, ticks: g.tick, inputs: g.inputs });
     check(fin.status === 200 && fin.json.score === g.ending!.score, `${name}: server replay matches (${fin.json.score}, ${fin.json.title})`);
+    const mine = earnedBy(g);
+    check(JSON.stringify(fin.json.achievements) === JSON.stringify(mine), `${name}: server verified the same achievements [${mine.join(', ')}]`);
+    const record = await api(`/achievements?player=${p.account.address}`);
+    check(record.status === 200 && mine.every((id) => record.json.earned[id] > 0), `${name}: they're on the wallet's record`);
+    const resend = await api('/run/finish', { runId: start.json.runId, secret: t.secret, ticks: g.tick, inputs: g.inputs });
+    check(JSON.stringify(resend.json.newAchievements) === JSON.stringify(fin.json.newAchievements), `${name}: asking twice doesn't change what's new`);
     results[name] = fin.json.score;
   }
   const dupe = await enter(bob, true).then(() => false).catch(() => true);
